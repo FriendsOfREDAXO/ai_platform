@@ -11,13 +11,12 @@
 
 namespace Symfony\Component\Serializer\Normalizer;
 
-use Symfony\Component\PropertyAccess\Exception\InvalidArgumentException as PropertyAccessInvalidArgumentException;
-use Symfony\Component\PropertyAccess\Exception\InvalidTypeException;
 use Symfony\Component\PropertyAccess\Exception\NoSuchIndexException;
 use Symfony\Component\PropertyAccess\Exception\NoSuchPropertyException;
 use Symfony\Component\PropertyAccess\Exception\UninitializedPropertyException;
 use Symfony\Component\PropertyAccess\PropertyAccess;
 use Symfony\Component\PropertyInfo\PropertyTypeExtractorInterface;
+use Symfony\Component\PropertyInfo\Type as LegacyType;
 use Symfony\Component\Serializer\Encoder\CsvEncoder;
 use Symfony\Component\Serializer\Encoder\JsonEncoder;
 use Symfony\Component\Serializer\Encoder\XmlEncoder;
@@ -42,6 +41,7 @@ use Symfony\Component\TypeInfo\Type\NullableType;
 use Symfony\Component\TypeInfo\Type\ObjectType;
 use Symfony\Component\TypeInfo\Type\UnionType;
 use Symfony\Component\TypeInfo\Type\WrappingTypeInterface;
+use Symfony\Component\TypeInfo\TypeContext\TypeContextFactory;
 use Symfony\Component\TypeInfo\TypeIdentifier;
 use Symfony\Component\TypeInfo\TypeResolver\ReflectionTypeResolver;
 
@@ -122,7 +122,7 @@ abstract class AbstractObjectNormalizer extends AbstractNormalizer
     protected ?ClassDiscriminatorResolverInterface $classDiscriminatorResolver;
 
     /**
-     * @var array<string, Type|false>
+     * @var array<string, Type|list<LegacyType>|false>
      */
     private array $typeCache = [];
     private array $attributesCache = [];
@@ -197,8 +197,8 @@ abstract class AbstractObjectNormalizer extends AbstractNormalizer
                 $attributeValue = $attribute === $this->classDiscriminatorResolver?->getMappingForMappedObject($data)?->getTypeProperty()
                     ? $this->classDiscriminatorResolver?->getTypeForMappedObject($data)
                     : $this->getAttributeValue($data, $attribute, $format, $attributeContext);
-            } catch (UninitializedPropertyException|\Error $e) {
-                if (($context[self::SKIP_UNINITIALIZED_VALUES] ?? $this->defaultContext[self::SKIP_UNINITIALIZED_VALUES] ?? true) && $this->isUninitializedValueError($e)) {
+            } catch (UninitializedPropertyException $e) {
+                if ($context[self::SKIP_UNINITIALIZED_VALUES] ?? $this->defaultContext[self::SKIP_UNINITIALIZED_VALUES] ?? true) {
                     continue;
                 }
                 throw $e;
@@ -290,6 +290,8 @@ abstract class AbstractObjectNormalizer extends AbstractNormalizer
 
     /**
      * Gets the attribute value.
+     *
+     * @throws UninitializedPropertyException When the attribute exists but is not initialized on the object
      */
     abstract protected function getAttributeValue(object $object, string $attribute, ?string $format = null, array $context = []): mixed;
 
@@ -308,7 +310,7 @@ abstract class AbstractObjectNormalizer extends AbstractNormalizer
 
         $this->validateCallbackContext($context);
 
-        if (null === $data && isset($context['value_type']) && $context['value_type'] instanceof Type && $context['value_type']->isNullable()) {
+        if (null === $data && isset($context['value_type']) && ($context['value_type'] instanceof Type || $context['value_type'] instanceof LegacyType) && $context['value_type']->isNullable()) {
             return null;
         }
 
@@ -378,8 +380,8 @@ abstract class AbstractObjectNormalizer extends AbstractNormalizer
                         ? $discriminatorMapping
                         : $this->getAttributeValue($object, $attribute, $format, $attributeContext);
                 } catch (NoSuchPropertyException) {
-                } catch (UninitializedPropertyException|\Error $e) {
-                    if (!(($context[self::SKIP_UNINITIALIZED_VALUES] ?? $this->defaultContext[self::SKIP_UNINITIALIZED_VALUES] ?? true) && $this->isUninitializedValueError($e))) {
+                } catch (UninitializedPropertyException $e) {
+                    if (!($context[self::SKIP_UNINITIALIZED_VALUES] ?? $this->defaultContext[self::SKIP_UNINITIALIZED_VALUES] ?? true)) {
                         throw $e;
                     }
                 }
@@ -387,7 +389,13 @@ abstract class AbstractObjectNormalizer extends AbstractNormalizer
 
             if (null !== $type = $this->getType($resolvedClass, $attribute)) {
                 try {
-                    $value = $this->validateAndDenormalize($type, $resolvedClass, $attribute, $value, $format, $attributeContext);
+                    // BC layer for PropertyTypeExtractorInterface::getTypes().
+                    // Can be removed as soon as PropertyTypeExtractorInterface::getTypes() is removed (8.0).
+                    if (\is_array($type)) {
+                        $value = $this->validateAndDenormalizeLegacy($type, $resolvedClass, $attribute, $value, $format, $attributeContext);
+                    } else {
+                        $value = $this->validateAndDenormalize($type, $resolvedClass, $attribute, $value, $format, $attributeContext);
+                    }
                 } catch (NotNormalizableValueException $exception) {
                     if (isset($context['not_normalizable_value_exceptions'])) {
                         $context['not_normalizable_value_exceptions'][] = $exception;
@@ -401,16 +409,7 @@ abstract class AbstractObjectNormalizer extends AbstractNormalizer
 
             try {
                 $this->setAttributeValue($object, $attribute, $value, $format, $attributeContext);
-            } catch (PropertyAccessInvalidArgumentException $e) {
-                $exception = NotNormalizableValueException::createForUnexpectedDataType(
-                    \sprintf('Failed to denormalize attribute "%s" value for class "%s": '.$e->getMessage(), $attribute, $resolvedClass),
-                    $data,
-                    $e instanceof InvalidTypeException ? [$e->expectedType] : ['unknown'],
-                    $attributeContext['deserialization_path'] ?? null,
-                    false,
-                    $e->getCode(),
-                    $e
-                );
+            } catch (NotNormalizableValueException $exception) {
                 if (isset($context['not_normalizable_value_exceptions'])) {
                     $context['not_normalizable_value_exceptions'][] = $exception;
                     continue;
@@ -426,7 +425,244 @@ abstract class AbstractObjectNormalizer extends AbstractNormalizer
         return $object;
     }
 
+    /**
+     * @throws NotNormalizableValueException When the value cannot be assigned to the attribute (e.g. type mismatch)
+     */
     abstract protected function setAttributeValue(object $object, string $attribute, mixed $value, ?string $format = null, array $context = []): void;
+
+    /**
+     * Validates the submitted data and denormalizes it.
+     *
+     * BC layer for PropertyTypeExtractorInterface::getTypes().
+     * Can be removed as soon as PropertyTypeExtractorInterface::getTypes() is removed (8.0).
+     *
+     * @param LegacyType[] $types
+     *
+     * @throws NotNormalizableValueException
+     * @throws ExtraAttributesException
+     * @throws MissingConstructorArgumentsException
+     * @throws LogicException
+     */
+    private function validateAndDenormalizeLegacy(array $types, string $currentClass, string $attribute, mixed $data, ?string $format, array $context): mixed
+    {
+        $expectedTypes = [];
+        $isUnionType = \count($types) > 1;
+        $e = null;
+        $extraAttributesException = null;
+        $missingConstructorArgumentsException = null;
+        $isNullable = false;
+        foreach ($types as $type) {
+            if (null === $data && $type->isNullable()) {
+                return null;
+            }
+
+            $collectionValueType = $type->isCollection() ? $type->getCollectionValueTypes()[0] ?? null : null;
+
+            // Fix a collection that contains the only one element
+            // This is special to xml format only
+            if ('xml' === $format && null !== $collectionValueType && (!\is_array($data) || !\is_int(key($data)))) {
+                $data = [$data];
+            }
+
+            // This try-catch should cover all NotNormalizableValueException (and all return branches after the first
+            // exception) so we could try denormalizing all types of an union type. If the target type is not an union
+            // type, we will just re-throw the caught exception.
+            // In the case of no denormalization succeeds with an union type, it will fall back to the default exception
+            // with the acceptable types list.
+            try {
+                // In XML and CSV all basic datatypes are represented as strings, it is e.g. not possible to determine,
+                // if a value is meant to be a string, float, int or a boolean value from the serialized representation.
+                // That's why we have to transform the values, if one of these non-string basic datatypes is expected.
+                $builtinType = $type->getBuiltinType();
+                if (\is_string($data) && (XmlEncoder::FORMAT === $format || CsvEncoder::FORMAT === $format)) {
+                    if ('' === $data) {
+                        if (LegacyType::BUILTIN_TYPE_ARRAY === $builtinType) {
+                            return [];
+                        }
+
+                        if (LegacyType::BUILTIN_TYPE_STRING === $builtinType) {
+                            return '';
+                        }
+
+                        // Don't return null yet because Object-types that come first may accept empty-string too
+                        $isNullable = $isNullable ?: $type->isNullable();
+                    }
+
+                    switch ($builtinType) {
+                        case LegacyType::BUILTIN_TYPE_BOOL:
+                            // according to https://www.w3.org/TR/xmlschema-2/#boolean, valid representations are "false", "true", "0" and "1"
+                            if ('false' === $data || '0' === $data) {
+                                $data = false;
+                            } elseif ('true' === $data || '1' === $data) {
+                                $data = true;
+                            } else {
+                                throw NotNormalizableValueException::createForUnexpectedDataType(\sprintf('The type of the "%s" attribute for class "%s" must be bool ("%s" given).', $attribute, $currentClass, $data), $data, [LegacyType::BUILTIN_TYPE_BOOL], $context['deserialization_path'] ?? null);
+                            }
+                            break;
+                        case LegacyType::BUILTIN_TYPE_INT:
+                            if (ctype_digit(isset($data[0]) && '-' === $data[0] ? substr($data, 1) : $data)) {
+                                $data = (int) $data;
+                            } else {
+                                throw NotNormalizableValueException::createForUnexpectedDataType(\sprintf('The type of the "%s" attribute for class "%s" must be int ("%s" given).', $attribute, $currentClass, $data), $data, [LegacyType::BUILTIN_TYPE_INT], $context['deserialization_path'] ?? null);
+                            }
+                            break;
+                        case LegacyType::BUILTIN_TYPE_FLOAT:
+                            if (is_numeric($data)) {
+                                return (float) $data;
+                            }
+
+                            return match ($data) {
+                                'NaN' => \NAN,
+                                'INF' => \INF,
+                                '-INF' => -\INF,
+                                default => throw NotNormalizableValueException::createForUnexpectedDataType(\sprintf('The type of the "%s" attribute for class "%s" must be float ("%s" given).', $attribute, $currentClass, $data), $data, [LegacyType::BUILTIN_TYPE_FLOAT], $context['deserialization_path'] ?? null),
+                            };
+                    }
+                }
+
+                if (is_numeric($data) && XmlEncoder::FORMAT === $format) {
+                    // encoder parsed them wrong, so they might need to be transformed back
+                    switch ($builtinType) {
+                        case LegacyType::BUILTIN_TYPE_STRING:
+                            return (string) $data;
+                        case LegacyType::BUILTIN_TYPE_FLOAT:
+                            return (float) $data;
+                        case LegacyType::BUILTIN_TYPE_INT:
+                            return (int) $data;
+                    }
+                }
+
+                if (null !== $collectionValueType && LegacyType::BUILTIN_TYPE_OBJECT === $collectionValueType->getBuiltinType()) {
+                    $builtinType = LegacyType::BUILTIN_TYPE_OBJECT;
+                    $class = $collectionValueType->getClassName().'[]';
+
+                    if ($collectionKeyType = $type->getCollectionKeyTypes()) {
+                        $context['key_type'] = \count($collectionKeyType) > 1 ? $collectionKeyType : $collectionKeyType[0];
+                    }
+
+                    $context['value_type'] = $collectionValueType;
+                } elseif ($type->isCollection() && ($collectionValueType = $type->getCollectionValueTypes()) && LegacyType::BUILTIN_TYPE_ARRAY === $collectionValueType[0]->getBuiltinType()) {
+                    // get inner type for any nested array
+                    [$innerType] = $collectionValueType;
+
+                    // note that it will break for any other builtinType
+                    $dimensions = '[]';
+                    while ($innerType->getCollectionValueTypes() && LegacyType::BUILTIN_TYPE_ARRAY === $innerType->getBuiltinType()) {
+                        $dimensions .= '[]';
+                        [$innerType] = $innerType->getCollectionValueTypes();
+                    }
+
+                    if (null !== $innerType->getClassName()) {
+                        // the builtinType is the inner one and the class is the class followed by []...[]
+                        $builtinType = $innerType->getBuiltinType();
+                        $class = $innerType->getClassName().$dimensions;
+
+                        if ($collectionKeyType = $type->getCollectionKeyTypes()) {
+                            $context['key_type'] = \count($collectionKeyType) > 1 ? $collectionKeyType : $collectionKeyType[0];
+                        }
+
+                        $context['value_type'] = $collectionValueType[0];
+                    } else {
+                        // default fallback (keep it as array)
+                        $builtinType = $type->getBuiltinType();
+                        $class = $type->getClassName();
+                    }
+                } else {
+                    $builtinType = $type->getBuiltinType();
+                    $class = $type->getClassName();
+                }
+
+                $expectedTypes[LegacyType::BUILTIN_TYPE_OBJECT === $builtinType && $class ? $class : $builtinType] = true;
+
+                if (LegacyType::BUILTIN_TYPE_OBJECT === $builtinType && null !== $class) {
+                    if (!$this->serializer instanceof DenormalizerInterface) {
+                        throw new LogicException(\sprintf('Cannot denormalize attribute "%s" for class "%s" because injected serializer is not a denormalizer.', $attribute, $class));
+                    }
+
+                    $childContext = $this->createChildContext($context, $attribute, $format);
+                    if ($this->serializer->supportsDenormalization($data, $class, $format, $childContext)) {
+                        return $this->serializer->denormalize($data, $class, $format, $childContext);
+                    }
+                }
+
+                // JSON only has a Number type corresponding to both int and float PHP types.
+                // PHP's json_encode, JavaScript's JSON.stringify, Go's json.Marshal as well as most other JSON encoders convert
+                // floating-point numbers like 12.0 to 12 (the decimal part is dropped when possible).
+                // PHP's json_decode automatically converts Numbers without a decimal part to integers.
+                // To circumvent this behavior, integers are converted to floats when denormalizing JSON based formats and when
+                // a float is expected.
+                if (LegacyType::BUILTIN_TYPE_FLOAT === $builtinType && \is_int($data) && null !== $format && str_contains($format, JsonEncoder::FORMAT)) {
+                    return (float) $data;
+                }
+
+                if (LegacyType::BUILTIN_TYPE_BOOL === $builtinType && (\is_string($data) || \is_int($data)) && ($context[self::FILTER_BOOL] ?? false)) {
+                    return filter_var($data, \FILTER_VALIDATE_BOOL, \FILTER_NULL_ON_FAILURE);
+                }
+
+                if ((LegacyType::BUILTIN_TYPE_FALSE === $builtinType && false === $data) || (LegacyType::BUILTIN_TYPE_TRUE === $builtinType && true === $data)) {
+                    return $data;
+                }
+
+                switch ($builtinType) {
+                    case LegacyType::BUILTIN_TYPE_ARRAY:
+                    case LegacyType::BUILTIN_TYPE_BOOL:
+                    case LegacyType::BUILTIN_TYPE_CALLABLE:
+                    case LegacyType::BUILTIN_TYPE_FLOAT:
+                    case LegacyType::BUILTIN_TYPE_INT:
+                    case LegacyType::BUILTIN_TYPE_ITERABLE:
+                    case LegacyType::BUILTIN_TYPE_NULL:
+                    case LegacyType::BUILTIN_TYPE_OBJECT:
+                    case LegacyType::BUILTIN_TYPE_RESOURCE:
+                    case LegacyType::BUILTIN_TYPE_STRING:
+                        if (('is_'.$builtinType)($data)) {
+                            return $data;
+                        }
+
+                        break;
+                }
+            } catch (NotNormalizableValueException|InvalidArgumentException $e) {
+                if (!$isUnionType && !$isNullable) {
+                    throw $e;
+                }
+
+                $expectedTypes[LegacyType::BUILTIN_TYPE_OBJECT === $builtinType && $class ? $class : $builtinType] = true;
+            } catch (ExtraAttributesException $e) {
+                if (!$isUnionType && !$isNullable) {
+                    throw $e;
+                }
+
+                $extraAttributesException ??= $e;
+            } catch (MissingConstructorArgumentsException $e) {
+                if (!$isUnionType && !$isNullable) {
+                    throw $e;
+                }
+
+                $missingConstructorArgumentsException ??= $e;
+            }
+        }
+
+        if ($isNullable) {
+            return null;
+        }
+
+        if ($extraAttributesException) {
+            throw $extraAttributesException;
+        }
+
+        if ($missingConstructorArgumentsException) {
+            throw $missingConstructorArgumentsException;
+        }
+
+        if (!$isUnionType && $e) {
+            throw $e;
+        }
+
+        if ($context[self::DISABLE_TYPE_ENFORCEMENT] ?? $this->defaultContext[self::DISABLE_TYPE_ENFORCEMENT] ?? false) {
+            return $data;
+        }
+
+        throw NotNormalizableValueException::createForUnexpectedDataType(\sprintf('The type of the "%s" attribute for class "%s" must be one of "%s" ("%s" given).', $attribute, $currentClass, implode('", "', array_keys($expectedTypes)), get_debug_type($data)), $data, array_keys($expectedTypes), $context['deserialization_path'] ?? $attribute);
+    }
 
     /**
      * Validates the submitted data and denormalizes it.
@@ -439,6 +675,13 @@ abstract class AbstractObjectNormalizer extends AbstractNormalizer
     private function validateAndDenormalize(Type $type, string $currentClass, string $attribute, mixed $data, ?string $format, array $context): mixed
     {
         $expectedTypes = [];
+
+        // BC layer for type-info < 7.2
+        if (method_exists(Type::class, 'asNonNullable')) {
+            $isUnionType = $type->asNonNullable() instanceof UnionType;
+        } else {
+            $isUnionType = $type instanceof UnionType;
+        }
 
         $e = null;
         $extraAttributesException = null;
@@ -461,14 +704,23 @@ abstract class AbstractObjectNormalizer extends AbstractNormalizer
                 $collectionValueType = $t->getCollectionValueType();
             }
 
-            while ($t instanceof WrappingTypeInterface) {
-                $t = $t->getWrappedType();
+            // BC layer for type-info < 7.2
+            if (method_exists(Type::class, 'getBaseType')) {
+                $t = $t->getBaseType();
+            } else {
+                while ($t instanceof WrappingTypeInterface) {
+                    $t = $t->getWrappedType();
+                }
             }
 
             // Fix a collection that contains the only one element
             // This is special to xml format only
-            if ('xml' === $format && $collectionValueType && (!\is_array($data) || !\is_int(key($data))) && !$collectionValueType->isIdentifiedBy(TypeIdentifier::MIXED)) {
-                $data = [$data];
+            if ('xml' === $format && $collectionValueType && (!\is_array($data) || !\is_int(key($data)))) {
+                // BC layer for type-info < 7.2
+                $isMixedType = method_exists(Type::class, 'isA') ? $collectionValueType->isA(TypeIdentifier::MIXED) : $collectionValueType->isIdentifiedBy(TypeIdentifier::MIXED);
+                if (!$isMixedType) {
+                    $data = [$data];
+                }
             }
 
             // This try-catch should cover all NotNormalizableValueException (and all return branches after the first
@@ -536,10 +788,17 @@ abstract class AbstractObjectNormalizer extends AbstractNormalizer
                     }
                 }
 
-                if ($collectionValueBaseType = $collectionValueType) {
+                if ($collectionValueType) {
                     try {
-                        while ($collectionValueBaseType instanceof WrappingTypeInterface) {
-                            $collectionValueBaseType = $collectionValueBaseType->getWrappedType();
+                        $collectionValueBaseType = $collectionValueType;
+
+                        // BC layer for type-info < 7.2
+                        if (!interface_exists(WrappingTypeInterface::class)) {
+                            $collectionValueBaseType = $collectionValueType->getBaseType();
+                        } else {
+                            while ($collectionValueBaseType instanceof WrappingTypeInterface) {
+                                $collectionValueBaseType = $collectionValueBaseType->getWrappedType();
+                            }
                         }
                     } catch (TypeInfoLogicException) {
                         $collectionValueBaseType = Type::mixed();
@@ -550,7 +809,11 @@ abstract class AbstractObjectNormalizer extends AbstractNormalizer
                         $class = $collectionValueBaseType->getClassName().'[]';
                         $context['key_type'] = $collectionKeyType;
                         $context['value_type'] = $collectionValueType;
-                    } elseif ($collectionValueBaseType instanceof BuiltinType && TypeIdentifier::ARRAY === $collectionValueBaseType->getTypeIdentifier()) {
+                    } elseif (
+                        // BC layer for type-info < 7.2
+                        !class_exists(NullableType::class) && TypeIdentifier::ARRAY === $collectionValueBaseType->getTypeIdentifier()
+                        || $collectionValueBaseType instanceof BuiltinType && TypeIdentifier::ARRAY === $collectionValueBaseType->getTypeIdentifier()
+                    ) {
                         // get inner type for any nested array
                         $innerType = $collectionValueType;
                         if ($innerType instanceof NullableType) {
@@ -575,6 +838,8 @@ abstract class AbstractObjectNormalizer extends AbstractNormalizer
                             // the builtinType is the inner one and the class is the class followed by []...[]
                             $typeIdentifier = TypeIdentifier::OBJECT;
                             $class = $innerType->getClassName().$dimensions;
+                            $context['key_type'] = $collectionKeyType;
+                            $context['value_type'] = $collectionValueType;
                         } else {
                             // default fallback (keep it as array)
                             if ($t instanceof ObjectType) {
@@ -682,8 +947,15 @@ abstract class AbstractObjectNormalizer extends AbstractNormalizer
             throw $missingConstructorArgumentsException;
         }
 
-        if ($e && !($type instanceof UnionType && !$type instanceof NullableType)) {
-            throw $e;
+        // BC layer for type-info < 7.2
+        if (!class_exists(NullableType::class)) {
+            if (!$isUnionType && $e) {
+                throw $e;
+            }
+        } else {
+            if ($e && !($type instanceof UnionType && !$type instanceof NullableType)) {
+                throw $e;
+            }
         }
 
         if ($context[self::DISABLE_TYPE_ENFORCEMENT] ?? $this->defaultContext[self::DISABLE_TYPE_ENFORCEMENT] ?? false) {
@@ -702,13 +974,58 @@ abstract class AbstractObjectNormalizer extends AbstractNormalizer
             return parent::denormalizeParameter($class, $parameter, $parameterName, $parameterData, $context, $format);
         }
 
+        // BC layer for PropertyTypeExtractorInterface::getTypes().
+        // Can be removed as soon as PropertyTypeExtractorInterface::getTypes() is removed (8.0).
+        if (\is_array($type)) {
+            if (($parameterType = $parameter->getType()) instanceof \ReflectionNamedType && 'mixed' !== $parameterType->getName()) {
+                $matches = false;
+
+                if ($parameterType->isBuiltin()) {
+                    foreach ($type as $legacyType) {
+                        if ($parameterType->getName() === $legacyType->getBuiltinType()) {
+                            $matches = true;
+                            break;
+                        }
+                    }
+
+                    if (!$matches) {
+                        $type = [new LegacyType($parameterType->getName(), $parameter->allowsNull())];
+                    }
+                } else {
+                    $parameterTypeName = match ($parameterType->getName()) {
+                        'self' => $parameter->getDeclaringClass()?->name ?? $class->name,
+                        'parent' => $parameter->getDeclaringClass()?->getParentClass()?->name ?? $parameterType->getName(),
+                        'static' => $class->name,
+                        default => $parameterType->getName(),
+                    };
+
+                    foreach ($type as $legacyType) {
+                        if (LegacyType::BUILTIN_TYPE_OBJECT === $legacyType->getBuiltinType() && $parameterTypeName === $legacyType->getClassName()) {
+                            $matches = true;
+                            break;
+                        }
+                    }
+
+                    if (!$matches) {
+                        $type = [new LegacyType(LegacyType::BUILTIN_TYPE_OBJECT, $parameter->allowsNull(), $parameterTypeName)];
+                    }
+                }
+            }
+
+            $parameterData = $this->validateAndDenormalizeLegacy($type, $class->getName(), $parameterName, $parameterData, $format, $context);
+            $parameterData = $this->applyCallbacks($parameterData, $class->getName(), $parameterName, $format, $context);
+
+            return $this->applyFilterBool($parameter, $parameterData, $context);
+        }
+
         $parameterType = $parameter->getType();
         static $parameterTypeResolver;
+        static $parameterTypeContextFactory;
 
         if (null !== $parameterType && $parameterTypeResolver ??= class_exists(ReflectionTypeResolver::class) ? new ReflectionTypeResolver() : false) {
-            $resolvedParameterType = $parameterTypeResolver->resolve($parameterType);
+            $resolvedParameterType = $parameterTypeResolver->resolve($parameterType, ($parameterTypeContextFactory ??= new TypeContextFactory())->createFromClassName($class->name, $parameter->getDeclaringClass()?->name));
             if ($resolvedParameterType->isSatisfiedBy(static fn (Type $t) => match (true) {
-                $t instanceof BuiltinType && TypeIdentifier::NULL !== $t->getTypeIdentifier() => !$type->isIdentifiedBy($t->getTypeIdentifier()),
+                $t instanceof BuiltinType && !\in_array($t->getTypeIdentifier(), [TypeIdentifier::NULL, TypeIdentifier::MIXED], true) => !$type->isIdentifiedBy($t->getTypeIdentifier()),
                 $t instanceof ObjectType => !$type->isIdentifiedBy($t->getClassName()),
                 default => false,
             })) {
@@ -718,7 +1035,7 @@ abstract class AbstractObjectNormalizer extends AbstractNormalizer
             if ($parameterType->isBuiltin()) {
                 $typeIdentifier = TypeIdentifier::tryFrom($parameterType->getName());
 
-                if (null !== $typeIdentifier && !$type->isIdentifiedBy($typeIdentifier)) {
+                if (null !== $typeIdentifier && TypeIdentifier::MIXED !== $typeIdentifier && !$type->isIdentifiedBy($typeIdentifier)) {
                     $type = Type::builtin($typeIdentifier);
                 }
             } elseif (!$type->isIdentifiedBy($parameterType->getName())) {
@@ -735,7 +1052,10 @@ abstract class AbstractObjectNormalizer extends AbstractNormalizer
         return $this->applyFilterBool($parameter, $parameterData, $context);
     }
 
-    private function getType(string $currentClass, string $attribute): ?Type
+    /**
+     * @return Type|list<LegacyType>|null
+     */
+    private function getType(string $currentClass, string $attribute): Type|array|null
     {
         if (null === $this->propertyTypeExtractor) {
             return null;
@@ -746,7 +1066,7 @@ abstract class AbstractObjectNormalizer extends AbstractNormalizer
             return false === $this->typeCache[$key] ? null : $this->typeCache[$key];
         }
 
-        if (null !== $type = $this->propertyTypeExtractor->getType($currentClass, $attribute)) {
+        if (null !== $type = $this->getPropertyType($currentClass, $attribute)) {
             return $this->typeCache[$key] = $type;
         }
 
@@ -756,7 +1076,7 @@ abstract class AbstractObjectNormalizer extends AbstractNormalizer
             }
 
             foreach ($discriminatorMapping->getTypesMapping() as $mappedClass) {
-                if (null !== $type = $this->propertyTypeExtractor->getType($mappedClass, $attribute)) {
+                if (null !== $type = $this->getPropertyType($mappedClass, $attribute)) {
                     return $this->typeCache[$key] = $type;
                 }
             }
@@ -765,6 +1085,21 @@ abstract class AbstractObjectNormalizer extends AbstractNormalizer
         $this->typeCache[$key] = false;
 
         return null;
+    }
+
+    /**
+     * BC layer for PropertyTypeExtractorInterface::getTypes().
+     * Can be removed as soon as PropertyTypeExtractorInterface::getTypes() is removed (8.0).
+     *
+     * @return Type|list<LegacyType>|null
+     */
+    private function getPropertyType(string $className, string $property): Type|array|null
+    {
+        if (class_exists(Type::class) && method_exists($this->propertyTypeExtractor, 'getType')) {
+            return $this->propertyTypeExtractor->getType($className, $property);
+        }
+
+        return $this->propertyTypeExtractor->getTypes($className, $property);
     }
 
     /**
@@ -890,17 +1225,6 @@ abstract class AbstractObjectNormalizer extends AbstractNormalizer
             // The context cannot be serialized, skip the cache
             return false;
         }
-    }
-
-    /**
-     * This error may occur when specific object normalizer implementation gets attribute value
-     * by accessing a public uninitialized property or by calling a method accessing such property.
-     */
-    private function isUninitializedValueError(\Error|UninitializedPropertyException $e): bool
-    {
-        return $e instanceof UninitializedPropertyException
-            || str_starts_with($e->getMessage(), 'Typed property')
-            && str_ends_with($e->getMessage(), 'must not be accessed before initialization');
     }
 
     /**

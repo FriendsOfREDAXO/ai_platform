@@ -15,5 +15,10 @@
     },
     "autoload": {
         "classmap": ["lib/"]
+    },
+    "config": {
+        "platform": {
+            "php": "8.2.0"
+        }
     }
 }

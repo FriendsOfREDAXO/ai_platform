@@ -14,7 +14,7 @@ namespace Symfony\Component\Serializer\Mapping;
 /**
  * @author Kévin Dunglas <dunglas@gmail.com>
  *
- * @final
+ * @final since Symfony 7.4
  */
 class ClassMetadata implements ClassMetadataInterface
 {
@@ -75,12 +75,17 @@ class ClassMetadata implements ClassMetadataInterface
         $this->classDiscriminatorMapping = $mapping;
     }
 
-    public function __serialize(): array
+    /**
+     * @internal since Symfony 7.4, will be replaced by `__serialize()` in 8.0
+     *
+     * @final since Symfony 7.4, will be replaced by `__serialize()` in 8.0
+     */
+    public function __sleep(): array
     {
         return [
-            'name' => $this->name,
-            'attributesMetadata' => $this->attributesMetadata,
-            'classDiscriminatorMapping' => $this->classDiscriminatorMapping,
+            'name',
+            'attributesMetadata',
+            'classDiscriminatorMapping',
         ];
     }
 }
