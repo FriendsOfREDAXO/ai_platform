@@ -1,0 +1,28 @@
+package: ai_platform
+version: '1.0.0-beta1'
+author: REDAXO Community
+supportpage: https://github.com/redaxo/redaxo
+
+page:
+    title: 'translate:ai_platform_title'
+    perm: admin[]
+    icon: rex-icon fa-brain
+    block: system
+    subpages:
+        profiles:
+            title: 'translate:ai_platform_profiles'
+            icon: rex-icon fa-key
+        settings:
+            title: 'translate:ai_platform_settings'
+            icon: rex-icon fa-cogs
+        mcp:
+            title: 'translate:ai_platform_mcp'
+            icon: rex-icon fa-plug
+        docs:
+            title: 'translate:ai_platform_docs'
+            icon: rex-icon fa-book
+
+requires:
+    redaxo: '>=5.18'
+    php:
+        version: '>=8.2'

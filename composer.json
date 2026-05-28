@@ -1,0 +1,19 @@
+{
+    "name": "redaxo/ai-platform",
+    "description": "REDAXO AI Platform - LLM Integration with Symfony AI",
+    "type": "redaxo-addon",
+    "license": "MIT",
+    "require": {
+        "php": ">=8.2",
+        "symfony/ai-platform": "^0.6",
+        "symfony/ai-agent": "^0.6",
+        "symfony/ai-open-ai-platform": "^0.6",
+        "symfony/ai-anthropic-platform": "^0.6",
+        "symfony/ai-gemini-platform": "^0.6",
+        "symfony/ai-ollama-platform": "^0.6",
+        "symfony/http-client": "^6.4|^7.0"
+    },
+    "autoload": {
+        "classmap": ["lib/"]
+    }
+}

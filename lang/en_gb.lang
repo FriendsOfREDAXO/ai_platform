@@ -1,0 +1,89 @@
+ai_platform_title = AI Platform
+ai_platform_profiles = Profiles
+ai_platform_settings = Settings
+ai_platform_mcp = MCP Server
+ai_platform_docs = Documentation
+
+# Types
+ai_platform_type = Type
+ai_platform_type_text = Text / Code
+ai_platform_type_image_generation = Image Generation
+ai_platform_type_image_understanding = Image Understanding
+
+# Profiles
+ai_platform_profile_add = Add Profile
+ai_platform_profile_edit = Edit Profile
+ai_platform_profile_name = Profile Name
+ai_platform_profile_name_notice = Unique name for this profile, e.g. "Claude Sonnet Text" or "DALL-E Images"
+ai_platform_provider = Provider
+ai_platform_please_select = --- Please select ---
+ai_platform_default = Default
+ai_platform_api_key = API Key
+ai_platform_api_key_notice = The provider's API key. Not required for Ollama.
+ai_platform_base_url = Base URL
+ai_platform_base_url_notice = Only required for Ollama (default: http://localhost:11434)
+ai_platform_model = Model
+ai_platform_model_notice = Provider model name, e.g. gpt-4o, claude-sonnet-4-20250514, gemini-2.5-flash, dall-e-3
+
+# Type-specific settings
+ai_platform_temperature = Temperature
+ai_platform_temperature_notice = Creativity of responses (0 = deterministic, 1 = default, 2 = very creative). Leave empty for provider default.
+ai_platform_max_tokens = Max Tokens
+ai_platform_max_tokens_notice = Maximum response length in tokens. Leave empty for provider default.
+ai_platform_system_prompt = System Prompt
+ai_platform_system_prompt_notice = Default instruction for the model, e.g. "You are a helpful assistant for a German-language website." Can be overridden per API call.
+ai_platform_image_size = Image Size
+ai_platform_image_size_notice = Size of the generated image.
+ai_platform_image_quality = Image Quality
+ai_platform_image_quality_notice = HD produces more detailed images but costs more.
+ai_platform_image_style = Image Style
+ai_platform_image_style_notice = Vivid produces more vibrant images, Natural produces more realistic images.
+ai_platform_detail_level = Detail Level
+ai_platform_detail_level_notice = How detailed the image analysis should be. High costs more tokens.
+
+ai_platform_status = Status
+ai_platform_status_active = Active
+ai_platform_status_inactive = Inactive
+ai_platform_delete = Delete
+ai_platform_actions = Actions
+ai_platform_delete_confirm = Do you really want to delete this profile?
+ai_platform_profile_deleted = Profile has been deleted.
+ai_platform_save = Save
+ai_platform_settings_saved = Settings have been saved.
+
+# Test
+ai_platform_test_title = Test Connection
+ai_platform_test_connection = Test API Connection
+ai_platform_test_running = Testing...
+ai_platform_test_success = Connection successful! API key and model are working.
+ai_platform_test_failed = Connection failed!
+ai_platform_test_no_model = No model configured. Please enter a model and save first.
+
+# Settings
+ai_platform_default_models = Default Profiles
+ai_platform_default_text = Text / Code (Default)
+ai_platform_default_text_notice = Profile used by default for text generation.
+ai_platform_default_image_generation = Image Generation (Default)
+ai_platform_default_image_generation_notice = Profile used by default for image generation.
+ai_platform_default_image_understanding = Image Understanding (Default)
+ai_platform_default_image_understanding_notice = Profile used by default for image analysis.
+
+# MCP
+ai_platform_mcp_settings = MCP Server Settings
+ai_platform_mcp_enabled = MCP Server Active
+ai_platform_mcp_description = Server Description
+ai_platform_mcp_description_notice = This description is sent as instructions to MCP clients. Describe what this server is for and what data this REDAXO instance manages.
+ai_platform_mcp_endpoint = Endpoint URL
+ai_platform_mcp_endpoint_notice = This URL can be configured in MCP clients (e.g. Claude Desktop, Cursor) as an HTTP endpoint.
+ai_platform_mcp_token = Authentication Token
+ai_platform_mcp_token_notice = This token is used as a Bearer token for authentication. Send header: Authorization: Bearer {token}
+ai_platform_mcp_regenerate_token = Regenerate
+ai_platform_mcp_token_regenerated = Token has been regenerated.
+ai_platform_mcp_registered_tools = Registered Tools
+ai_platform_mcp_tool_name = Tool Name
+ai_platform_mcp_tool_description = Description
+ai_platform_mcp_no_tools = No tools registered yet. Other addons can provide tools via the "AI_PLATFORM_MCP_TOOLS" extension point.
+ai_platform_mcp_example = Example: Register a Tool
+ai_platform_mcp_client_config = Integration with Claude Desktop / Cursor
+ai_platform_mcp_client_intro = HTTP-based MCP servers are connected via <code>mcp-remote</code> as a proxy. Install it first:
+ai_platform_mcp_client_hint = The configuration with the current URL and token can be copied directly. For local servers without a valid SSL certificate, <code>NODE_TLS_REJECT_UNAUTHORIZED=0</code> is required. For public servers with valid certificates, the <code>env</code> block can be removed. See documentation for details.

@@ -1,0 +1,369 @@
+<?php
+
+declare(strict_types=1);
+
+use Symfony\AI\Platform\PlatformInterface;
+use Symfony\AI\Platform\Bridge\OpenAi\PlatformFactory as OpenAiFactory;
+use Symfony\AI\Platform\Bridge\Anthropic\PlatformFactory as AnthropicFactory;
+use Symfony\AI\Platform\Bridge\Gemini\PlatformFactory as GeminiFactory;
+use Symfony\AI\Platform\Bridge\Ollama\PlatformFactory as OllamaFactory;
+use Symfony\AI\Platform\Message\Message;
+use Symfony\AI\Platform\Message\MessageBag;
+use Symfony\AI\Platform\Message\Content\Image;
+use Symfony\AI\Platform\Message\Content\ImageUrl;
+use Symfony\AI\Agent\Agent;
+use Symfony\AI\Agent\Toolbox\AgentProcessor;
+use Symfony\AI\Agent\Toolbox\Toolbox;
+
+class rex_ai_platform_service
+{
+    private static ?self $instance = null;
+
+    /** @var array<int, array<string, mixed>> */
+    private array $profileCache = [];
+
+    /** @var array<int, PlatformInterface> */
+    private array $platformCache = [];
+
+    private function __construct()
+    {
+    }
+
+    public static function getInstance(): self
+    {
+        if (null === self::$instance) {
+            self::$instance = new self();
+        }
+        return self::$instance;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function getTypes(): array
+    {
+        return [
+            'text' => rex_i18n::msg('ai_platform_type_text'),
+            'image_generation' => rex_i18n::msg('ai_platform_type_image_generation'),
+            'image_understanding' => rex_i18n::msg('ai_platform_type_image_understanding'),
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function getProviders(): array
+    {
+        return [
+            'openai' => 'OpenAI (GPT, DALL-E)',
+            'anthropic' => 'Anthropic (Claude)',
+            'google' => 'Google (Gemini)',
+            'ollama' => 'Ollama (Lokal)',
+        ];
+    }
+
+    /**
+     * Get suggested models for a given provider and type.
+     *
+     * @return list<string>
+     */
+    public static function getModelSuggestions(string $provider, string $type): array
+    {
+        $models = match ($provider) {
+            'openai' => [
+                'text' => ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'o1', 'o1-mini', 'o3-mini'],
+                'image_generation' => ['dall-e-3', 'dall-e-2', 'gpt-image-1'],
+                'image_understanding' => ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'],
+            ],
+            'anthropic' => [
+                'text' => ['claude-sonnet-4-20250514', 'claude-opus-4-20250514', 'claude-3-5-haiku-latest', 'claude-3-7-sonnet-latest'],
+                'image_generation' => [],
+                'image_understanding' => ['claude-sonnet-4-20250514', 'claude-opus-4-20250514', 'claude-3-7-sonnet-latest'],
+            ],
+            'google' => [
+                'text' => ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash'],
+                'image_generation' => ['gemini-2.0-flash-exp'],
+                'image_understanding' => ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash'],
+            ],
+            'ollama' => [
+                'text' => ['llama3.1', 'llama3.2', 'mistral', 'codellama', 'deepseek-r1'],
+                'image_generation' => [],
+                'image_understanding' => ['llava', 'llama3.2-vision'],
+            ],
+            default => ['text' => [], 'image_generation' => [], 'image_understanding' => []],
+        };
+
+        return $models[$type] ?? [];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function getProfile(int $id): ?array
+    {
+        if (isset($this->profileCache[$id])) {
+            return $this->profileCache[$id];
+        }
+
+        $sql = rex_sql::factory();
+        $sql->setQuery('SELECT * FROM ' . rex::getTable('ai_profile') . ' WHERE id = ? AND status = 1', [$id]);
+
+        if (0 === $sql->getRows()) {
+            return null;
+        }
+
+        $profile = [];
+        foreach ($sql->getFieldnames() as $field) {
+            $profile[$field] = $sql->getValue($field);
+        }
+        $profile['id'] = (int) $profile['id'];
+
+        $this->profileCache[$id] = $profile;
+        return $profile;
+    }
+
+    /**
+     * Get all active profiles, optionally filtered by type.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function getProfiles(?string $type = null): array
+    {
+        $query = 'SELECT * FROM ' . rex::getTable('ai_profile') . ' WHERE status = 1';
+        $params = [];
+        if (null !== $type) {
+            $query .= ' AND type = ?';
+            $params[] = $type;
+        }
+        $query .= ' ORDER BY type, name';
+
+        $sql = rex_sql::factory();
+        $sql->setQuery($query, $params);
+
+        $profiles = [];
+        foreach ($sql as $row) {
+            $profile = [];
+            foreach ($row->getFieldnames() as $field) {
+                $profile[$field] = $row->getValue($field);
+            }
+            $profile['id'] = (int) $profile['id'];
+            $profiles[] = $profile;
+        }
+
+        return $profiles;
+    }
+
+    /**
+     * Create a Symfony AI Platform instance for a given profile.
+     */
+    public function getPlatform(int $profileId): PlatformInterface
+    {
+        if (isset($this->platformCache[$profileId])) {
+            return $this->platformCache[$profileId];
+        }
+
+        $profile = $this->getProfile($profileId);
+        if (null === $profile) {
+            throw new rex_exception('AI profile not found: ' . $profileId);
+        }
+
+        $platform = match ($profile['provider']) {
+            'openai' => OpenAiFactory::create($profile['api_key']),
+            'anthropic' => AnthropicFactory::create($profile['api_key']),
+            'google' => GeminiFactory::create($profile['api_key']),
+            'ollama' => OllamaFactory::create(
+                $profile['base_url'] ?: 'http://localhost:11434',
+            ),
+            default => throw new rex_exception('Unknown AI provider: ' . $profile['provider']),
+        };
+
+        $this->platformCache[$profileId] = $platform;
+        return $platform;
+    }
+
+    /**
+     * Get the default platform for a specific use case.
+     */
+    public function getDefaultPlatform(string $type): PlatformInterface
+    {
+        $profileId = (int) rex_config::get('ai_platform', 'default_' . $type . '_profile', 0);
+        if (0 === $profileId) {
+            throw new rex_exception('No default AI profile configured for: ' . $type);
+        }
+        return $this->getPlatform($profileId);
+    }
+
+    /**
+     * Get the default model name for a specific use case.
+     */
+    public function getDefaultModel(string $type): string
+    {
+        $profileId = (int) rex_config::get('ai_platform', 'default_' . $type . '_profile', 0);
+        $profile = $this->getProfile($profileId);
+        if (null === $profile) {
+            throw new rex_exception('No default AI profile configured for: ' . $type);
+        }
+        return $profile['model'] ?? '';
+    }
+
+    /**
+     * Get the default profile for a specific use case.
+     *
+     * @return array<string, mixed>
+     */
+    public function getDefaultProfile(string $type): array
+    {
+        $profileId = (int) rex_config::get('ai_platform', 'default_' . $type . '_profile', 0);
+        $profile = $this->getProfile($profileId);
+        if (null === $profile) {
+            throw new rex_exception('No default AI profile configured for: ' . $type);
+        }
+        return $profile;
+    }
+
+    /**
+     * Build options array from a profile for platform invoke.
+     *
+     * @return array<string, mixed>
+     */
+    public function getProfileOptions(int $profileId): array
+    {
+        $profile = $this->getProfile($profileId);
+        if (null === $profile) {
+            return [];
+        }
+
+        $options = [];
+        $provider = $profile['provider'] ?? '';
+        $type = $profile['type'] ?? 'text';
+
+        // Text + Image Understanding options
+        if ('text' === $type || 'image_understanding' === $type) {
+            if ('' !== ($profile['temperature'] ?? '')) {
+                $options['temperature'] = (float) $profile['temperature'];
+            }
+            if ('' !== ($profile['max_tokens'] ?? '') && (int) $profile['max_tokens'] > 0) {
+                // OpenAI Responses API uses 'max_output_tokens', others use 'max_tokens'
+                $key = 'openai' === $provider ? 'max_output_tokens' : 'max_tokens';
+                $options[$key] = (int) $profile['max_tokens'];
+            }
+        }
+
+        // Image Generation options
+        if ('image_generation' === $type) {
+            if ('' !== ($profile['image_size'] ?? '')) {
+                $options['size'] = $profile['image_size'];
+            }
+            if ('' !== ($profile['image_quality'] ?? '')) {
+                $options['quality'] = $profile['image_quality'];
+            }
+            if ('' !== ($profile['image_style'] ?? '')) {
+                $options['style'] = $profile['image_style'];
+            }
+        }
+
+        return $options;
+    }
+
+    /**
+     * Simple text completion helper.
+     */
+    public function generateText(string $prompt, ?string $systemPrompt = null, ?int $profileId = null): string
+    {
+        if (null === $profileId) {
+            $profile = $this->getDefaultProfile('text');
+            $profileId = $profile['id'];
+        } else {
+            $profile = $this->getProfile($profileId);
+        }
+
+        $platform = $this->getPlatform($profileId);
+        $model = $profile['model'];
+        $options = $this->getProfileOptions($profileId);
+
+        $messages = [];
+        // Use profile system prompt if no explicit one given
+        $sysPrompt = $systemPrompt ?? ($profile['system_prompt'] ?? '');
+        if ('' !== $sysPrompt) {
+            $messages[] = Message::forSystem($sysPrompt);
+        }
+        $messages[] = Message::ofUser($prompt);
+
+        $result = $platform->invoke($model, new MessageBag(...$messages), $options);
+        return $result->asText();
+    }
+
+    /**
+     * Image understanding helper.
+     */
+    public function understandImage(string $prompt, string $imagePath, ?int $profileId = null): string
+    {
+        if (null === $profileId) {
+            $profile = $this->getDefaultProfile('image_understanding');
+            $profileId = $profile['id'];
+        } else {
+            $profile = $this->getProfile($profileId);
+        }
+
+        $platform = $this->getPlatform($profileId);
+        $model = $profile['model'];
+        $options = $this->getProfileOptions($profileId);
+
+        $messages = new MessageBag(
+            Message::ofUser($prompt, Image::fromFile($imagePath)),
+        );
+
+        $result = $platform->invoke($model, $messages, $options);
+        return $result->asText();
+    }
+
+    /**
+     * Image generation helper.
+     */
+    public function generateImage(string $prompt, ?int $profileId = null): string
+    {
+        if (null === $profileId) {
+            $profile = $this->getDefaultProfile('image_generation');
+            $profileId = $profile['id'];
+        } else {
+            $profile = $this->getProfile($profileId);
+        }
+
+        $platform = $this->getPlatform($profileId);
+        $model = $profile['model'];
+        $options = $this->getProfileOptions($profileId);
+        $options['response_format'] = 'url';
+
+        $result = $platform->invoke($model, $prompt, $options);
+        return $result->asText();
+    }
+
+    /**
+     * Create an Agent with tool support.
+     *
+     * @param array<object> $additionalTools
+     */
+    public function createAgent(string $type = 'text', array $additionalTools = [], ?int $profileId = null): Agent
+    {
+        if (null === $profileId) {
+            $profile = $this->getDefaultProfile($type);
+            $profileId = $profile['id'];
+        } else {
+            $profile = $this->getProfile($profileId);
+        }
+
+        $platform = $this->getPlatform($profileId);
+        $model = $profile['model'];
+
+        $tools = rex_extension::registerPoint(new rex_extension_point(
+            'AI_PLATFORM_AGENT_TOOLS',
+            $additionalTools,
+            ['type' => $type],
+        ));
+
+        $toolbox = new Toolbox($tools);
+        $processor = new AgentProcessor($toolbox);
+
+        return new Agent($platform, $model, [$processor], [$processor]);
+    }
+}
