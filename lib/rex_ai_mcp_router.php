@@ -94,7 +94,7 @@ final class rex_ai_mcp_router
         header('Content-Type: application/json');
         http_response_code(200);
 
-        $base = rtrim(rex::getServer(), '/');
+        $base = self::baseUrl();
         echo json_encode([
             'resource' => $base . self::MCP_PATH,
             'authorization_servers' => [$base . '/'],
@@ -110,7 +110,7 @@ final class rex_ai_mcp_router
         header('Content-Type: application/json');
         http_response_code(200);
 
-        $base = rtrim(rex::getServer(), '/');
+        $base = self::baseUrl();
         echo json_encode([
             'issuer' => $base . '/',
             'authorization_endpoint' => $base . '/oauth/authorize',
@@ -122,6 +122,50 @@ final class rex_ai_mcp_router
             'token_endpoint_auth_methods_supported' => ['none', 'client_secret_post'],
         ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
         exit;
+    }
+
+    /**
+     * Builds the base URL that backs OAuth discovery / redirect URIs.
+     *
+     * rex::getServer() reflects the static REDAXO config and can be wrong
+     * (e.g. http://… while the site is actually reachable over HTTPS).
+     * That breaks OAuth flows because clients refuse mixed-scheme redirects.
+     * We derive the scheme from the actual request, falling back to the
+     * configured value when no request signal is available.
+     */
+    public static function baseUrl(): string
+    {
+        $configured = rtrim(rex::getServer(), '/');
+        $scheme = self::detectScheme();
+        if (null === $scheme) {
+            return $configured;
+        }
+
+        $parts = parse_url($configured);
+        if (false === $parts || !isset($parts['host'])) {
+            return $configured;
+        }
+
+        $port = isset($parts['port']) ? ':' . $parts['port'] : '';
+        return $scheme . '://' . $parts['host'] . $port;
+    }
+
+    private static function detectScheme(): ?string
+    {
+        if (!empty($_SERVER['HTTPS']) && 'off' !== strtolower((string) $_SERVER['HTTPS'])) {
+            return 'https';
+        }
+        $forwarded = $_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '';
+        if ('' !== $forwarded) {
+            $first = trim(explode(',', $forwarded)[0]);
+            if ('https' === strtolower($first) || 'http' === strtolower($first)) {
+                return strtolower($first);
+            }
+        }
+        if (($_SERVER['SERVER_PORT'] ?? '') === '443') {
+            return 'https';
+        }
+        return null;
     }
 
     private static function dispatchOauthNotYetImplemented(string $path): never
