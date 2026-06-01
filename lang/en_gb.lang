@@ -70,6 +70,7 @@ ai_platform_default_image_understanding_notice = Profile used by default for ima
 
 # MCP
 ai_platform_mcp_settings = MCP Server Settings
+ai_platform_mcp_settings_sub = Settings
 ai_platform_mcp_enabled = MCP Server Active
 ai_platform_mcp_description = Server Description
 ai_platform_mcp_description_notice = This description is sent as instructions to MCP clients. Describe what this server is for and what data this REDAXO instance manages.

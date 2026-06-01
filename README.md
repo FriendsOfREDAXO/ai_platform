@@ -8,9 +8,11 @@ Die **AI Platform** ist das zentrale AddOn fuer die Integration von KI-Diensten 
 - Pro Profil ein Typ (Text/Code, Bildgenerierung, Bildverstaendnis) mit typspezifischen Einstellungen
 - Automatische Modell-Vorauswahl je nach Provider und Typ
 - API-Verbindungstest direkt im Backend
-- MCP-Server (Model Context Protocol) als HTTP-Endpoint mit konfigurierbarer Beschreibung
-- Eingebautes `redaxo_status` MCP-Tool (Systeminfos der REDAXO-Instanz)
-- Extension Points fuer andere AddOns (MCP-Tools, Agent-Tools)
+- MCP-Server (Model Context Protocol) als HTTP-Endpoint auf `/mcp` mit OAuth-2.1-Discovery
+- OAuth-2.1-Autorisierung mit PKCE + Refresh Tokens + Dynamic Client Registration, YCom als Identity-Provider
+- Scope-System mit Mapping `YCom-Gruppe → Scopes` ueber das Backend
+- Eingebautes `redaxo_status` MCP-Tool (Systeminfos der REDAXO-Instanz, public)
+- Extension Points fuer andere AddOns (MCP-Tools, Agent-Tools, eigene Scopes)
 - Basiert auf [Symfony AI](https://symfony.com/ai) (v0.6)
 
 ## Unterstuetzte Provider
@@ -200,11 +202,19 @@ Das AddOn stellt einen MCP-Server (Model Context Protocol) als HTTP-Endpoint ber
 
 ### MCP-Server aktivieren
 
-1. **AI Platform > MCP Server** oeffnen
+1. **AI Platform > MCP Server > Einstellungen** oeffnen
 2. **MCP Server aktiv** auf "Aktiv" setzen
 3. Optional: **Server-Beschreibung** eintragen - diese wird als `instructions` an MCP-Clients gesendet und beschreibt, wofuer der Server gedacht ist und welche Daten die REDAXO-Instanz verwaltet
 4. **Speichern**
 5. Den angezeigten **Endpoint-URL** notieren
+
+Das Untermenue **MCP Server** ist im Backend in drei Tabs gegliedert:
+
+| Tab | Inhalt |
+|---|---|
+| **Einstellungen** | MCP aktivieren, Server-Beschreibung, Discovery-URLs, Liste der registrierten Tools mit Auth-Status |
+| **OAuth-Clients** | Liste aller (manuell oder via DCR) registrierten OAuth-Clients, Anlegen + Loeschen |
+| **Scope-Mapping** | Welche Scopes bekommen Nutzer aufgrund ihrer YCom-Gruppenmitgliedschaft |
 
 ### Endpoint-Pfade
 
@@ -229,11 +239,48 @@ Auth-Modi:
 - **Public Tools** (`public: true`) — ohne Authentifizierung aufrufbar. Das eingebaute `redaxo_status` Tool ist als public markiert, damit Monitoring-Tools und Discovery ohne Account funktionieren.
 - **Geschuetzte Tools** — erfordern einen gueltigen OAuth-2.1-Access-Token mit den deklarierten Scopes.
 
-Beim Aufruf eines geschuetzten Tools ohne Token antwortet der Server mit HTTP `401` und sendet einen `WWW-Authenticate`-Header, der MCP-Clients auf die Discovery-URL zeigt. Der Client startet daraufhin automatisch den OAuth-Flow.
+Der OAuth-2.1-Stack laeuft komplett ueber Standard-Pfade:
 
-Der OAuth-2.1-Stack (Authorization Code + PKCE + Refresh Tokens + Dynamic Client Registration, YCom als Identity-Provider, Scopes ueber YCom-Gruppen) befindet sich in Phase 2 der Implementierung. Solange dieser nicht ausgerollt ist, sind nur public Tools nutzbar.
+| Pfad | Methode | Zweck |
+|---|---|---|
+| `/.well-known/oauth-protected-resource` | GET | RFC-9728-Discovery (zeigt MCP-Clients auf den Authorization-Server) |
+| `/.well-known/oauth-authorization-server` | GET | RFC-8414-Metadata (issuer, endpoints, supported methods) |
+| `/oauth/authorize` | GET/POST | User-Login (gegen YCom) + Consent-Screen, gibt einen Code mit PKCE-Challenge aus |
+| `/oauth/token` | POST | `authorization_code`-Exchange + `refresh_token`-Rotation |
+| `/oauth/register` | POST | Dynamic Client Registration (RFC 7591, auto-approve fuer public clients) |
 
-> **Breaking Change ab 1.0.0-beta2:** Der frueher in `rex_config` hinterlegte feste Bearer-Token wurde entfernt. Bestehende Claude-Desktop- / Cursor-Setups, die diesen Token nutzen, muessen die `--header`-Zeile aus ihrer Config streichen und auf den OAuth-Flow warten bzw. nur public Tools aufrufen.
+Beim Aufruf eines geschuetzten Tools ohne / mit ungueltigem Token antwortet `/mcp` mit HTTP `401` und einem RFC-6750-konformen Header:
+
+```
+WWW-Authenticate: Bearer realm="MCP", resource="https://example.org/.well-known/oauth-protected-resource", error="invalid_token", ...
+```
+
+`mcp-remote` und andere MCP-Clients folgen automatisch der Discovery-URL und starten den OAuth-Flow. Im Browser-Fenster meldet sich der Nutzer mit YCom-Credentials an und sieht einen Consent-Screen mit den effektiven Scopes (Schnittmenge aus angefragten Scopes und Gruppen-Mapping). Nach Zustimmung wird `mcp-remote` automatisch zurueckgeleitet, tauscht den Code mit PKCE-Verifier gegen ein Access+Refresh-Token-Paar ein und legt es lokal ab.
+
+> **Breaking Change ab 1.0.0-beta2:** Der frueher in `rex_config` hinterlegte feste Bearer-Token wurde entfernt. Bestehende Claude-Desktop- / Cursor-Setups, die diesen Token nutzen, muessen die `--header`-Zeile aus ihrer Config streichen — `mcp-remote` uebernimmt die OAuth-Negotiation jetzt selbststaendig.
+
+### OAuth-Setup im Backend
+
+Empfohlener Ablauf, wenn der MCP-Server in Produktion gehen soll:
+
+1. **Gruppe(n) in YCom anlegen.** Die normale YCom-Gruppen-Verwaltung. Beispielsweise eine Gruppe `mcp-users` fuer Standard-Zugriff.
+2. **Scopes pro Gruppe vergeben** unter **AI Platform > MCP Server > Scope-Mapping**. Pro YCom-Gruppe Checkboxen fuer alle bekannten Scopes (eingebaut: `mcp:tools:read`, `mcp:tools:call`; weitere koennen Drittaddons ueber den Extension Point `AI_PLATFORM_OAUTH_SCOPES` registrieren).
+3. **YCom-Nutzer in die Gruppe(n) eintragen** ueber die YCom-User-Verwaltung.
+4. **OAuth-Client anlegen** unter **AI Platform > MCP Server > OAuth-Clients**, falls eine feste Client-Definition gewuenscht ist. Alternativ koennen MCP-Clients sich via DCR (`POST /oauth/register`) selbst registrieren — `mcp-remote` macht das automatisch beim ersten Verbindungsaufbau.
+   - **public client** (PKCE only): geeignet fuer mcp-remote, Cursor, Claude Desktop. Kein Secret.
+   - **confidential client** (client_secret): geeignet fuer Server-zu-Server-Setups. Das Secret wird nur einmal nach dem Anlegen angezeigt.
+5. **Test mit curl** (oder direkt mit `mcp-remote`):
+   ```bash
+   # Discovery
+   curl -s https://example.org/.well-known/oauth-protected-resource
+
+   # Public Tool ohne Auth
+   curl -s -X POST https://example.org/mcp \
+       -H "Content-Type: application/json" \
+       -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"redaxo_status","arguments":{}}}'
+   ```
+
+Geschuetzte Tools koennen erst genutzt werden, sobald ein User per OAuth eingeloggt hat. Im Browser geht das ueber den Login-Screen unter `/oauth/authorize`, automatisierte Tests muessen den Flow durchspielen (siehe `.claude/tests/oauth-authorize-test.sh` im Repo als Referenz).
 
 ### Eingebautes Tool: redaxo_status
 
@@ -368,7 +415,7 @@ curl -X POST "https://deine-domain.de/mcp" \
     }'
 ```
 
-Anonyme Aufrufer sehen nur Tools, die als `public: true` markiert sind. Geschuetzte Tools antworten beim Aufruf mit `401` plus `WWW-Authenticate`-Header, der den Client zum OAuth-Flow leitet.
+Anonyme Aufrufer sehen ueber `tools/list` nur Tools, die als `public: true` markiert sind. Geschuetzte Tools antworten beim Aufruf mit `401` plus `WWW-Authenticate`-Header, der den Client auf die OAuth-Discovery zeigt — Standard-Clients wie `mcp-remote` starten daraufhin automatisch den Login-Flow.
 
 ## Tools registrieren (fuer AddOn-Entwickler)
 
@@ -491,6 +538,20 @@ rex_extension::register('AI_PLATFORM_MCP_TOOLS', function (rex_extension_point $
 |---|---|---|
 | `AI_PLATFORM_MCP_TOOLS` | Tools fuer den MCP-Server registrieren | `array<string, rex_ai_mcp_tool>` |
 | `AI_PLATFORM_AGENT_TOOLS` | Tools fuer den Agent registrieren | `array<object>` (Symfony AI Tool-Objekte) |
+| `AI_PLATFORM_OAUTH_SCOPES` | Eigene Scopes fuer das Scope-Mapping ankuendigen | `array<string, string>` (scope → description) |
+
+### Beispiel: Eigene Scopes registrieren
+
+```php
+rex_extension::register('AI_PLATFORM_OAUTH_SCOPES', function (rex_extension_point $ep) {
+    $scopes = $ep->getSubject();
+    $scopes['redaxo:articles:read'] = 'Read REDAXO articles via MCP tools';
+    $scopes['redaxo:articles:write'] = 'Create/update REDAXO articles via MCP tools';
+    return $scopes;
+});
+```
+
+Die so registrierten Scopes erscheinen automatisch im Backend unter **MCP Server > Scope-Mapping** als auswaehlbare Checkboxen.
 
 ## Systemvoraussetzungen
 

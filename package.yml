@@ -1,5 +1,5 @@
 package: ai_platform
-version: '1.0.0-beta2'
+version: '1.0.0-beta3'
 author: REDAXO Community
 supportpage: https://github.com/redaxo/redaxo
 
@@ -18,12 +18,16 @@ page:
         mcp:
             title: 'translate:ai_platform_mcp'
             icon: rex-icon fa-plug
-        oauth-clients:
-            title: 'translate:ai_platform_oauth_clients'
-            icon: rex-icon fa-id-card-o
-        scope-mapping:
-            title: 'translate:ai_platform_scopes'
-            icon: rex-icon fa-shield
+            subpages:
+                settings:
+                    title: 'translate:ai_platform_mcp_settings_sub'
+                    icon: rex-icon fa-cogs
+                oauth-clients:
+                    title: 'translate:ai_platform_oauth_clients'
+                    icon: rex-icon fa-id-card-o
+                scope-mapping:
+                    title: 'translate:ai_platform_scopes'
+                    icon: rex-icon fa-shield
         docs:
             title: 'translate:ai_platform_docs'
             icon: rex-icon fa-book
