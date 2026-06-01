@@ -22,6 +22,7 @@ final class rex_ai_mcp_router
     private const MCP_PATH = '/mcp';
     private const DISCOVERY_PROTECTED_RESOURCE = '/.well-known/oauth-protected-resource';
     private const DISCOVERY_AUTH_SERVER = '/.well-known/oauth-authorization-server';
+    private const OAUTH_TOKEN = '/oauth/token';
     private const OAUTH_PREFIX = '/oauth/';
 
     public static function dispatch(): void
@@ -49,9 +50,29 @@ final class rex_ai_mcp_router
             self::dispatchAuthorizationServerMetadata();
         }
 
+        if (self::OAUTH_TOKEN === $path) {
+            self::dispatchOauthToken($method);
+        }
+
         if (str_starts_with($path, self::OAUTH_PREFIX)) {
             self::dispatchOauthNotYetImplemented($path);
         }
+    }
+
+    private static function dispatchOauthToken(string $method): never
+    {
+        if ('POST' !== $method) {
+            rex_response::cleanOutputBuffers();
+            http_response_code(405);
+            header('Allow: POST');
+            header('Content-Type: application/json');
+            echo json_encode([
+                'error' => 'invalid_request',
+                'error_description' => 'POST required',
+            ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+            exit;
+        }
+        rex_ai_oauth_token_endpoint::dispatch();
     }
 
     private static function currentPath(): ?string

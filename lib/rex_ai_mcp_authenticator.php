@@ -5,9 +5,15 @@ declare(strict_types=1);
 /**
  * Resolves the auth context for an incoming MCP request.
  *
- * Phase 1: stub that always returns an anonymous context. Phase 2 will
- * validate OAuth 2.1 Bearer tokens against rex_ai_oauth_token and resolve
- * the linked YCom user + scopes.
+ * Two outcomes per request:
+ *   1. No Authorization header        → anonymous context (only public
+ *                                       tools callable)
+ *   2. Valid OAuth Bearer token       → authenticated context with the
+ *                                       linked YCom user + scopes
+ *   3. Invalid / expired / revoked    → throws rex_ai_mcp_invalid_token_exception
+ *      Bearer                          which the server converts into a
+ *                                       401 + WWW-Authenticate response
+ *                                       per RFC 6750 §3.1
  */
 final class rex_ai_mcp_authenticator
 {
@@ -18,11 +24,17 @@ final class rex_ai_mcp_authenticator
             return rex_ai_mcp_context::anonymous();
         }
 
-        // Phase 2: look up token in rex_ai_oauth_token, validate, return
-        // an authenticated context with the bound user and scopes.
-        // Until then, an unknown bearer simply downgrades to anonymous so
-        // pre-flight discovery still works.
-        return rex_ai_mcp_context::anonymous();
+        $row = rex_ai_oauth_token_store::findAccessToken($token);
+        if (null === $row) {
+            throw new rex_ai_mcp_invalid_token_exception('Access token is invalid, revoked or expired');
+        }
+
+        return new rex_ai_mcp_context(
+            ycomUserId: (int) $row['ycom_user_id'],
+            scopes: $row['scopes'],
+            authMode: 'oauth',
+            clientId: (string) $row['client_id'],
+        );
     }
 
     /**
@@ -48,10 +60,31 @@ final class rex_ai_mcp_authenticator
     /**
      * Builds the WWW-Authenticate header value that points MCP clients at
      * the OAuth protected-resource discovery endpoint.
+     *
+     * @param string|null $error RFC 6750 §3.1 error code, e.g. "invalid_token"
      */
-    public static function buildChallengeHeader(): string
+    public static function buildChallengeHeader(?string $error = null, ?string $errorDescription = null): string
     {
-        $resource = rex::getServer() . '.well-known/oauth-protected-resource';
-        return sprintf('Bearer realm="MCP", resource="%s"', $resource);
+        $resource = rex_ai_mcp_router::baseUrl() . '/.well-known/oauth-protected-resource';
+        $parts = [
+            'realm="MCP"',
+            'resource="' . $resource . '"',
+        ];
+        if (null !== $error) {
+            $parts[] = 'error="' . $error . '"';
+        }
+        if (null !== $errorDescription) {
+            $parts[] = 'error_description="' . str_replace('"', "'", $errorDescription) . '"';
+        }
+        return 'Bearer ' . implode(', ', $parts);
     }
+}
+
+/**
+ * Thrown by the authenticator when the client sent a Bearer token that
+ * does not resolve to a valid access token. The server catches this and
+ * emits a 401 + WWW-Authenticate response per RFC 6750.
+ */
+final class rex_ai_mcp_invalid_token_exception extends \RuntimeException
+{
 }

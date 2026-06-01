@@ -53,9 +53,8 @@ final class rex_ai_mcp_server
             exit;
         }
 
-        $context = $this->authenticator->authenticate();
-
         try {
+            $context = $this->authenticator->authenticate();
             $result = match ($method) {
                 'initialize' => $this->handleInitialize($params),
                 'tools/list' => $this->handleToolsList($context),
@@ -63,6 +62,8 @@ final class rex_ai_mcp_server
                 'ping' => new \stdClass(),
                 default => null,
             };
+        } catch (rex_ai_mcp_invalid_token_exception $e) {
+            $this->sendAuthChallenge($id, $e->getMessage(), 'invalid_token');
         } catch (rex_ai_mcp_auth_required_exception $e) {
             $this->sendAuthChallenge($id, $e->getMessage());
         }
@@ -231,12 +232,16 @@ final class rex_ai_mcp_server
 
     /**
      * Sends a 401 response with WWW-Authenticate so MCP clients can start
-     * the OAuth flow against /.well-known/oauth-protected-resource.
+     * (or repeat) the OAuth flow against /.well-known/oauth-protected-resource.
+     *
+     * @param string|null $oauthError Optional RFC 6750 §3.1 error code, e.g.
+     *                                "invalid_token" when the supplied bearer
+     *                                token did not validate.
      */
-    private function sendAuthChallenge(mixed $id, string $message): never
+    private function sendAuthChallenge(mixed $id, string $message, ?string $oauthError = null): never
     {
         header('Content-Type: application/json');
-        header('WWW-Authenticate: ' . rex_ai_mcp_authenticator::buildChallengeHeader());
+        header('WWW-Authenticate: ' . rex_ai_mcp_authenticator::buildChallengeHeader($oauthError, $oauthError !== null ? $message : null));
         http_response_code(401);
 
         echo json_encode([
