@@ -75,15 +75,20 @@ ai_platform_mcp_description = Server Description
 ai_platform_mcp_description_notice = This description is sent as instructions to MCP clients. Describe what this server is for and what data this REDAXO instance manages.
 ai_platform_mcp_endpoint = Endpoint URL
 ai_platform_mcp_endpoint_notice = This URL can be configured in MCP clients (e.g. Claude Desktop, Cursor) as an HTTP endpoint.
-ai_platform_mcp_token = Authentication Token
-ai_platform_mcp_token_notice = This token is used as a Bearer token for authentication. Send header: Authorization: Bearer {token}
-ai_platform_mcp_regenerate_token = Regenerate
-ai_platform_mcp_token_regenerated = Token has been regenerated.
+ai_platform_mcp_discovery = OAuth Discovery
+ai_platform_mcp_discovery_notice = Standard discovery endpoints for MCP clients. They return the metadata clients need to start the OAuth 2.1 flow after a 401 challenge.
+ai_platform_mcp_legacy_endpoint = Legacy endpoint (deprecated)
+ai_platform_mcp_legacy_endpoint_notice = The pre-1.0 endpoint via ?rex-api-call=ai_mcp. Still reachable for backward compatibility, new clients should only use the /mcp path.
+ai_platform_mcp_oauth_phase_title = Authentication: OAuth 2.1 in preparation
+ai_platform_mcp_oauth_phase_notice = The static bearer token has been removed. For now only tools flagged as "public" (e.g. <code>redaxo_status</code>) are reachable without authentication. The OAuth 2.1 flow backed by YCom lands in phase 2 — the discovery endpoints already respond with the skeleton metadata.
 ai_platform_mcp_registered_tools = Registered Tools
 ai_platform_mcp_tool_name = Tool Name
 ai_platform_mcp_tool_description = Description
+ai_platform_mcp_tool_auth = Auth
+ai_platform_mcp_tool_public = public
+ai_platform_mcp_tool_protected = protected
 ai_platform_mcp_no_tools = No tools registered yet. Other addons can provide tools via the "AI_PLATFORM_MCP_TOOLS" extension point.
 ai_platform_mcp_example = Example: Register a Tool
 ai_platform_mcp_client_config = Integration with Claude Desktop / Cursor
 ai_platform_mcp_client_intro = HTTP-based MCP servers are connected via <code>mcp-remote</code> as a proxy. Install it first:
-ai_platform_mcp_client_hint = The configuration with the current URL and token can be copied directly. For local servers without a valid SSL certificate, <code>NODE_TLS_REJECT_UNAUTHORIZED=0</code> is required. For public servers with valid certificates, the <code>env</code> block can be removed. See documentation for details.
+ai_platform_mcp_client_hint = The configuration can be copied directly. As long as only public tools are available no token is needed. For local servers without a valid SSL certificate add <code>NODE_TLS_REJECT_UNAUTHORIZED=0</code> as an <code>env</code> entry.

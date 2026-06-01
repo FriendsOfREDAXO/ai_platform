@@ -38,6 +38,8 @@ if (!rex_config::has('ai_platform', 'default_image_understanding_profile')) {
 if (!rex_config::has('ai_platform', 'mcp_enabled')) {
     rex_config::set('ai_platform', 'mcp_enabled', 0);
 }
-if (!rex_config::has('ai_platform', 'mcp_token')) {
-    rex_config::set('ai_platform', 'mcp_token', bin2hex(random_bytes(32)));
-}
+
+// Cleanup obsolete static bearer token from pre-1.0 installs. Auth now
+// runs through OAuth 2.1 (see rex_ai_mcp_authenticator) — public tools
+// keep working without any token, protected tools require an OAuth flow.
+rex_config::remove('ai_platform', 'mcp_token');

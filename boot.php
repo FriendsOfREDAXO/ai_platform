@@ -10,8 +10,17 @@ if (rex::isBackend() && rex::getUser()) {
     rex_view::addJsFile($addon->getAssetsUrl('profiles.js'));
 }
 
-// Register API endpoint
+// Backward-compat shim for old ?rex-api-call=ai_mcp consumers.
+// The canonical endpoint is /mcp, dispatched by rex_ai_mcp_router below.
 rex_api_function::register('ai_mcp', rex_api_ai_mcp::class);
+
+// Route /mcp, /.well-known/oauth-*, /oauth/* before structure/yrewrite
+// take over the frontend request.
+if (!rex::isBackend()) {
+    rex_extension::register('PACKAGES_INCLUDED', static function (): void {
+        rex_ai_mcp_router::dispatch();
+    });
+}
 
 // Register built-in MCP tools
 rex_extension::register('AI_PLATFORM_MCP_TOOLS', static function (rex_extension_point $ep) {
@@ -24,7 +33,7 @@ rex_extension::register('AI_PLATFORM_MCP_TOOLS', static function (rex_extension_
             'type' => 'object',
             'properties' => new \stdClass(),
         ],
-        handler: static function (array $arguments): string {
+        handler: static function (array $arguments, rex_ai_mcp_context $context): string {
             $sql = rex_sql::factory();
 
             // Article count
@@ -89,6 +98,7 @@ rex_extension::register('AI_PLATFORM_MCP_TOOLS', static function (rex_extension_
 
             return json_encode($status, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         },
+        public: true,
     );
 
     return $tools;

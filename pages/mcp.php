@@ -10,26 +10,21 @@ if ('post' === rex_request::requestMethod() && $csrfToken->isValid()) {
     rex_config::set('ai_platform', 'mcp_enabled', rex_post('mcp_enabled', 'int', 0));
     rex_config::set('ai_platform', 'mcp_description', rex_post('mcp_description', 'string', ''));
 
-    if (rex_post('regenerate_token', 'bool', false)) {
-        rex_config::set('ai_platform', 'mcp_token', bin2hex(random_bytes(32)));
-        echo rex_view::success(rex_i18n::msg('ai_platform_mcp_token_regenerated'));
-    }
-
     echo rex_view::success(rex_i18n::msg('ai_platform_settings_saved'));
 }
 
 $mcpEnabled = (int) rex_config::get('ai_platform', 'mcp_enabled', 0);
-$mcpToken = rex_config::get('ai_platform', 'mcp_token', '');
 $mcpDescription = rex_config::get('ai_platform', 'mcp_description', '');
 
-// Build MCP endpoint URL
-$mcpUrl = rex_url::frontendController(['rex-api-call' => 'ai_mcp'], false);
-if (!str_starts_with($mcpUrl, 'http')) {
-    $mcpUrl = rex::getServer() . ltrim($mcpUrl, '/');
-}
+// Endpoint URLs — canonical /mcp plus the OAuth discovery endpoints
+$base = rtrim(rex::getServer(), '/');
+$mcpUrl = $base . '/mcp';
+$discoveryProtectedResource = $base . '/.well-known/oauth-protected-resource';
+$discoveryAuthServer = $base . '/.well-known/oauth-authorization-server';
+$legacyUrl = $base . '/' . ltrim(rex_url::frontendController(['rex-api-call' => 'ai_mcp'], false), '/');
 
 // Collect registered tools for display
-$tools = rex_extension::registerPoint(new rex_extension_point('AI_PLATFORM_MCP_TOOLS', []));
+$tools = rex_ai_mcp_server::collectTools();
 
 $content = '
 <form action="' . rex_url::currentBackendPage() . '" method="post">
@@ -64,18 +59,21 @@ $content = '
         </div>
 
         <div class="form-group">
-            <label class="control-label col-sm-3">' . rex_i18n::msg('ai_platform_mcp_token') . '</label>
+            <label class="control-label col-sm-3">' . rex_i18n::msg('ai_platform_mcp_discovery') . '</label>
             <div class="col-sm-9">
-                <div class="input-group">
-                    <input type="text" class="form-control" value="' . rex_escape($mcpToken) . '" readonly onclick="this.select()">
-                    <span class="input-group-btn">
-                        <label class="btn btn-default">
-                            <input type="checkbox" name="regenerate_token" value="1" style="display:none">
-                            <i class="rex-icon fa-refresh"></i> ' . rex_i18n::msg('ai_platform_mcp_regenerate_token') . '
-                        </label>
-                    </span>
-                </div>
-                <p class="help-block">' . rex_i18n::msg('ai_platform_mcp_token_notice') . '</p>
+                <p class="form-control-static">
+                    <code>' . rex_escape($discoveryProtectedResource) . '</code><br>
+                    <code>' . rex_escape($discoveryAuthServer) . '</code>
+                </p>
+                <p class="help-block">' . rex_i18n::msg('ai_platform_mcp_discovery_notice') . '</p>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="control-label col-sm-3">' . rex_i18n::msg('ai_platform_mcp_legacy_endpoint') . '</label>
+            <div class="col-sm-9">
+                <p class="form-control-static"><code>' . rex_escape($legacyUrl) . '</code></p>
+                <p class="help-block text-warning">' . rex_i18n::msg('ai_platform_mcp_legacy_endpoint_notice') . '</p>
             </div>
         </div>
     </fieldset>
@@ -95,11 +93,35 @@ $fragment->setVar('title', rex_i18n::msg('ai_platform_mcp_settings'), false);
 $fragment->setVar('body', $content, false);
 echo $fragment->parse('core/page/section.php');
 
-// Show registered tools
+// Phase-1 status banner — make it obvious that OAuth is not wired up yet
+$phaseBanner = '<div class="alert alert-info">'
+    . '<strong>' . rex_i18n::msg('ai_platform_mcp_oauth_phase_title') . '</strong><br>'
+    . rex_i18n::msg('ai_platform_mcp_oauth_phase_notice')
+    . '</div>';
+echo $phaseBanner;
+
+// Show registered tools with their auth requirements
 if (count($tools) > 0) {
-    $toolContent = '<table class="table table-striped"><thead><tr><th>' . rex_i18n::msg('ai_platform_mcp_tool_name') . '</th><th>' . rex_i18n::msg('ai_platform_mcp_tool_description') . '</th></tr></thead><tbody>';
+    $toolContent = '<table class="table table-striped"><thead><tr>'
+        . '<th>' . rex_i18n::msg('ai_platform_mcp_tool_name') . '</th>'
+        . '<th>' . rex_i18n::msg('ai_platform_mcp_tool_description') . '</th>'
+        . '<th>' . rex_i18n::msg('ai_platform_mcp_tool_auth') . '</th>'
+        . '</tr></thead><tbody>';
     foreach ($tools as $tool) {
-        $toolContent .= '<tr><td><code>' . rex_escape($tool->getName()) . '</code></td><td>' . rex_escape($tool->getDescription()) . '</td></tr>';
+        if ($tool->isPublic()) {
+            $authLabel = '<span class="label label-success">' . rex_i18n::msg('ai_platform_mcp_tool_public') . '</span>';
+        } else {
+            $scopes = $tool->getRequiredScopes();
+            $authLabel = '<span class="label label-warning">' . rex_i18n::msg('ai_platform_mcp_tool_protected') . '</span>';
+            if ($scopes) {
+                $authLabel .= ' <code>' . rex_escape(implode(', ', $scopes)) . '</code>';
+            }
+        }
+        $toolContent .= '<tr>'
+            . '<td><code>' . rex_escape($tool->getName()) . '</code></td>'
+            . '<td>' . rex_escape($tool->getDescription()) . '</td>'
+            . '<td>' . $authLabel . '</td>'
+            . '</tr>';
     }
     $toolContent .= '</tbody></table>';
 } else {
@@ -122,16 +144,16 @@ rex_extension::register(\'AI_PLATFORM_MCP_TOOLS\', function (rex_extension_point
         inputSchema: [
             \'type\' => \'object\',
             \'properties\' => [
-                \'query\' => [
-                    \'type\' => \'string\',
-                    \'description\' => \'Suchbegriff\',
-                ],
+                \'query\' => [\'type\' => \'string\', \'description\' => \'Suchbegriff\'],
             ],
             \'required\' => [\'query\'],
         ],
-        handler: function (array $arguments): string {
-            return \'Ergebnis für: \' . $arguments[\'query\'];
+        handler: function (array $arguments, rex_ai_mcp_context $context): string {
+            // $context->getYcomUser() / $context->hasScope(\'...\') verfuegbar
+            return \'Ergebnis fuer: \' . $arguments[\'query\'];
         },
+        public: false,
+        requiredScopes: [\'mcp:tools:call\'],
     );
 
     return $tools;
@@ -153,11 +175,6 @@ $configExample .= '<pre><code>' . rex_escape(json_encode([
             'args' => [
                 'mcp-remote',
                 $mcpUrl,
-                '--header',
-                'Authorization: Bearer ' . $mcpToken,
-            ],
-            'env' => [
-                'NODE_TLS_REJECT_UNAUTHORIZED' => '0',
             ],
         ],
     ],

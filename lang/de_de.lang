@@ -75,15 +75,20 @@ ai_platform_mcp_description = Server-Beschreibung
 ai_platform_mcp_description_notice = Diese Beschreibung wird als Instructions an MCP-Clients gesendet. Beschreibe hier, wofuer dieser Server gedacht ist und welche Daten die REDAXO-Instanz verwaltet.
 ai_platform_mcp_endpoint = Endpoint-URL
 ai_platform_mcp_endpoint_notice = Diese URL kann in MCP-Clients (z.B. Claude Desktop, Cursor) als HTTP-Endpoint eingetragen werden.
-ai_platform_mcp_token = Authentifizierungs-Token
-ai_platform_mcp_token_notice = Dieses Token wird als Bearer-Token zur Authentifizierung verwendet. Senden Sie den Header: Authorization: Bearer {token}
-ai_platform_mcp_regenerate_token = Neu generieren
-ai_platform_mcp_token_regenerated = Token wurde neu generiert.
+ai_platform_mcp_discovery = OAuth Discovery
+ai_platform_mcp_discovery_notice = Standardisierte Discovery-Endpunkte fuer MCP-Clients. Geben Clients beim ersten 401-Response die noetigen Infos, um den OAuth-2.1-Flow zu starten.
+ai_platform_mcp_legacy_endpoint = Legacy-Endpoint (deprecated)
+ai_platform_mcp_legacy_endpoint_notice = Frueherer Endpoint ueber ?rex-api-call=ai_mcp. Bleibt fuer Backward Compatibility erreichbar, neue Clients sollten ausschliesslich den /mcp-Pfad nutzen.
+ai_platform_mcp_oauth_phase_title = Authentifizierung: OAuth 2.1 in Vorbereitung
+ai_platform_mcp_oauth_phase_notice = Der feste Bearer-Token wurde entfernt. Aktuell sind nur als "public" markierte Tools (z.B. <code>redaxo_status</code>) ohne Authentifizierung aufrufbar. Der OAuth-2.1-Flow mit YCom-Anbindung folgt in Phase 2 — die Discovery-Endpunkte sind schon erreichbar und liefern den Skeleton.
 ai_platform_mcp_registered_tools = Registrierte Tools
 ai_platform_mcp_tool_name = Tool-Name
 ai_platform_mcp_tool_description = Beschreibung
+ai_platform_mcp_tool_auth = Auth
+ai_platform_mcp_tool_public = oeffentlich
+ai_platform_mcp_tool_protected = geschuetzt
 ai_platform_mcp_no_tools = Noch keine Tools registriert. Andere AddOns koennen ueber den Extension Point "AI_PLATFORM_MCP_TOOLS" Tools bereitstellen.
 ai_platform_mcp_example = Beispiel: Tool registrieren
 ai_platform_mcp_client_config = Einbindung in Claude Desktop / Cursor
 ai_platform_mcp_client_intro = HTTP-basierte MCP-Server werden ueber <code>mcp-remote</code> als Proxy eingebunden. Installiere zuerst:
-ai_platform_mcp_client_hint = Die Konfiguration mit der aktuellen URL und dem Token kann direkt kopiert werden. Bei lokalen Servern ohne gueltiges SSL-Zertifikat ist <code>NODE_TLS_REJECT_UNAUTHORIZED=0</code> noetig. Fuer oeffentliche Server mit gueltigem Zertifikat kann der <code>env</code>-Block entfernt werden. Details in der Dokumentation.
+ai_platform_mcp_client_hint = Die Konfiguration kann direkt kopiert werden. Solange nur public Tools verfuegbar sind, ist kein Token noetig. Bei lokalen Servern ohne gueltiges SSL-Zertifikat zusaetzlich <code>NODE_TLS_REJECT_UNAUTHORIZED=0</code> als <code>env</code> setzen.

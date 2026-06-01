@@ -69,13 +69,38 @@ The backend form (`pages/profiles.php`) always renders **all** type fields; `ass
 | `mcp_token`                           | Bearer token for the MCP endpoint; generated in `install.php`    |
 | `mcp_description`                     | Sent as `instructions` in MCP `initialize` response              |
 
-### MCP server (`lib/rex_api_ai_mcp.php`)
+### MCP server stack (`lib/rex_ai_mcp_*.php`)
 
-Implements a minimal JSON-RPC 2.0 / Streamable-HTTP MCP server (protocol version `2025-03-26`). Lives behind `rex_api_function::register('ai_mcp', ...)` with `$published = true` so it works without a backend session. Auth is a constant-time bearer-token compare against `ai_platform/mcp_token`. Output buffers are cleaned (`rex_response::cleanOutputBuffers()`) before responding because REDAXO's normal request pipeline buffers HTML output.
+Implements a JSON-RPC 2.0 / Streamable-HTTP MCP server (protocol version `2025-03-26`) plus the MCP authorization layer (OAuth 2.1, planned phase 2). Split across five classes:
 
-**Tools come from a single extension point**: `AI_PLATFORM_MCP_TOOLS` with subject `array<string, rex_ai_mcp_tool>`. Any addon (or this addon's own `boot.php`, which registers `redaxo_status`) pushes new entries keyed by tool name. The list endpoint serialises them with `rex_ai_mcp_tool::toListEntry()`; `tools/call` looks them up by name and calls `execute()`.
+| Class | Responsibility |
+|---|---|
+| `rex_ai_mcp_router` | Matches `REQUEST_URI` against the route table (`/mcp`, `/.well-known/oauth-*`, `/oauth/*`) on the `PACKAGES_INCLUDED` extension point. Always `exit`s on match. |
+| `rex_ai_mcp_server` | JSON-RPC handler: `initialize`, `tools/list`, `tools/call`, `ping`. Calls the authenticator once per request and passes the resulting context to tool handlers. |
+| `rex_ai_mcp_authenticator` | Phase 1: returns an anonymous context for every request. Phase 2: validates OAuth bearer tokens, resolves YCom user + scopes. Also builds the `WWW-Authenticate` challenge header on 401. |
+| `rex_ai_mcp_context` | Value object handed to tool handlers — `getYcomUser()`, `hasScope()`, `getAuthMode()`. Anonymous context for public tools. |
+| `rex_ai_mcp_tool` | Tool definition with `public` flag, `requiredScopes`, and a `(array $arguments, rex_ai_mcp_context $context)` handler signature. |
+
+`rex_api_ai_mcp` still exists but is now a thin deprecated shim that simply delegates to `rex_ai_mcp_server` for clients that still hit `?rex-api-call=ai_mcp`.
+
+**Auth model:**
+
+- Tools declare `public: true` → callable without authentication. `redaxo_status` is the canonical public tool (Monitoring use case).
+- Tools without `public: true` → require an authenticated context. Until OAuth lands in phase 2, every authenticated call returns 401 with `WWW-Authenticate: Bearer realm="MCP", resource="https://<host>/.well-known/oauth-protected-resource"` so MCP clients know where to start the OAuth flow.
+- The static bearer token (`ai_platform/mcp_token` in `rex_config`) was **removed** in 1.0.0-beta2. `install.php` actively deletes the key on (re-)install.
+
+**Tools come from a single extension point**: `AI_PLATFORM_MCP_TOOLS` with subject `array<string, rex_ai_mcp_tool>`. Any addon (or this addon's own `boot.php`, which registers `redaxo_status`) pushes new entries keyed by tool name. `tools/list` filters by `isCallableBy($context)` — anonymous callers only see public tools.
 
 A second extension point, `AI_PLATFORM_AGENT_TOOLS`, feeds `rex_ai_platform_service::createAgent()`. Subjects there are **Symfony AI Tool objects**, not `rex_ai_mcp_tool` — the two systems are intentionally separate because their tool-object shapes differ.
+
+### Routing without rewrites
+
+The router hooks into `PACKAGES_INCLUDED` (frontend only, `!rex::isBackend()`) and matches `REQUEST_URI` against a small path table. This avoids touching the root `.htaccess` but means the router runs on **every** frontend request. The match cost is one `parse_url` + a handful of string comparisons — fine, but keep the route table small.
+
+The router routes:
+- `POST /mcp` → `rex_ai_mcp_server::handle()`
+- `GET /.well-known/oauth-{protected-resource,authorization-server}` → static discovery JSON
+- `GET /oauth/{authorize,token,register}` → 501 (phase 2 stubs)
 
 ### Backend UI (`pages/`)
 

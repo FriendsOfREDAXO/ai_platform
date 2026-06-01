@@ -204,11 +204,40 @@ Das AddOn stellt einen MCP-Server (Model Context Protocol) als HTTP-Endpoint ber
 2. **MCP Server aktiv** auf "Aktiv" setzen
 3. Optional: **Server-Beschreibung** eintragen - diese wird als `instructions` an MCP-Clients gesendet und beschreibt, wofuer der Server gedacht ist und welche Daten die REDAXO-Instanz verwaltet
 4. **Speichern**
-5. Den angezeigten **Endpoint-URL** und **Token** notieren
+5. Den angezeigten **Endpoint-URL** notieren
+
+### Endpoint-Pfade
+
+| Pfad | Zweck |
+|---|---|
+| `POST /mcp` | MCP JSON-RPC Endpoint |
+| `GET /.well-known/oauth-protected-resource` | Discovery: zeigt MCP-Clients auf den Authorization-Server |
+| `GET /.well-known/oauth-authorization-server` | Discovery: OAuth-2.1-Endpunkt-Metadaten |
+| `GET /oauth/{authorize,token,register}` | OAuth-Flow (Phase 2, aktuell `501 Not Implemented`) |
+| `POST /index.php?rex-api-call=ai_mcp` | Deprecated-Legacy-Endpoint, bleibt aus Kompatibilitaetsgruenden erreichbar |
+
+Bei einer lokalen Entwicklungsumgebung z.B.:
+
+```
+https://redaxo.localhost/mcp
+```
+
+### Authentifizierung
+
+Auth-Modi:
+
+- **Public Tools** (`public: true`) — ohne Authentifizierung aufrufbar. Das eingebaute `redaxo_status` Tool ist als public markiert, damit Monitoring-Tools und Discovery ohne Account funktionieren.
+- **Geschuetzte Tools** — erfordern einen gueltigen OAuth-2.1-Access-Token mit den deklarierten Scopes.
+
+Beim Aufruf eines geschuetzten Tools ohne Token antwortet der Server mit HTTP `401` und sendet einen `WWW-Authenticate`-Header, der MCP-Clients auf die Discovery-URL zeigt. Der Client startet daraufhin automatisch den OAuth-Flow.
+
+Der OAuth-2.1-Stack (Authorization Code + PKCE + Refresh Tokens + Dynamic Client Registration, YCom als Identity-Provider, Scopes ueber YCom-Gruppen) befindet sich in Phase 2 der Implementierung. Solange dieser nicht ausgerollt ist, sind nur public Tools nutzbar.
+
+> **Breaking Change ab 1.0.0-beta2:** Der frueher in `rex_config` hinterlegte feste Bearer-Token wurde entfernt. Bestehende Claude-Desktop- / Cursor-Setups, die diesen Token nutzen, muessen die `--header`-Zeile aus ihrer Config streichen und auf den OAuth-Flow warten bzw. nur public Tools aufrufen.
 
 ### Eingebautes Tool: redaxo_status
 
-Das AddOn registriert automatisch das Tool `redaxo_status`, das folgende Informationen ueber die REDAXO-Instanz liefert:
+Das AddOn registriert automatisch das Tool `redaxo_status` (public), das folgende Informationen ueber die REDAXO-Instanz liefert:
 
 - REDAXO-Version, PHP-Version, Datenbank-Version
 - Server-URL und Server-Name
@@ -216,30 +245,6 @@ Das AddOn registriert automatisch das Tool `redaxo_status`, das folgende Informa
 - Anzahl Artikel, Kategorien, Medien, Benutzer
 - Debug- und Safe-Mode Status
 - Liste aller installierten AddOns mit Versionen und Plugins
-
-### Endpoint-URL
-
-Die URL hat folgendes Format:
-
-```
-https://deine-domain.de/index.php?rex-api-call=ai_mcp
-```
-
-Bei einer lokalen Entwicklungsumgebung z.B.:
-
-```
-https://redaxo.localhost/index.php?rex-api-call=ai_mcp
-```
-
-### Authentifizierung
-
-Alle Requests an den MCP-Server muessen einen Bearer-Token im Header senden:
-
-```
-Authorization: Bearer <dein-token>
-```
-
-Der Token wird beim Installieren automatisch generiert und kann auf der MCP-Server-Seite eingesehen und neu generiert werden.
 
 ### Einbindung in Claude Desktop
 
@@ -263,14 +268,14 @@ Dann in der `claude_desktop_config.json`:
             "command": "npx",
             "args": [
                 "mcp-remote",
-                "https://deine-domain.de/index.php?rex-api-call=ai_mcp",
-                "--header",
-                "Authorization: Bearer dein-token-hier"
+                "https://deine-domain.de/mcp"
             ]
         }
     }
 }
 ```
+
+Sobald der OAuth-Flow aktiv ist, oeffnet `mcp-remote` beim ersten Verbindungsaufbau automatisch einen Browser-Tab fuer die YCom-Anmeldung.
 
 #### Lokaler Server (z.B. https://redaxo.localhost)
 
@@ -283,9 +288,7 @@ Bei einem lokalen Server mit selbstsigniertem SSL-Zertifikat muss die Zertifikat
             "command": "npx",
             "args": [
                 "mcp-remote",
-                "https://redaxo.localhost/index.php?rex-api-call=ai_mcp",
-                "--header",
-                "Authorization: Bearer dein-token-hier"
+                "https://redaxo.localhost/mcp"
             ],
             "env": {
                 "NODE_TLS_REJECT_UNAUTHORIZED": "0"
@@ -304,9 +307,7 @@ Bei einem lokalen Server mit selbstsigniertem SSL-Zertifikat muss die Zertifikat
             "command": "npx",
             "args": [
                 "mcp-remote",
-                "http://localhost:8080/index.php?rex-api-call=ai_mcp",
-                "--header",
-                "Authorization: Bearer dein-token-hier"
+                "http://localhost:8080/mcp"
             ]
         }
     }
@@ -324,31 +325,8 @@ In der Cursor-Konfiguration (`.cursor/mcp.json` im Projektverzeichnis):
             "command": "npx",
             "args": [
                 "mcp-remote",
-                "https://deine-domain.de/index.php?rex-api-call=ai_mcp",
-                "--header",
-                "Authorization: Bearer dein-token-hier"
+                "https://deine-domain.de/mcp"
             ]
-        }
-    }
-}
-```
-
-Fuer lokale Server mit selbstsigniertem Zertifikat:
-
-```json
-{
-    "mcpServers": {
-        "redaxo": {
-            "command": "npx",
-            "args": [
-                "mcp-remote",
-                "https://redaxo.localhost/index.php?rex-api-call=ai_mcp",
-                "--header",
-                "Authorization: Bearer dein-token-hier"
-            ],
-            "env": {
-                "NODE_TLS_REJECT_UNAUTHORIZED": "0"
-            }
         }
     }
 }
@@ -357,19 +335,13 @@ Fuer lokale Server mit selbstsigniertem Zertifikat:
 ### Einbindung in Claude Code (CLI)
 
 ```bash
-claude mcp add redaxo \
-    -- npx mcp-remote \
-    "https://deine-domain.de/index.php?rex-api-call=ai_mcp" \
-    --header "Authorization: Bearer dein-token-hier"
+claude mcp add redaxo -- npx mcp-remote "https://deine-domain.de/mcp"
 ```
 
-Fuer lokale Server:
+Fuer lokale Server mit selbstsigniertem Zertifikat:
 
 ```bash
-NODE_TLS_REJECT_UNAUTHORIZED=0 claude mcp add redaxo \
-    -- npx mcp-remote \
-    "https://redaxo.localhost/index.php?rex-api-call=ai_mcp" \
-    --header "Authorization: Bearer dein-token-hier"
+NODE_TLS_REJECT_UNAUTHORIZED=0 claude mcp add redaxo -- npx mcp-remote "https://redaxo.localhost/mcp"
 ```
 
 ### MCP-Protokoll
@@ -386,9 +358,8 @@ Der Server implementiert das MCP-Protokoll (JSON-RPC 2.0) mit folgenden Methoden
 #### Beispiel-Request
 
 ```bash
-curl -X POST "https://deine-domain.de/index.php?rex-api-call=ai_mcp" \
+curl -X POST "https://deine-domain.de/mcp" \
     -H "Content-Type: application/json" \
-    -H "Authorization: Bearer dein-token-hier" \
     -d '{
         "jsonrpc": "2.0",
         "id": 1,
@@ -396,6 +367,8 @@ curl -X POST "https://deine-domain.de/index.php?rex-api-call=ai_mcp" \
         "params": {}
     }'
 ```
+
+Anonyme Aufrufer sehen nur Tools, die als `public: true` markiert sind. Geschuetzte Tools antworten beim Aufruf mit `401` plus `WWW-Authenticate`-Header, der den Client zum OAuth-Flow leitet.
 
 ## Tools registrieren (fuer AddOn-Entwickler)
 
@@ -425,7 +398,10 @@ rex_extension::register('AI_PLATFORM_MCP_TOOLS', function (rex_extension_point $
             ],
             'required' => ['query'],
         ],
-        handler: function (array $arguments): string {
+        handler: function (array $arguments, rex_ai_mcp_context $context): string {
+            // $context->getYcomUser() / $context->hasScope('...') verfuegbar,
+            // sobald Phase 2 die Auth aktiviert. Im Phase-1-Modus ist der
+            // Context anonymous und reicht durch.
             $query = $arguments['query'];
             $limit = $arguments['limit'] ?? 10;
 
@@ -446,13 +422,28 @@ rex_extension::register('AI_PLATFORM_MCP_TOOLS', function (rex_extension_point $
 
             return json_encode($results, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
         },
+        public: false,
+        requiredScopes: ['mcp:tools:call'],
     );
 
     return $tools;
 });
 ```
 
-### Beispiel: Medienpool-Tool
+### Tool-Konstruktor-Parameter
+
+| Parameter | Pflicht | Beschreibung |
+|---|---|---|
+| `name` | ja | Eindeutiger Tool-Name |
+| `description` | ja | Beschreibung, wird MCP-Clients als Tool-Hint angezeigt |
+| `inputSchema` | ja | JSON-Schema fuer die Argumente |
+| `handler` | ja | `function (array $arguments, rex_ai_mcp_context $context): mixed` |
+| `public` | nein | `true` macht das Tool ohne Authentifizierung aufrufbar (Default: `false`) |
+| `requiredScopes` | nein | Liste der Scopes, die der Caller besitzen muss (greift erst mit OAuth in Phase 2) |
+
+Im Handler kann ueber `$context` der angemeldete YCom-User abgefragt werden — siehe `lib/rex_ai_mcp_context.php` fuer die volle API.
+
+### Beispiel: Public Tool ohne Auth
 
 ```php
 rex_extension::register('AI_PLATFORM_MCP_TOOLS', function (rex_extension_point $ep) {
@@ -471,7 +462,7 @@ rex_extension::register('AI_PLATFORM_MCP_TOOLS', function (rex_extension_point $
             ],
             'required' => ['filename'],
         ],
-        handler: function (array $arguments): string {
+        handler: function (array $arguments, rex_ai_mcp_context $context): string {
             $media = rex_media::get($arguments['filename']);
             if (!$media) {
                 return 'Mediendatei nicht gefunden: ' . $arguments['filename'];
@@ -487,6 +478,7 @@ rex_extension::register('AI_PLATFORM_MCP_TOOLS', function (rex_extension_point $
                 'url' => $media->getUrl(),
             ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
         },
+        public: true,
     );
 
     return $tools;
