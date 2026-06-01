@@ -92,3 +92,46 @@ ai_platform_mcp_example = Example: Register a Tool
 ai_platform_mcp_client_config = Integration with Claude Desktop / Cursor
 ai_platform_mcp_client_intro = HTTP-based MCP servers are connected via <code>mcp-remote</code> as a proxy. Install it first:
 ai_platform_mcp_client_hint = The configuration can be copied directly. As long as only public tools are available no token is needed. For local servers without a valid SSL certificate add <code>NODE_TLS_REJECT_UNAUTHORIZED=0</code> as an <code>env</code> entry.
+
+# OAuth flow pages
+ai_platform_oauth_error_title = Authorization not possible
+ai_platform_oauth_login_title = Sign in
+ai_platform_oauth_login_intro = Please sign in with your YCom account to review the access this application is requesting.
+ai_platform_oauth_login_label = Email
+ai_platform_oauth_password_label = Password
+ai_platform_oauth_login_submit = Sign in
+ai_platform_oauth_login_missing = Email and password are required.
+ai_platform_oauth_login_failed = Sign-in failed. Please check your email and password.
+ai_platform_oauth_consent_title = Allow access
+ai_platform_oauth_consent_intro = The application "%s" wants to access your REDAXO account.
+ai_platform_oauth_logged_as = Signed in as %s
+ai_platform_oauth_consent_allow = Allow access
+ai_platform_oauth_consent_deny = Deny
+ai_platform_oauth_no_scopes = Your account currently has no matching permissions for this request. If you allow, the application will not be able to call protected tools.
+ai_platform_oauth_consent_omitted = The following requested permissions are not assigned to you and will be ignored:
+
+# OAuth backend pages
+ai_platform_oauth_clients = OAuth Clients
+ai_platform_oauth_clients_title = OAuth Clients
+ai_platform_oauth_clients_intro = OAuth clients allowed to authenticate against the MCP server, created either manually or via Dynamic Client Registration (DCR).
+ai_platform_oauth_client_add = Add client
+ai_platform_oauth_client_name = Name
+ai_platform_oauth_client_id = Client ID
+ai_platform_oauth_client_type = Type
+ai_platform_oauth_client_redirect = Redirect URIs
+ai_platform_oauth_client_dcr = via DCR
+ai_platform_oauth_client_last_used = Last used
+ai_platform_oauth_client_delete_confirm = Really delete this client? All active tokens will be revoked.
+ai_platform_oauth_client_deleted = Client deleted. Tokens have been revoked.
+ai_platform_oauth_client_created = Client created. Note the secret now if shown, it cannot be displayed again.
+ai_platform_oauth_client_secret_notice = Client secret (only shown once):
+ai_platform_oauth_client_redirect_notice = One redirect URI per line. Compared exact-match against the value passed to /oauth/authorize.
+ai_platform_oauth_client_redirect_required = At least one redirect URI is required.
+
+ai_platform_scopes = Scope mapping
+ai_platform_scopes_title = YCom group -> scope mapping
+ai_platform_scopes_intro = Which OAuth scopes are granted to users based on their YCom group memberships during the /oauth/authorize flow. Built-in scopes and scopes announced by other addons appear automatically.
+ai_platform_scopes_group = YCom group
+ai_platform_scopes_scopes = Scopes
+ai_platform_scopes_saved = Mapping saved.
+ai_platform_scopes_no_groups = No YCom groups exist yet. Create groups in YCom first, then return here to assign scopes.

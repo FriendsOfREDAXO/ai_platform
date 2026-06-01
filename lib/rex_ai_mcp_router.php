@@ -22,7 +22,9 @@ final class rex_ai_mcp_router
     private const MCP_PATH = '/mcp';
     private const DISCOVERY_PROTECTED_RESOURCE = '/.well-known/oauth-protected-resource';
     private const DISCOVERY_AUTH_SERVER = '/.well-known/oauth-authorization-server';
+    private const OAUTH_AUTHORIZE = '/oauth/authorize';
     private const OAUTH_TOKEN = '/oauth/token';
+    private const OAUTH_REGISTER = '/oauth/register';
     private const OAUTH_PREFIX = '/oauth/';
 
     public static function dispatch(): void
@@ -50,13 +52,26 @@ final class rex_ai_mcp_router
             self::dispatchAuthorizationServerMetadata();
         }
 
+        if (self::OAUTH_AUTHORIZE === $path) {
+            self::dispatchOauthAuthorize();
+        }
+
         if (self::OAUTH_TOKEN === $path) {
             self::dispatchOauthToken($method);
+        }
+
+        if (self::OAUTH_REGISTER === $path) {
+            self::dispatchOauthRegister($method);
         }
 
         if (str_starts_with($path, self::OAUTH_PREFIX)) {
             self::dispatchOauthNotYetImplemented($path);
         }
+    }
+
+    private static function dispatchOauthAuthorize(): never
+    {
+        rex_ai_oauth_authorization_endpoint::dispatch();
     }
 
     private static function dispatchOauthToken(string $method): never
@@ -73,6 +88,22 @@ final class rex_ai_mcp_router
             exit;
         }
         rex_ai_oauth_token_endpoint::dispatch();
+    }
+
+    private static function dispatchOauthRegister(string $method): never
+    {
+        if ('POST' !== $method) {
+            rex_response::cleanOutputBuffers();
+            http_response_code(405);
+            header('Allow: POST');
+            header('Content-Type: application/json');
+            echo json_encode([
+                'error' => 'invalid_request',
+                'error_description' => 'POST required',
+            ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+            exit;
+        }
+        rex_ai_oauth_dcr_endpoint::dispatch();
     }
 
     private static function currentPath(): ?string

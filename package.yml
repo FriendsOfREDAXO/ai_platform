@@ -18,6 +18,12 @@ page:
         mcp:
             title: 'translate:ai_platform_mcp'
             icon: rex-icon fa-plug
+        oauth-clients:
+            title: 'translate:ai_platform_oauth_clients'
+            icon: rex-icon fa-id-card-o
+        scope-mapping:
+            title: 'translate:ai_platform_scopes'
+            icon: rex-icon fa-shield
         docs:
             title: 'translate:ai_platform_docs'
             icon: rex-icon fa-book
