@@ -8,6 +8,7 @@ $(document).on("rex:ready", function () {
         text: ["temperature", "max_tokens", "system_prompt"],
         image_generation: ["image_size", "image_quality", "image_style"],
         image_understanding: ["temperature", "max_tokens", "detail_level"],
+        embedding: [],
     };
 
     var allTypeFields = [
@@ -37,21 +38,25 @@ $(document).on("rex:ready", function () {
             text: "gpt-4o",
             image_generation: "dall-e-3",
             image_understanding: "gpt-4o",
+            embedding: "text-embedding-3-small",
         },
         anthropic: {
             text: "claude-sonnet-4-20250514",
             image_generation: "",
             image_understanding: "claude-sonnet-4-20250514",
+            embedding: "",
         },
         google: {
             text: "gemini-2.5-flash",
             image_generation: "gemini-2.0-flash-exp",
             image_understanding: "gemini-2.5-flash",
+            embedding: "text-embedding-004",
         },
         ollama: {
             text: "llama3.2",
             image_generation: "",
             image_understanding: "llava",
+            embedding: "nomic-embed-text",
         },
     };
 

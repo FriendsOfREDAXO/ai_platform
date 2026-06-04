@@ -36,6 +36,9 @@ if (!rex_config::has('ai_platform', 'default_image_generation_profile')) {
 if (!rex_config::has('ai_platform', 'default_image_understanding_profile')) {
     rex_config::set('ai_platform', 'default_image_understanding_profile', 0);
 }
+if (!rex_config::has('ai_platform', 'default_embedding_profile')) {
+    rex_config::set('ai_platform', 'default_embedding_profile', 0);
+}
 if (!rex_config::has('ai_platform', 'mcp_enabled')) {
     rex_config::set('ai_platform', 'mcp_enabled', 0);
 }

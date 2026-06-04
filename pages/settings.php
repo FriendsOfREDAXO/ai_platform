@@ -11,6 +11,7 @@ if ('post' === rex_request::requestMethod() && $csrfToken->isValid()) {
     rex_config::set('ai_platform', 'default_text_profile', rex_post('default_text_profile', 'int', 0));
     rex_config::set('ai_platform', 'default_image_generation_profile', rex_post('default_image_generation_profile', 'int', 0));
     rex_config::set('ai_platform', 'default_image_understanding_profile', rex_post('default_image_understanding_profile', 'int', 0));
+    rex_config::set('ai_platform', 'default_embedding_profile', rex_post('default_embedding_profile', 'int', 0));
 
     echo rex_view::success(rex_i18n::msg('ai_platform_settings_saved'));
 }
@@ -18,11 +19,13 @@ if ('post' === rex_request::requestMethod() && $csrfToken->isValid()) {
 $defaultText = (int) rex_config::get('ai_platform', 'default_text_profile', 0);
 $defaultImageGen = (int) rex_config::get('ai_platform', 'default_image_generation_profile', 0);
 $defaultImageUnderstanding = (int) rex_config::get('ai_platform', 'default_image_understanding_profile', 0);
+$defaultEmbedding = (int) rex_config::get('ai_platform', 'default_embedding_profile', 0);
 
 $types = [
     'text' => ['config_key' => 'default_text_profile', 'current' => $defaultText, 'label' => rex_i18n::msg('ai_platform_default_text'), 'notice' => rex_i18n::msg('ai_platform_default_text_notice')],
     'image_generation' => ['config_key' => 'default_image_generation_profile', 'current' => $defaultImageGen, 'label' => rex_i18n::msg('ai_platform_default_image_generation'), 'notice' => rex_i18n::msg('ai_platform_default_image_generation_notice')],
     'image_understanding' => ['config_key' => 'default_image_understanding_profile', 'current' => $defaultImageUnderstanding, 'label' => rex_i18n::msg('ai_platform_default_image_understanding'), 'notice' => rex_i18n::msg('ai_platform_default_image_understanding_notice')],
+    'embedding' => ['config_key' => 'default_embedding_profile', 'current' => $defaultEmbedding, 'label' => rex_i18n::msg('ai_platform_default_embedding'), 'notice' => rex_i18n::msg('ai_platform_default_embedding_notice')],
 ];
 
 $formFields = '';

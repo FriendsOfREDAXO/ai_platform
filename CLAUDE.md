@@ -65,6 +65,7 @@ The backend form (`pages/profiles.php`) always renders **all** type fields; `ass
 | `default_text_profile`                | Profile id used by `generateText()` / `createAgent('text')`      |
 | `default_image_generation_profile`    | Profile id used by `generateImage()`                             |
 | `default_image_understanding_profile` | Profile id used by `understandImage()`                           |
+| `default_embedding_profile`           | Profile id used by `generateEmbedding()`                         |
 | `mcp_enabled`                         | 0/1 — gates the MCP HTTP endpoint                                |
 | `mcp_description`                     | Sent as `instructions` in MCP `initialize` response              |
 
