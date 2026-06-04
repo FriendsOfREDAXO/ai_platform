@@ -362,7 +362,10 @@ class rex_ai_platform_service
         }
 
         $platform = $this->getPlatform($profileId);
-        $model = $profile['model'];
+        $model = (string) ($profile['model'] ?? '');
+        if ('' === $model) {
+            throw new rex_exception('No model configured for embedding profile id: ' . $profileId);
+        }
         $options = $this->getProfileOptions($profileId);
 
         $result = $platform->invoke($model, $prompt, $options);

@@ -17,7 +17,7 @@ class rex_api_ai_test extends rex_api_function
         rex_response::cleanOutputBuffers();
 
         if (!rex::getUser()?->isAdmin()) {
-            rex_response::setStatus(403);
+            rex_response::setStatus('403');
             rex_response::sendJson(['success' => false, 'message' => 'Forbidden']);
             exit;
         }
