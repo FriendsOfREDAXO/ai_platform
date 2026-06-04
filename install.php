@@ -6,7 +6,7 @@ declare(strict_types=1);
 rex_sql_table::get(rex::getTable('ai_profile'))
     ->ensurePrimaryIdColumn()
     ->ensureColumn(new rex_sql_column('name', 'varchar(255)'))
-    ->ensureColumn(new rex_sql_column('type', 'varchar(50)', false, 'text', null, 'text, image_generation, image_understanding'))
+    ->ensureColumn(new rex_sql_column('type', 'varchar(50)', false, 'text', null, 'text, image_generation, image_understanding, embedding'))
     ->ensureColumn(new rex_sql_column('provider', 'varchar(50)', false, null, null, 'openai, anthropic, google, ollama'))
     ->ensureColumn(new rex_sql_column('api_key', 'text', true))
     ->ensureColumn(new rex_sql_column('base_url', 'varchar(500)', true))
