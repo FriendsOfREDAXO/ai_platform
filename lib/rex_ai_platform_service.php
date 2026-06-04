@@ -81,18 +81,21 @@ class rex_ai_platform_service
                 'text' => ['claude-sonnet-4-20250514', 'claude-opus-4-20250514', 'claude-3-5-haiku-latest', 'claude-3-7-sonnet-latest'],
                 'image_generation' => [],
                 'image_understanding' => ['claude-sonnet-4-20250514', 'claude-opus-4-20250514', 'claude-3-7-sonnet-latest'],
+                'embedding' => [],
             ],
             'google' => [
                 'text' => ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash'],
                 'image_generation' => ['gemini-2.0-flash-exp'],
                 'image_understanding' => ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash'],
+                'embedding' => ['text-embedding-004'],
             ],
             'ollama' => [
                 'text' => ['llama3.1', 'llama3.2', 'mistral', 'codellama', 'deepseek-r1'],
                 'image_generation' => [],
                 'image_understanding' => ['llava', 'llama3.2-vision'],
+                'embedding' => ['nomic-embed-text', 'mxbai-embed-large'],
             ],
-            default => ['text' => [], 'image_generation' => [], 'image_understanding' => []],
+            default => ['text' => [], 'image_generation' => [], 'image_understanding' => [], 'embedding' => []],
         };
 
         return $models[$type] ?? [];
