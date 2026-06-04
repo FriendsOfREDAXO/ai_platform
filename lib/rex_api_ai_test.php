@@ -75,6 +75,12 @@ class rex_api_ai_test extends rex_api_function
                         throw new \RuntimeException('API-Key ungueltig oder Modell nicht verfuegbar (HTTP ' . $apiResponse->getStatusCode() . ')');
                     }
                 }
+            } elseif ('embedding' === $type) {
+                // For embeddings, send a short string and check vectors
+                $result = $platform->invoke($model, 'Connection test', $options);
+                $vectors = $result->asVectors();
+                $dimension = isset($vectors[0]) ? count($vectors[0]->getData()) : 0;
+                $response = 'Embedding erfolgreich generiert (Dimensionen: ' . $dimension . ').';
             } else {
                 // For text and image_understanding, send a simple text request
                 $messages = new \Symfony\AI\Platform\Message\MessageBag(

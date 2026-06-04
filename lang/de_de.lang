@@ -9,6 +9,7 @@ ai_platform_type = Typ
 ai_platform_type_text = Text / Code
 ai_platform_type_image_generation = Bildgenerierung
 ai_platform_type_image_understanding = Bildverstaendnis
+ai_platform_type_embedding = Embeddings (Vektor-Arrays)
 
 # Profiles
 ai_platform_profile_add = Profil hinzufuegen
@@ -67,6 +68,8 @@ ai_platform_default_image_generation = Bildgenerierung (Standard)
 ai_platform_default_image_generation_notice = Profil, das standardmaessig fuer Bildgenerierung verwendet wird.
 ai_platform_default_image_understanding = Bildverstaendnis (Standard)
 ai_platform_default_image_understanding_notice = Profil, das standardmaessig fuer Bildanalyse verwendet wird.
+ai_platform_default_embedding = Embeddings (Standard)
+ai_platform_default_embedding_notice = Profil, das standardmaessig fuer Embeddings verwendet wird.
 
 # MCP
 ai_platform_mcp_settings = MCP Server Einstellungen
