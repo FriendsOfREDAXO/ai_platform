@@ -204,14 +204,12 @@ final class rex_ai_oauth_authorization_endpoint
     {
         http_response_code(400);
         header('Content-Type: text/html; charset=utf-8');
-        $title = rex_escape(rex_i18n::msg('ai_platform_oauth_error_title'));
-        $codeHtml = rex_escape($code);
-        $messageHtml = rex_escape($message);
-        echo self::renderPage($title, <<<HTML
-            <h1>{$title}</h1>
-            <p class="error"><strong>{$codeHtml}</strong></p>
-            <p>{$messageHtml}</p>
-HTML);
+
+        $fragment = new rex_fragment();
+        $fragment->setVar('code', $code, false);
+        $fragment->setVar('message', $message, false);
+
+        echo self::renderPage(rex_i18n::msg('ai_platform_oauth_error_title'), $fragment->parse('ai_platform/oauth/error.php'));
         exit;
     }
 
@@ -223,26 +221,11 @@ HTML);
         http_response_code(200);
         header('Content-Type: text/html; charset=utf-8');
 
-        $title = rex_escape(rex_i18n::msg('ai_platform_oauth_login_title'));
-        $intro = rex_escape(rex_i18n::msg('ai_platform_oauth_login_intro'));
-        $loginLabel = rex_escape(rex_i18n::msg('ai_platform_oauth_login_label'));
-        $passwordLabel = rex_escape(rex_i18n::msg('ai_platform_oauth_password_label'));
-        $submit = rex_escape(rex_i18n::msg('ai_platform_oauth_login_submit'));
-        $errorHtml = null === $error ? '' : '<p class="error">' . rex_escape($error) . '</p>';
-        $hidden = self::hiddenInputs($params, ['login', 'password', '_action']);
+        $fragment = new rex_fragment();
+        $fragment->setVar('error', $error, false);
+        $fragment->setVar('hiddenFields', self::hiddenInputs($params, ['login', 'password', '_action']), false);
 
-        echo self::renderPage($title, <<<HTML
-            <h1>{$title}</h1>
-            <p>{$intro}</p>
-            {$errorHtml}
-            <form method="post" action="">
-                {$hidden}
-                <input type="hidden" name="_action" value="login">
-                <label>{$loginLabel}<br><input type="text" name="login" autofocus required></label>
-                <label>{$passwordLabel}<br><input type="password" name="password" required></label>
-                <button type="submit">{$submit}</button>
-            </form>
-HTML);
+        echo self::renderPage(rex_i18n::msg('ai_platform_oauth_login_title'), $fragment->parse('ai_platform/oauth/login.php'));
         exit;
     }
 
@@ -258,52 +241,15 @@ HTML);
         http_response_code(200);
         header('Content-Type: text/html; charset=utf-8');
 
-        $title = rex_escape(rex_i18n::msg('ai_platform_oauth_consent_title'));
-        $intro = rex_escape(rex_i18n::msg('ai_platform_oauth_consent_intro', $client['client_name']));
-        $loggedAs = rex_escape(rex_i18n::msg('ai_platform_oauth_logged_as', (string) $user->getValue('email')));
-        $allow = rex_escape(rex_i18n::msg('ai_platform_oauth_consent_allow'));
-        $deny = rex_escape(rex_i18n::msg('ai_platform_oauth_consent_deny'));
+        $fragment = new rex_fragment();
+        $fragment->setVar('clientName', (string) $client['client_name'], false);
+        $fragment->setVar('userEmail', (string) $user->getValue('email'), false);
+        $fragment->setVar('effective', $effective, false);
+        $fragment->setVar('omitted', array_values(array_diff($requested, $effective)), false);
+        $fragment->setVar('descriptions', rex_ai_oauth_scope_registry::allScopes(), false);
+        $fragment->setVar('hiddenFields', self::hiddenInputs($params, ['decision', '_action']), false);
 
-        $scopeList = '';
-        if ([] === $effective) {
-            $scopeList = '<p class="warning">' . rex_escape(rex_i18n::msg('ai_platform_oauth_no_scopes')) . '</p>';
-        } else {
-            $scopeList = '<ul class="scopes">';
-            $descriptions = rex_ai_oauth_scope_registry::allScopes();
-            foreach ($effective as $scope) {
-                $description = $descriptions[$scope] ?? '';
-                $scopeList .= '<li><code>' . rex_escape($scope) . '</code>';
-                if ('' !== $description) {
-                    $scopeList .= ' &mdash; ' . rex_escape($description);
-                }
-                $scopeList .= '</li>';
-            }
-            $scopeList .= '</ul>';
-        }
-
-        $omittedNote = '';
-        $omitted = array_values(array_diff($requested, $effective));
-        if ($omitted) {
-            $omittedNote = '<p class="warning">'
-                . rex_escape(rex_i18n::msg('ai_platform_oauth_consent_omitted'))
-                . ' <code>' . rex_escape(implode(', ', $omitted)) . '</code></p>';
-        }
-
-        $hidden = self::hiddenInputs($params, ['decision', '_action']);
-
-        echo self::renderPage($title, <<<HTML
-            <h1>{$title}</h1>
-            <p>{$intro}</p>
-            <p class="muted">{$loggedAs}</p>
-            {$scopeList}
-            {$omittedNote}
-            <form method="post" action="">
-                {$hidden}
-                <input type="hidden" name="_action" value="consent">
-                <button type="submit" name="decision" value="allow" class="primary">{$allow}</button>
-                <button type="submit" name="decision" value="deny">{$deny}</button>
-            </form>
-HTML);
+        echo self::renderPage(rex_i18n::msg('ai_platform_oauth_consent_title'), $fragment->parse('ai_platform/oauth/consent.php'));
         exit;
     }
 
@@ -331,36 +277,17 @@ HTML);
         return $html;
     }
 
+    /**
+     * Wraps the inner body in the shared HTML shell. Both the shell and the
+     * inner bodies live in overridable fragments under
+     * `fragments/ai_platform/oauth/` — a project can override them by placing
+     * a file with the same path in a later-loading fragments directory.
+     */
     private static function renderPage(string $title, string $body): string
     {
-        $css = <<<CSS
-            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-                   margin: 0; background: #f4f6f8; color: #1f2933; }
-            .wrap { max-width: 32rem; margin: 4rem auto; padding: 2rem;
-                    background: #fff; border-radius: 6px; box-shadow: 0 1px 6px rgba(0,0,0,.06); }
-            h1 { font-size: 1.25rem; margin: 0 0 1rem; }
-            p { margin: 0 0 1rem; line-height: 1.5; }
-            label { display: block; margin: 0 0 1rem; }
-            input[type=text], input[type=password] { width: 100%; padding: .5rem .6rem;
-                    border: 1px solid #cbd2d9; border-radius: 4px; font-size: 1rem;
-                    box-sizing: border-box; margin-top: .25rem; }
-            button { padding: .55rem 1rem; border-radius: 4px; border: 1px solid #cbd2d9;
-                     background: #fff; color: #1f2933; cursor: pointer; margin-right: .5rem; }
-            button.primary { background: #2563eb; color: #fff; border-color: #2563eb; }
-            .error { color: #b42318; background: #fef3f2; padding: .5rem .75rem;
-                     border-radius: 4px; border: 1px solid #fecdca; }
-            .warning { color: #92400e; background: #fffaeb; padding: .5rem .75rem;
-                       border-radius: 4px; border: 1px solid #fde68a; }
-            .muted { color: #6b7280; font-size: .9rem; }
-            ul.scopes { list-style: none; padding: 0; margin: 0 0 1rem; }
-            ul.scopes li { padding: .35rem 0; border-bottom: 1px solid #f0f2f4; }
-            code { font-family: ui-monospace, SFMono-Regular, monospace; background: #f4f6f8;
-                   padding: .15rem .3rem; border-radius: 3px; }
-CSS;
-        return '<!doctype html><html><head><meta charset="utf-8">'
-            . '<title>' . $title . '</title>'
-            . '<meta name="viewport" content="width=device-width, initial-scale=1">'
-            . '<style>' . $css . '</style></head>'
-            . '<body><div class="wrap">' . $body . '</div></body></html>';
+        $fragment = new rex_fragment();
+        $fragment->setVar('title', $title, false);
+        $fragment->setVar('content', $body, false);
+        return $fragment->parse('ai_platform/oauth/page.php');
     }
 }
