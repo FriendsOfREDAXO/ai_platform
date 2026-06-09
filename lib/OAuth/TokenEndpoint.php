@@ -2,6 +2,10 @@
 
 declare(strict_types=1);
 
+namespace FriendsOfRedaxo\AiPlatform\OAuth;
+
+use rex_response;
+
 /**
  * Handler for `POST /oauth/token`.
  *
@@ -18,7 +22,7 @@ declare(strict_types=1);
  * status — 200 on success, 400 for grant errors, 401 for client-auth
  * failures.
  */
-final class rex_ai_oauth_token_endpoint
+final class TokenEndpoint
 {
     public static function dispatch(): never
     {
@@ -35,10 +39,10 @@ final class rex_ai_oauth_token_endpoint
             $payload = match ($grantType) {
                 'authorization_code' => self::handleAuthorizationCode($params),
                 'refresh_token' => self::handleRefreshToken($params),
-                '' => throw new rex_ai_oauth_error('invalid_request', 'grant_type is required'),
-                default => throw new rex_ai_oauth_error('unsupported_grant_type', 'Unsupported grant_type: ' . $grantType),
+                '' => throw new OAuthError('invalid_request', 'grant_type is required'),
+                default => throw new OAuthError('unsupported_grant_type', 'Unsupported grant_type: ' . $grantType),
             };
-        } catch (rex_ai_oauth_error $e) {
+        } catch (OAuthError $e) {
             http_response_code($e->httpStatus);
             echo json_encode([
                 'error' => $e->oauthError,
@@ -77,7 +81,7 @@ final class rex_ai_oauth_token_endpoint
     {
         foreach (['code', 'redirect_uri', 'client_id', 'code_verifier'] as $required) {
             if (empty($params[$required])) {
-                throw new rex_ai_oauth_error('invalid_request', 'Missing required parameter: ' . $required);
+                throw new OAuthError('invalid_request', 'Missing required parameter: ' . $required);
             }
         }
 
@@ -85,30 +89,30 @@ final class rex_ai_oauth_token_endpoint
         $client = self::authenticateClient($clientId, $params);
 
         $code = (string) $params['code'];
-        $row = rex_ai_oauth_token_store::consumeAuthorizationCode($code);
+        $row = TokenStore::consumeAuthorizationCode($code);
         if (null === $row) {
-            throw new rex_ai_oauth_error('invalid_grant', 'Authorization code is invalid, used or expired');
+            throw new OAuthError('invalid_grant', 'Authorization code is invalid, used or expired');
         }
 
         if ($row['client_id'] !== $clientId) {
-            throw new rex_ai_oauth_error('invalid_grant', 'Authorization code was issued to a different client');
+            throw new OAuthError('invalid_grant', 'Authorization code was issued to a different client');
         }
 
         if ($row['redirect_uri'] !== (string) $params['redirect_uri']) {
-            throw new rex_ai_oauth_error('invalid_grant', 'redirect_uri does not match the value used at /oauth/authorize');
+            throw new OAuthError('invalid_grant', 'redirect_uri does not match the value used at /oauth/authorize');
         }
 
         if (!self::verifyPkce((string) $params['code_verifier'], (string) $row['code_challenge'], (string) $row['code_challenge_method'])) {
-            throw new rex_ai_oauth_error('invalid_grant', 'PKCE code_verifier does not match code_challenge');
+            throw new OAuthError('invalid_grant', 'PKCE code_verifier does not match code_challenge');
         }
 
-        $tokens = rex_ai_oauth_token_store::issueTokenPair(
+        $tokens = TokenStore::issueTokenPair(
             $clientId,
             (int) $row['ycom_user_id'],
             $row['scopes'],
         );
 
-        rex_ai_oauth_client_store::markUsed($clientId);
+        ClientStore::markUsed($clientId);
         // Note: $client is fetched but only used to drive authenticateClient's
         // validation. The actual scope set comes from the consumed code row.
         unset($client);
@@ -130,24 +134,24 @@ final class rex_ai_oauth_token_endpoint
     {
         foreach (['refresh_token', 'client_id'] as $required) {
             if (empty($params[$required])) {
-                throw new rex_ai_oauth_error('invalid_request', 'Missing required parameter: ' . $required);
+                throw new OAuthError('invalid_request', 'Missing required parameter: ' . $required);
             }
         }
 
         $clientId = (string) $params['client_id'];
         self::authenticateClient($clientId, $params);
 
-        $tokens = rex_ai_oauth_token_store::rotateRefreshToken((string) $params['refresh_token'], $clientId);
+        $tokens = TokenStore::rotateRefreshToken((string) $params['refresh_token'], $clientId);
         if (null === $tokens) {
-            throw new rex_ai_oauth_error('invalid_grant', 'refresh_token is invalid, revoked or expired');
+            throw new OAuthError('invalid_grant', 'refresh_token is invalid, revoked or expired');
         }
 
         // The rotated pair carries the original scopes — we don't currently
         // narrow them further. RFC 6749 §6 allows the client to request a
         // narrower scope; left as future work since it's optional.
-        $access = rex_ai_oauth_token_store::findAccessToken($tokens['access_token']);
+        $access = TokenStore::findAccessToken($tokens['access_token']);
 
-        rex_ai_oauth_client_store::markUsed($clientId);
+        ClientStore::markUsed($clientId);
 
         return [
             'access_token' => $tokens['access_token'],
@@ -167,22 +171,22 @@ final class rex_ai_oauth_token_endpoint
      */
     private static function authenticateClient(string $clientId, array $params): array
     {
-        $client = rex_ai_oauth_client_store::findByClientId($clientId);
+        $client = ClientStore::findByClientId($clientId);
         if (null === $client) {
-            throw new rex_ai_oauth_error('invalid_client', 'Unknown client_id', 401);
+            throw new OAuthError('invalid_client', 'Unknown client_id', 401);
         }
-        if (rex_ai_oauth_client_store::isExpired($client)) {
+        if (ClientStore::isExpired($client)) {
             // Expired registration → force the client to register again (DCR).
-            throw new rex_ai_oauth_error('invalid_client', 'Client registration has expired, please register again', 401);
+            throw new OAuthError('invalid_client', 'Client registration has expired, please register again', 401);
         }
 
-        if (rex_ai_oauth_client_store::TYPE_CONFIDENTIAL === $client['type']) {
+        if (ClientStore::TYPE_CONFIDENTIAL === $client['type']) {
             $secret = (string) ($params['client_secret'] ?? '');
             if ('' === $secret) {
-                throw new rex_ai_oauth_error('invalid_client', 'client_secret is required for confidential clients', 401);
+                throw new OAuthError('invalid_client', 'client_secret is required for confidential clients', 401);
             }
-            if (!rex_ai_oauth_client_store::verifySecret($clientId, $secret)) {
-                throw new rex_ai_oauth_error('invalid_client', 'client_secret does not match', 401);
+            if (!ClientStore::verifySecret($clientId, $secret)) {
+                throw new OAuthError('invalid_client', 'client_secret does not match', 401);
             }
         }
 
@@ -200,20 +204,5 @@ final class rex_ai_oauth_token_endpoint
         }
         $expected = rtrim(strtr(base64_encode(hash('sha256', $verifier, true)), '+/', '-_'), '=');
         return hash_equals($expected, $challenge);
-    }
-}
-
-/**
- * Internal exception used inside the token endpoint to carry an OAuth
- * error code + HTTP status across to the JSON response renderer.
- */
-final class rex_ai_oauth_error extends \RuntimeException
-{
-    public function __construct(
-        public readonly string $oauthError,
-        string $description,
-        public readonly int $httpStatus = 400,
-    ) {
-        parent::__construct($description);
     }
 }

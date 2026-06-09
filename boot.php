@@ -2,6 +2,10 @@
 
 declare(strict_types=1);
 
+use FriendsOfRedaxo\AiPlatform\Mcp\Context;
+use FriendsOfRedaxo\AiPlatform\Mcp\Router;
+use FriendsOfRedaxo\AiPlatform\Mcp\Tool;
+
 $addon = rex_addon::get('ai_platform');
 
 // Backend assets
@@ -14,7 +18,7 @@ if (rex::isBackend() && rex::getUser()) {
 // take over the frontend request.
 if (!rex::isBackend()) {
     rex_extension::register('PACKAGES_INCLUDED', static function (): void {
-        rex_ai_mcp_router::dispatch();
+        Router::dispatch();
     });
 }
 
@@ -22,14 +26,14 @@ if (!rex::isBackend()) {
 rex_extension::register('AI_PLATFORM_MCP_TOOLS', static function (rex_extension_point $ep) {
     $tools = $ep->getSubject();
 
-    $tools['redaxo_status'] = new rex_ai_mcp_tool(
+    $tools['redaxo_status'] = new Tool(
         name: 'redaxo_status',
         description: 'Returns the current status of this REDAXO CMS instance: URL, versions, number of articles, categories, media, users, languages, and a list of installed addons with their versions.',
         inputSchema: [
             'type' => 'object',
             'properties' => new \stdClass(),
         ],
-        handler: static function (array $arguments, rex_ai_mcp_context $context): string {
+        handler: static function (array $arguments, Context $context): string {
             $sql = rex_sql::factory();
 
             // Article count

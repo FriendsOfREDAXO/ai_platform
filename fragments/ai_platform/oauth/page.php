@@ -3,7 +3,7 @@
 /**
  * Outer HTML shell for the standalone OAuth pages (login / consent / error).
  *
- * Rendered outside REDAXO's normal frontend by rex_ai_oauth_authorization_endpoint.
+ * Rendered outside REDAXO's normal frontend by FriendsOfRedaxo\AiPlatform\OAuth\AuthorizationEndpoint.
  * Override by placing a file with the same path in a fragments dir that loads
  * later (e.g. project addon: project/fragments/ai_platform/oauth/page.php).
  *

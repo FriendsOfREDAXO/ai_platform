@@ -2,6 +2,14 @@
 
 declare(strict_types=1);
 
+namespace FriendsOfRedaxo\AiPlatform\OAuth;
+
+use rex;
+use rex_extension;
+use rex_extension_point;
+use rex_sql;
+use rex_ycom_user;
+
 /**
  * Central registry for OAuth scopes.
  *
@@ -13,7 +21,7 @@ declare(strict_types=1);
  * table: every group the user belongs to contributes its scope list,
  * deduplicated into a single set.
  */
-final class rex_ai_oauth_scope_registry
+final class ScopeRegistry
 {
     /**
      * @deprecated since 1.0.0-beta3 — never enforced and removed from the

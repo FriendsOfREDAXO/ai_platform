@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use FriendsOfRedaxo\AiPlatform\Service;
+
 /**
  * API endpoint to test an AI profile connection.
  *
@@ -28,7 +30,7 @@ class rex_api_ai_test extends rex_api_function
             exit;
         }
 
-        $service = rex_ai_platform_service::getInstance();
+        $service = Service::getInstance();
         $profile = $service->getProfile($profileId);
 
         if (null === $profile) {

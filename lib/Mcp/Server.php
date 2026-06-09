@@ -2,22 +2,32 @@
 
 declare(strict_types=1);
 
+namespace FriendsOfRedaxo\AiPlatform\Mcp;
+
+use rex_addon;
+use rex_config;
+use rex_extension;
+use rex_extension_point;
+use rex_response;
+use stdClass;
+use Throwable;
+
 /**
  * MCP (Model Context Protocol) JSON-RPC 2.0 server.
  *
  * Implements the streamable-HTTP MCP transport. The router dispatches POST
- * requests to {@see handle()}. Auth is delegated to rex_ai_mcp_authenticator:
+ * requests to {@see handle()}. Auth is delegated to Authenticator:
  * tools/list returns only tools callable by the resolved context, tools/call
  * enforces the per-tool requirements and returns a 401 challenge for missing
  * authentication so MCP clients can start the OAuth flow.
  */
-final class rex_ai_mcp_server
+final class Server
 {
     private const PROTOCOL_VERSION = '2025-03-26';
     private const SERVER_NAME = 'REDAXO AI Platform MCP Server';
 
     public function __construct(
-        private readonly rex_ai_mcp_authenticator $authenticator,
+        private readonly Authenticator $authenticator,
     ) {
     }
 
@@ -62,19 +72,19 @@ final class rex_ai_mcp_server
             // stay anonymous and protected tools never surface. With it on, an
             // unauthenticated request is challenged so the client logs in.
             if (!$context->isAuthenticated() && rex_config::get('ai_platform', 'mcp_require_auth', false)) {
-                throw new rex_ai_mcp_auth_required_exception('Authentication required');
+                throw new AuthRequiredException('Authentication required');
             }
 
             $result = match ($method) {
                 'initialize' => $this->handleInitialize($params),
                 'tools/list' => $this->handleToolsList($context),
                 'tools/call' => $this->handleToolsCall($params, $context),
-                'ping' => new \stdClass(),
+                'ping' => new stdClass(),
                 default => null,
             };
-        } catch (rex_ai_mcp_invalid_token_exception $e) {
+        } catch (InvalidTokenException $e) {
             $this->sendAuthChallenge($id, $e->getMessage(), 'invalid_token');
-        } catch (rex_ai_mcp_auth_required_exception $e) {
+        } catch (AuthRequiredException $e) {
             $this->sendAuthChallenge($id, $e->getMessage());
         }
 
@@ -94,7 +104,7 @@ final class rex_ai_mcp_server
         $result = [
             'protocolVersion' => self::PROTOCOL_VERSION,
             'capabilities' => [
-                'tools' => new \stdClass(),
+                'tools' => new stdClass(),
             ],
             'serverInfo' => [
                 'name' => self::SERVER_NAME,
@@ -115,7 +125,7 @@ final class rex_ai_mcp_server
      *
      * @return array<string, mixed>
      */
-    private function handleToolsList(rex_ai_mcp_context $context): array
+    private function handleToolsList(Context $context): array
     {
         $tools = self::collectTools();
         $toolList = [];
@@ -136,7 +146,7 @@ final class rex_ai_mcp_server
      * @param array<string, mixed> $params
      * @return array<string, mixed>
      */
-    private function handleToolsCall(array $params, rex_ai_mcp_context $context): array
+    private function handleToolsCall(array $params, Context $context): array
     {
         $toolName = $params['name'] ?? '';
         $arguments = $params['arguments'] ?? [];
@@ -158,7 +168,7 @@ final class rex_ai_mcp_server
         }
 
         if (!$tool->isPublic() && !$context->isAuthenticated()) {
-            throw new rex_ai_mcp_auth_required_exception('Authentication required for tool: ' . $toolName);
+            throw new AuthRequiredException('Authentication required for tool: ' . $toolName);
         }
 
         if (!$tool->isCallableBy($context)) {
@@ -185,7 +195,7 @@ final class rex_ai_mcp_server
                 'content' => $content,
                 'isError' => false,
             ];
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             return [
                 'content' => [
                     ['type' => 'text', 'text' => 'Error: ' . $e->getMessage()],
@@ -198,11 +208,11 @@ final class rex_ai_mcp_server
     /**
      * Collect all registered tools via the AI_PLATFORM_MCP_TOOLS extension point.
      *
-     * @return array<string, rex_ai_mcp_tool>
+     * @return array<string, Tool>
      */
     public static function collectTools(): array
     {
-        /** @var array<string, rex_ai_mcp_tool> $tools */
+        /** @var array<string, Tool> $tools */
         $tools = rex_extension::registerPoint(new rex_extension_point(
             'AI_PLATFORM_MCP_TOOLS',
             [],
@@ -284,7 +294,7 @@ final class rex_ai_mcp_server
     private function sendAuthChallenge(mixed $id, string $message, ?string $oauthError = null): never
     {
         header('Content-Type: application/json');
-        header('WWW-Authenticate: ' . rex_ai_mcp_authenticator::buildChallengeHeader($oauthError, $oauthError !== null ? $message : null));
+        header('WWW-Authenticate: ' . Authenticator::buildChallengeHeader($oauthError, $oauthError !== null ? $message : null));
         http_response_code(401);
 
         echo json_encode([
@@ -308,12 +318,4 @@ final class rex_ai_mcp_server
         echo $message;
         exit;
     }
-}
-
-/**
- * Thrown by tool dispatch when auth is required. Caught by the server which
- * then emits the 401 + WWW-Authenticate challenge.
- */
-final class rex_ai_mcp_auth_required_exception extends \RuntimeException
-{
 }

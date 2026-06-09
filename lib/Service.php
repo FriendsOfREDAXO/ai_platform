@@ -2,6 +2,15 @@
 
 declare(strict_types=1);
 
+namespace FriendsOfRedaxo\AiPlatform;
+
+use rex;
+use rex_config;
+use rex_exception;
+use rex_extension;
+use rex_extension_point;
+use rex_i18n;
+use rex_sql;
 use Symfony\AI\Platform\PlatformInterface;
 use Symfony\AI\Platform\Bridge\OpenAi\PlatformFactory as OpenAiFactory;
 use Symfony\AI\Platform\Bridge\Anthropic\PlatformFactory as AnthropicFactory;
@@ -15,7 +24,7 @@ use Symfony\AI\Agent\Agent;
 use Symfony\AI\Agent\Toolbox\AgentProcessor;
 use Symfony\AI\Agent\Toolbox\Toolbox;
 
-class rex_ai_platform_service
+class Service
 {
     private static ?self $instance = null;
 
@@ -346,7 +355,7 @@ class rex_ai_platform_service
 
     /**
      * Generate an embedding vector for a given text.
-     * Takes a single string and returns a single array of floats, 
+     * Takes a single string and returns a single array of floats,
      * or takes an array of strings and returns an array of float arrays.
      *
      * @param string|array<string> $prompt
@@ -369,9 +378,9 @@ class rex_ai_platform_service
         $options = $this->getProfileOptions($profileId);
 
         $result = $platform->invoke($model, $prompt, $options);
-        
+
         $vectors = $result->asVectors();
-        
+
         $embeddings = [];
         foreach ($vectors as $vector) {
             $embeddings[] = $vector->getData();

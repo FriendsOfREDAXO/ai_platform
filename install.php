@@ -44,8 +44,9 @@ if (!rex_config::has('ai_platform', 'mcp_enabled')) {
 }
 
 // Cleanup obsolete static bearer token from pre-1.0 installs. Auth now
-// runs through OAuth 2.1 (see rex_ai_mcp_authenticator) — public tools
-// keep working without any token, protected tools require an OAuth flow.
+// runs through OAuth 2.1 (see FriendsOfRedaxo\AiPlatform\Mcp\Authenticator) —
+// public tools keep working without any token, protected tools require an
+// OAuth flow.
 rex_config::remove('ai_platform', 'mcp_token');
 
 // OAuth 2.1 client registry (manual + dynamic client registration)

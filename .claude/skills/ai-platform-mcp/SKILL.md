@@ -14,12 +14,12 @@ Lokaler Spickzettel zum MCP-Stack dieses Addons. Quelle der Wahrheit bleibt der 
 ### Live-Routen
 | Pfad | Methode | Handler |
 |---|---|---|
-| `/mcp` | POST | `rex_ai_mcp_server::handle` (sonst 405) |
+| `/mcp` | POST | `FriendsOfRedaxo\AiPlatform\Mcp\Server::handle` (sonst 405) |
 | `/.well-known/oauth-protected-resource` | GET | Discovery JSON |
 | `/.well-known/oauth-authorization-server` | GET | Discovery JSON |
-| `/oauth/authorize` | GET/POST | `rex_ai_oauth_authorization_endpoint` (Login + Consent) |
-| `/oauth/token` | POST | `rex_ai_oauth_token_endpoint` (code + refresh) |
-| `/oauth/register` | POST | `rex_ai_oauth_dcr_endpoint` (DCR) |
+| `/oauth/authorize` | GET/POST | `FriendsOfRedaxo\AiPlatform\OAuth\AuthorizationEndpoint` (Login + Consent) |
+| `/oauth/token` | POST | `FriendsOfRedaxo\AiPlatform\OAuth\TokenEndpoint` (code + refresh) |
+| `/oauth/register` | POST | `FriendsOfRedaxo\AiPlatform\OAuth\DcrEndpoint` (DCR) |
 | sonstiges `/oauth/*` | * | 404 `not_found` |
 
 ### Config-Keys (rex_config `ai_platform`)
@@ -28,7 +28,7 @@ Lokaler Spickzettel zum MCP-Stack dieses Addons. Quelle der Wahrheit bleibt der 
 | `mcp_enabled` | 0/1 — gated `/mcp` (sonst 503) |
 | `mcp_description` | geht als `instructions` in die `initialize`-Antwort |
 | `mcp_require_auth` | 0/1 — bei 1 bekommt JEDER anonyme Request 401 (auch `initialize`/`tools/list`) → erzwingt OAuth-Login. **Nötig, damit geschützte Tools in Claude Desktop überhaupt auftauchen** (s.u. Henne-Ei). |
-| `mcp_disabled_tools` | JSON-Liste deaktivierter Tool-Namen (Opt-out; via `rex_ai_mcp_server::isToolEnabled()` in list+call) |
+| `mcp_disabled_tools` | JSON-Liste deaktivierter Tool-Namen (Opt-out; via `FriendsOfRedaxo\AiPlatform\Mcp\Server::isToolEnabled()` in list+call) |
 | `oauth_client_lifetime_days` | Tage bis ein OAuth-Client ablaeuft (Basis `createdate`). 0 = nie. Enforced in authorize+token → `invalid_client` → DCR-Re-Registrierung |
 
 ### Scopes (Stand beta3)
@@ -45,7 +45,7 @@ Login-, Consent- und Error-Maske von `/oauth/authorize` liegen in Fragmenten unt
 - `consent.php` — Consent-Screen (Vars: `clientName`, `userEmail`, `effective`, `omitted`, `descriptions`, `hiddenFields`)
 - `error.php` — Fehlerseite (Vars: `code`, `message`)
 
-`rex_ai_oauth_authorization_endpoint` setzt nur noch die Daten und ruft `$fragment->parse('ai_platform/oauth/<x>.php')`. Ein Projekt ueberschreibt die Optik, indem es dieselbe Pfadstruktur in einem spaeter ladenden fragments-Verzeichnis ablegt (z.B. `project/fragments/ai_platform/oauth/login.php`) — Addon-fragments-Dirs werden automatisch registriert (`package.php` ruft `rex_fragment::addDirectory($addon/fragments)`), `project` laedt `late` und gewinnt.
+`FriendsOfRedaxo\AiPlatform\OAuth\AuthorizationEndpoint` setzt nur noch die Daten und ruft `$fragment->parse('ai_platform/oauth/<x>.php')`. Ein Projekt ueberschreibt die Optik, indem es dieselbe Pfadstruktur in einem spaeter ladenden fragments-Verzeichnis ablegt (z.B. `project/fragments/ai_platform/oauth/login.php`) — Addon-fragments-Dirs werden automatisch registriert (`package.php` ruft `rex_fragment::addDirectory($addon/fragments)`), `project` laedt `late` und gewinnt.
 
 **Escaping-Konvention in diesen Fragmenten:** `rex_i18n::msg()`-Ausgaben werden NICHT erneut escaped (msg() escaped bereits via `html_simplified` inkl. der `{0}`-Args) — sonst Doppel-Escaping (`"` → `&quot;` sichtbar). Reine Daten (Scope-Namen, error code/message) hingegen mit `rex_escape()`. Alle Fragment-Vars werden mit `setVar(..., false)` roh uebergeben.
 
@@ -84,29 +84,29 @@ Beim ersten echten End-to-End-Test über ngrok + Claude Desktop aufgedeckt. Reih
 ```
 PACKAGES_INCLUDED Hook (boot.php)
    ↓
-rex_ai_mcp_router::dispatch()        ← Pfad-Match auf REQUEST_URI, sonst return
+FriendsOfRedaxo\AiPlatform\Mcp\Router::dispatch()        ← Pfad-Match auf REQUEST_URI, sonst return
    ↓ (on match)
-rex_ai_mcp_server                    ← JSON-RPC Handler, init/list/call/ping
+FriendsOfRedaxo\AiPlatform\Mcp\Server                    ← JSON-RPC Handler, init/list/call/ping
    ↓
-rex_ai_mcp_authenticator             ← liefert Context (Phase 1: immer anonymous)
+FriendsOfRedaxo\AiPlatform\Mcp\Authenticator             ← liefert Context (Phase 1: immer anonymous)
    ↓
-rex_ai_mcp_context                   ← Value Object: YCom-User, Scopes, AuthMode
+FriendsOfRedaxo\AiPlatform\Mcp\Context                   ← Value Object: YCom-User, Scopes, AuthMode
    ↓
-rex_ai_mcp_tool::execute($args, $ctx)
+FriendsOfRedaxo\AiPlatform\Mcp\Tool::execute($args, $ctx)
 ```
 
 ## Route-Tabelle (HISTORISCH — aktueller Stand siehe oben „Live-Routen")
 
 | Pfad | Methode | Handler | Status |
 |---|---|---|---|
-| `/mcp` | POST | `rex_ai_mcp_server::handle` | aktiv |
+| `/mcp` | POST | `FriendsOfRedaxo\AiPlatform\Mcp\Server::handle` | aktiv |
 | `/mcp` | GET, andere | — | 405 Method Not Allowed |
 | `/.well-known/oauth-protected-resource` | GET | inline JSON | aktiv (Discovery) |
 | `/.well-known/oauth-authorization-server` | GET | inline JSON | aktiv (Discovery-Skeleton) |
 | `/oauth/authorize` | * | — | 501 (Phase 2) |
 | `/oauth/token` | * | — | 501 (Phase 2) |
 | `/oauth/register` | * | — | 501 (Phase 2) |
-| `index.php?rex-api-call=ai_mcp` | POST | `rex_api_ai_mcp` → `rex_ai_mcp_server` | deprecated, bleibt fuer BC |
+| `index.php?rex-api-call=ai_mcp` | POST | `rex_api_ai_mcp` → `FriendsOfRedaxo\AiPlatform\Mcp\Server` | deprecated, bleibt fuer BC |
 
 Routing laeuft komplett ohne `.htaccess`-Eingriff — der Router hookt sich in `PACKAGES_INCLUDED` ein und `exit`et bei Match. Trade-off: Hook feuert auf JEDEM Frontend-Request, also Route-Tabelle klein halten.
 
@@ -128,11 +128,11 @@ Das ist MCP-Spec-konform — Clients wie `mcp-remote` lesen das `resource` raus 
 ## Tool-Registration
 
 ```php
-$tools['my_tool'] = new rex_ai_mcp_tool(
+$tools['my_tool'] = new FriendsOfRedaxo\AiPlatform\Mcp\Tool(
     name: 'my_tool',
     description: '...',
     inputSchema: [...],
-    handler: fn (array $args, rex_ai_mcp_context $ctx): string => '...',
+    handler: fn (array $args, FriendsOfRedaxo\AiPlatform\Mcp\Context $ctx): string => '...',
     public: false,                         // default false
     requiredScopes: ['mcp:tools:call'],    // greift erst mit Phase 2
 );
@@ -160,33 +160,33 @@ Sichtbarkeit:
 
 **Klassen:**
 
-- `rex_ai_oauth_scope_registry` — Built-in Scopes (`mcp:tools:read`, `mcp:tools:call`), Extension Point `AI_PLATFORM_OAUTH_SCOPES` fuer Drittaddons, Gruppen→Scope-Mapping CRUD, `resolveScopesForYcomUser()` aggregiert via `rex_ycom_user::getGroups()`.
-- `rex_ai_oauth_client_store` — `create()`, `findByClientId()`, `findAll()`, `deleteById()`, `markUsed()`, `verifySecret()` (password_verify), `redirectUriMatches()` (exact-match Liste).
-- `rex_ai_oauth_token_store` — `issueAuthorizationCode()`, `consumeAuthorizationCode()` (single-use, expiry-aware), `issueTokenPair()`, `findAccessToken()`, `rotateRefreshToken()` (revoked alten Pair), `revokeAllForClient()`. Token-Lifetimes als Konstanten: ACCESS=3600s, REFRESH=30d, CODE=600s.
+- `FriendsOfRedaxo\AiPlatform\OAuth\ScopeRegistry` — Built-in Scopes (`mcp:tools:read`, `mcp:tools:call`), Extension Point `AI_PLATFORM_OAUTH_SCOPES` fuer Drittaddons, Gruppen→Scope-Mapping CRUD, `resolveScopesForYcomUser()` aggregiert via `rex_ycom_user::getGroups()`.
+- `FriendsOfRedaxo\AiPlatform\OAuth\ClientStore` — `create()`, `findByClientId()`, `findAll()`, `deleteById()`, `markUsed()`, `verifySecret()` (password_verify), `redirectUriMatches()` (exact-match Liste).
+- `FriendsOfRedaxo\AiPlatform\OAuth\TokenStore` — `issueAuthorizationCode()`, `consumeAuthorizationCode()` (single-use, expiry-aware), `issueTokenPair()`, `findAccessToken()`, `rotateRefreshToken()` (revoked alten Pair), `revokeAllForClient()`. Token-Lifetimes als Konstanten: ACCESS=3600s, REFRESH=30d, CODE=600s.
 
 **Sicherheitsprinzipien:**
 - Alle Token + Codes als SHA-256-hex in der DB, Plaintext nur einmal bei Issue zurueckgegeben.
 - Client-Secrets via `password_hash(PASSWORD_DEFAULT)`.
 - Refresh-Token-Rotation: nach Einlosen wird das alte Pair revoked, das vermeidet Token-Replay.
 
-**HTTPS-Fix:** `rex_ai_mcp_router::baseUrl()` ueberschreibt das Scheme aus `rex::getServer()` mit dem tatsaechlichen Request-Scheme (`$_SERVER['HTTPS']`, `X-Forwarded-Proto`, Port 443). Discovery-URLs zeigen jetzt durchgaengig korrekt `https://...` an, statt der REDAXO-Config-Default.
+**HTTPS-Fix:** `FriendsOfRedaxo\AiPlatform\Mcp\Router::baseUrl()` ueberschreibt das Scheme aus `rex::getServer()` mit dem tatsaechlichen Request-Scheme (`$_SERVER['HTTPS']`, `X-Forwarded-Proto`, Port 443). Discovery-URLs zeigen jetzt durchgaengig korrekt `https://...` an, statt der REDAXO-Config-Default.
 
 **Test-Skript:** `.claude/tests/oauth-storage-test.php` — 44 Asserts. Setzt $REX globals, bootet REDAXO + Addons via `rex_addon::initialize()` + `getPackageOrder()` Loop, raeumt DB vor und nach Test. Reproduzierbar via `php .claude/tests/oauth-storage-test.php` aus dem Addon-Root.
 
 ### Stage 2b (erledigt 2026-06-01) — Token-Endpoint + Bearer-Validation
 
-**`lib/rex_ai_oauth_token_endpoint.php`** — Handler fuer `POST /oauth/token`. Akzeptiert sowohl `application/x-www-form-urlencoded` als auch `application/json`. Implementiert:
+**`lib/OAuth/TokenEndpoint.php`** — Handler fuer `POST /oauth/token`. Akzeptiert sowohl `application/x-www-form-urlencoded` als auch `application/json`. Implementiert:
 
 - `grant_type=authorization_code` — required params: `code`, `redirect_uri`, `client_id`, `code_verifier`; bei confidential clients zusaetzlich `client_secret`. Verifiziert PKCE S256 (`base64url(sha256(verifier)) === code_challenge`) und matcht redirect_uri + client_id gegen das gespeicherte Code-Row.
 - `grant_type=refresh_token` — rotiert das alte Pair (revoked beide), gibt neues access+refresh aus.
 - OAuth-Error-Konvention: 400 fuer invalid_request/invalid_grant/unsupported_grant_type, 401 fuer invalid_client. Body als `{"error": "...", "error_description": "..."}`.
 - Cache-Headers: `Cache-Control: no-store`, `Pragma: no-cache` damit Proxies keine Tokens behalten.
 
-**`rex_ai_mcp_authenticator`** — `authenticate()` schaut bei vorhandenem Bearer-Header in `rex_ai_oauth_token_store::findAccessToken()` nach und gibt einen authentifizierten Context mit `ycomUserId`, `scopes`, `authMode='oauth'`, `clientId` zurueck. Ist der Token unbekannt/abgelaufen/revoked, wirft die Methode `rex_ai_mcp_invalid_token_exception` (NEU). Das `buildChallengeHeader()` nimmt jetzt optional `$error` + `$errorDescription` und baut nach RFC 6750 §3.1 `Bearer realm="MCP", resource="…", error="invalid_token", error_description="…"`.
+**`FriendsOfRedaxo\AiPlatform\Mcp\Authenticator`** — `authenticate()` schaut bei vorhandenem Bearer-Header in `FriendsOfRedaxo\AiPlatform\OAuth\TokenStore::findAccessToken()` nach und gibt einen authentifizierten Context mit `ycomUserId`, `scopes`, `authMode='oauth'`, `clientId` zurueck. Ist der Token unbekannt/abgelaufen/revoked, wirft die Methode `FriendsOfRedaxo\AiPlatform\Mcp\InvalidTokenException` (NEU). Das `buildChallengeHeader()` nimmt jetzt optional `$error` + `$errorDescription` und baut nach RFC 6750 §3.1 `Bearer realm="MCP", resource="…", error="invalid_token", error_description="…"`.
 
-**`rex_ai_mcp_server`** — Authenticate liegt jetzt im selben `try`-Block wie das Dispatch. Faengt zusaetzlich `rex_ai_mcp_invalid_token_exception` und ruft `sendAuthChallenge(..., 'invalid_token')` auf — Clients sehen den exakten Grund (abgelaufen vs. nie ausgestellt) und koennen entsprechend reagieren.
+**`FriendsOfRedaxo\AiPlatform\Mcp\Server`** — Authenticate liegt jetzt im selben `try`-Block wie das Dispatch. Faengt zusaetzlich `FriendsOfRedaxo\AiPlatform\Mcp\InvalidTokenException` und ruft `sendAuthChallenge(..., 'invalid_token')` auf — Clients sehen den exakten Grund (abgelaufen vs. nie ausgestellt) und koennen entsprechend reagieren.
 
-**`rex_ai_mcp_router`** — `POST /oauth/token` geht jetzt direkt an `rex_ai_oauth_token_endpoint::dispatch()` statt 501. `GET /oauth/token` antwortet weiter mit 405 (Allow: POST). `/oauth/authorize` und `/oauth/register` bleiben 501 bis Stage 2c.
+**`FriendsOfRedaxo\AiPlatform\Mcp\Router`** — `POST /oauth/token` geht jetzt direkt an `FriendsOfRedaxo\AiPlatform\OAuth\TokenEndpoint::dispatch()` statt 501. `GET /oauth/token` antwortet weiter mit 405 (Allow: POST). `/oauth/authorize` und `/oauth/register` bleiben 501 bis Stage 2c.
 
 **Sicherheitsdetails:**
 - Refresh-Rotation: das alte Refresh-Token UND das verlinkte Access-Token werden gemeinsam revoked (parent_token_id-Loesung im Store) — schliesst die Replay-Tuer zu.
@@ -197,7 +197,7 @@ Sichtbarkeit:
 
 ### Stage 2c (erledigt 2026-06-01) — Authorize + DCR + Backend-UI
 
-**`lib/rex_ai_oauth_authorization_endpoint.php`** — Eine Klasse, drei Zustände auf demselben Pfad:
+**`lib/OAuth/AuthorizationEndpoint.php`** — Eine Klasse, drei Zustände auf demselben Pfad:
 
 1. GET ohne YCom-Session → standalone HTML-Login-Form (Login + Passwort), alle OAuth-Params als hidden inputs erhalten
 2. POST `_action=login` → `rex_ycom_auth::login(['loginName' => ..., 'loginPassword' => ..., 'filter' => [], 'ignorePassword' => false])`. Bei Erfolg fallthrough zum Consent-Screen, bei Fehler re-render der Login-Form mit Fehlermeldung
@@ -212,11 +212,11 @@ Sichtbarkeit:
 - PKCE S256 ist Pflicht — keine andere Method, kein Weglassen.
 - Login geht ueber die normale YCom-Login-Methode mit deren Auth-Rules (Brute-Force-Schutz inklusive).
 
-**`lib/rex_ai_oauth_dcr_endpoint.php`** — `POST /oauth/register` (RFC 7591) mit Auto-Approve. JSON-Body mit `redirect_uris` (pflicht, absolute URLs), `client_name` (default "Dynamic client"), `token_endpoint_auth_method` (muss "none" sein). Erstellt einen public client mit `created_by_dcr=1`. Antwortet mit 201 + Standard-RFC-7591-Payload.
+**`lib/OAuth/DcrEndpoint.php`** — `POST /oauth/register` (RFC 7591) mit Auto-Approve. JSON-Body mit `redirect_uris` (pflicht, absolute URLs), `client_name` (default "Dynamic client"), `token_endpoint_auth_method` (muss "none" sein). Erstellt einen public client mit `created_by_dcr=1`. Antwortet mit 201 + Standard-RFC-7591-Payload.
 
 **Backend-Pages:**
 - `pages/oauth-clients.php` — Liste aller Clients (Name, ID, Typ, Redirect-URIs, DCR-Badge, last_used), Form zum manuellen Anlegen (public oder confidential — Secret wird nur einmal beim Create angezeigt), Loeschen mit Token-Revoke.
-- `pages/scope-mapping.php` — Iteriert ueber alle `rex_ycom_group`-Eintraege, pro Gruppe Multi-Select aller bekannten Scopes (built-in + via `AI_PLATFORM_OAUTH_SCOPES` registriert). Speichert via `rex_ai_oauth_scope_registry::setScopesForGroup()`.
+- `pages/scope-mapping.php` — Iteriert ueber alle `rex_ycom_group`-Eintraege, pro Gruppe Multi-Select aller bekannten Scopes (built-in + via `AI_PLATFORM_OAUTH_SCOPES` registriert). Speichert via `FriendsOfRedaxo\AiPlatform\OAuth\ScopeRegistry::setScopesForGroup()`.
 
 **Test-Skripte:**
 - `.claude/tests/oauth-authorize-test-seed.php` — PHP-Helper, der per `seed` ein YCom-Group + Scope-Mapping + Test-User mit `rex_login::passwordHash()`-Passwort anlegt und JSON mit Credentials zurueckgibt; per `cleanup <user_id> <group_id>` raeumt er alles wieder ab.

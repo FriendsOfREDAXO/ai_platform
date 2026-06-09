@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+namespace FriendsOfRedaxo\AiPlatform\Mcp;
+
 /**
  * Value object representing a tool that can be exposed via the MCP server.
  *
@@ -16,13 +18,13 @@ declare(strict_types=1);
  * adapt their output to the caller (e.g. hide non-public data for
  * anonymous callers, scope query results to the YCom user).
  */
-class rex_ai_mcp_tool
+class Tool
 {
     /**
      * @param string $name Unique tool name
      * @param string $description Human-readable description
      * @param array<string, mixed> $inputSchema JSON Schema for input parameters
-     * @param callable(array<string, mixed>, rex_ai_mcp_context): mixed $handler
+     * @param callable(array<string, mixed>, Context): mixed $handler
      * @param bool $public Whether the tool can be called without auth
      * @param list<string> $requiredScopes Scopes the caller must have (in addition to being authenticated)
      */
@@ -70,7 +72,7 @@ class rex_ai_mcp_tool
     /**
      * Whether this tool is callable in the given auth context.
      */
-    public function isCallableBy(rex_ai_mcp_context $context): bool
+    public function isCallableBy(Context $context): bool
     {
         if ($this->public) {
             return true;
@@ -96,7 +98,7 @@ class rex_ai_mcp_tool
     /**
      * @param array<string, mixed> $arguments
      */
-    public function execute(array $arguments, rex_ai_mcp_context $context): mixed
+    public function execute(array $arguments, Context $context): mixed
     {
         return ($this->handler)($arguments, $context);
     }

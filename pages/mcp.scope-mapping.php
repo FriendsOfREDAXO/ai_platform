@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use FriendsOfRedaxo\AiPlatform\OAuth\ScopeRegistry;
+
 if (!class_exists('rex_ycom_group')) {
     echo rex_view::warning(rex_i18n::msg('ai_platform_scopes_no_groups'));
     return;
@@ -21,7 +23,7 @@ if ('post' === rex_request::requestMethod() && $csrf->isValid()) {
         $filtered = is_array($scopes)
             ? array_values(array_filter($scopes, static fn ($s) => is_string($s) && '' !== $s))
             : [];
-        rex_ai_oauth_scope_registry::setScopesForGroup($groupId, $filtered);
+        ScopeRegistry::setScopesForGroup($groupId, $filtered);
     }
     echo rex_view::success(rex_i18n::msg('ai_platform_scopes_saved'));
 }
@@ -34,7 +36,7 @@ if (0 === count($groups)) {
 
 echo '<p>' . rex_i18n::msg('ai_platform_scopes_intro') . '</p>';
 
-$allScopes = rex_ai_oauth_scope_registry::allScopes();
+$allScopes = ScopeRegistry::allScopes();
 
 $body = '<table class="table table-striped">'
     . '<thead><tr>'
@@ -45,7 +47,7 @@ $body = '<table class="table table-striped">'
 foreach ($groups as $group) {
     $groupId = (int) $group->getId();
     $groupName = (string) $group->getValue('name');
-    $current = rex_ai_oauth_scope_registry::getScopesForGroup($groupId);
+    $current = ScopeRegistry::getScopesForGroup($groupId);
 
     $checkboxes = '';
     foreach ($allScopes as $scope => $description) {

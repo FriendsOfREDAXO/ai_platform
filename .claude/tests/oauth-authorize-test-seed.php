@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use FriendsOfRedaxo\AiPlatform\OAuth\ScopeRegistry;
+
 // Boot REDAXO + addons. Outputs JSON describing the seeded test fixtures.
 $htdocs = dirname(__DIR__, 6);
 unset($REX);
@@ -37,9 +39,9 @@ if ('seed' === $cmd) {
     }
 
     // Map group to scopes
-    rex_ai_oauth_scope_registry::setScopesForGroup($groupId, [
-        rex_ai_oauth_scope_registry::SCOPE_TOOLS_READ,
-        rex_ai_oauth_scope_registry::SCOPE_TOOLS_CALL,
+    ScopeRegistry::setScopesForGroup($groupId, [
+        ScopeRegistry::SCOPE_TOOLS_READ,
+        ScopeRegistry::SCOPE_TOOLS_CALL,
     ]);
 
     // Create the user. Login field on this instance is "email" (default).
@@ -74,7 +76,7 @@ if ('cleanup' === $cmd) {
     }
     if ('' !== $groupIds) {
         $sql->setQuery('DELETE FROM ' . rex::getTable('ycom_group') . ' WHERE id IN (' . $groupIds . ')');
-        rex_ai_oauth_scope_registry::setScopesForGroup((int) $groupIds, []);
+        ScopeRegistry::setScopesForGroup((int) $groupIds, []);
     }
     // Wipe all DCR clients + their tokens to keep the DB clean
     $sql->setQuery("DELETE FROM " . rex::getTable('ai_oauth_token') . " WHERE client_id IN (SELECT client_id FROM " . rex::getTable('ai_oauth_client') . " WHERE created_by_dcr = 1 OR client_name = 'AI Platform OAuth Test')");

@@ -2,6 +2,14 @@
 
 declare(strict_types=1);
 
+namespace FriendsOfRedaxo\AiPlatform\Mcp;
+
+use FriendsOfRedaxo\AiPlatform\OAuth\AuthorizationEndpoint;
+use FriendsOfRedaxo\AiPlatform\OAuth\DcrEndpoint;
+use FriendsOfRedaxo\AiPlatform\OAuth\TokenEndpoint;
+use rex;
+use rex_response;
+
 /**
  * Matches incoming frontend requests against the MCP / OAuth path table and
  * dispatches them. Bound to the PACKAGES_INCLUDED extension point so it
@@ -20,7 +28,7 @@ declare(strict_types=1);
  *
  * Anything else passes through untouched.
  */
-final class rex_ai_mcp_router
+final class Router
 {
     private const MCP_PATH = '/mcp';
     private const DISCOVERY_PROTECTED_RESOURCE = '/.well-known/oauth-protected-resource';
@@ -74,7 +82,7 @@ final class rex_ai_mcp_router
 
     private static function dispatchOauthAuthorize(): never
     {
-        rex_ai_oauth_authorization_endpoint::dispatch();
+        AuthorizationEndpoint::dispatch();
     }
 
     private static function dispatchOauthToken(string $method): never
@@ -90,7 +98,7 @@ final class rex_ai_mcp_router
             ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
             exit;
         }
-        rex_ai_oauth_token_endpoint::dispatch();
+        TokenEndpoint::dispatch();
     }
 
     private static function dispatchOauthRegister(string $method): never
@@ -106,7 +114,7 @@ final class rex_ai_mcp_router
             ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
             exit;
         }
-        rex_ai_oauth_dcr_endpoint::dispatch();
+        DcrEndpoint::dispatch();
     }
 
     private static function currentPath(): ?string
@@ -139,7 +147,7 @@ final class rex_ai_mcp_router
             exit;
         }
 
-        $server = new rex_ai_mcp_server(new rex_ai_mcp_authenticator());
+        $server = new Server(new Authenticator());
         $server->handle();
     }
 

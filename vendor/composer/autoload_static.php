@@ -71,6 +71,10 @@ class ComposerStaticInita2468993b9624631610b23a6e08c4641
         array (
             'OskarStark\\Enum\\' => 16,
         ),
+        'F' =>
+        array (
+            'FriendsOfRedaxo\\AiPlatform\\' => 27,
+        ),
         'D' =>
         array (
             'Doctrine\\Deprecations\\' => 22,
@@ -220,6 +224,10 @@ class ComposerStaticInita2468993b9624631610b23a6e08c4641
         array (
             0 => __DIR__ . '/..' . '/oskarstark/enum-helper/src',
         ),
+        'FriendsOfRedaxo\\AiPlatform\\' =>
+        array (
+            0 => __DIR__ . '/../..' . '/lib',
+        ),
         'Doctrine\\Deprecations\\' =>
         array (
             0 => __DIR__ . '/..' . '/doctrine/deprecations/src',
@@ -253,21 +261,6 @@ class ComposerStaticInita2468993b9624631610b23a6e08c4641
         'ReflectionConstant' => __DIR__ . '/..' . '/symfony/polyfill-php84/Resources/stubs/ReflectionConstant.php',
         'RoundingMode' => __DIR__ . '/..' . '/symfony/polyfill-php84/Resources/stubs/RoundingMode.php',
         'SQLite3Exception' => __DIR__ . '/..' . '/symfony/polyfill-php83/Resources/stubs/SQLite3Exception.php',
-        'rex_ai_mcp_auth_required_exception' => __DIR__ . '/../..' . '/lib/rex_ai_mcp_server.php',
-        'rex_ai_mcp_authenticator' => __DIR__ . '/../..' . '/lib/rex_ai_mcp_authenticator.php',
-        'rex_ai_mcp_context' => __DIR__ . '/../..' . '/lib/rex_ai_mcp_context.php',
-        'rex_ai_mcp_invalid_token_exception' => __DIR__ . '/../..' . '/lib/rex_ai_mcp_authenticator.php',
-        'rex_ai_mcp_router' => __DIR__ . '/../..' . '/lib/rex_ai_mcp_router.php',
-        'rex_ai_mcp_server' => __DIR__ . '/../..' . '/lib/rex_ai_mcp_server.php',
-        'rex_ai_mcp_tool' => __DIR__ . '/../..' . '/lib/rex_ai_mcp_tool.php',
-        'rex_ai_oauth_authorization_endpoint' => __DIR__ . '/../..' . '/lib/rex_ai_oauth_authorization_endpoint.php',
-        'rex_ai_oauth_client_store' => __DIR__ . '/../..' . '/lib/rex_ai_oauth_client_store.php',
-        'rex_ai_oauth_dcr_endpoint' => __DIR__ . '/../..' . '/lib/rex_ai_oauth_dcr_endpoint.php',
-        'rex_ai_oauth_error' => __DIR__ . '/../..' . '/lib/rex_ai_oauth_token_endpoint.php',
-        'rex_ai_oauth_scope_registry' => __DIR__ . '/../..' . '/lib/rex_ai_oauth_scope_registry.php',
-        'rex_ai_oauth_token_endpoint' => __DIR__ . '/../..' . '/lib/rex_ai_oauth_token_endpoint.php',
-        'rex_ai_oauth_token_store' => __DIR__ . '/../..' . '/lib/rex_ai_oauth_token_store.php',
-        'rex_ai_platform_service' => __DIR__ . '/../..' . '/lib/rex_ai_platform_service.php',
         'rex_api_ai_test' => __DIR__ . '/../..' . '/lib/rex_api_ai_test.php',
     );
 

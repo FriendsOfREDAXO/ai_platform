@@ -2,6 +2,10 @@
 
 declare(strict_types=1);
 
+namespace FriendsOfRedaxo\AiPlatform\OAuth;
+
+use rex_response;
+
 /**
  * Handler for `POST /oauth/register` — Dynamic Client Registration (RFC 7591).
  *
@@ -23,7 +27,7 @@ declare(strict_types=1);
  * Returns the client_id (plus client_secret for confidential clients) along
  * with the supplied metadata per RFC 7591 §3.2.
  */
-final class rex_ai_oauth_dcr_endpoint
+final class DcrEndpoint
 {
     public static function dispatch(): never
     {
@@ -62,8 +66,8 @@ final class rex_ai_oauth_dcr_endpoint
             self::error(400, 'invalid_client_metadata', 'token_endpoint_auth_method must be "none" or "client_secret_post"');
         }
         $type = 'none' === $authMethod
-            ? rex_ai_oauth_client_store::TYPE_PUBLIC
-            : rex_ai_oauth_client_store::TYPE_CONFIDENTIAL;
+            ? ClientStore::TYPE_PUBLIC
+            : ClientStore::TYPE_CONFIDENTIAL;
 
         $clientName = trim((string) ($params['client_name'] ?? ''));
         if ('' === $clientName) {
@@ -73,7 +77,7 @@ final class rex_ai_oauth_dcr_endpoint
             $clientName = substr($clientName, 0, 250);
         }
 
-        $created = rex_ai_oauth_client_store::create(
+        $created = ClientStore::create(
             $clientName,
             array_values($redirectUris),
             $type,

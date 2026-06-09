@@ -2,6 +2,14 @@
 
 declare(strict_types=1);
 
+namespace FriendsOfRedaxo\AiPlatform\OAuth;
+
+use rex_fragment;
+use rex_i18n;
+use rex_response;
+use rex_ycom_auth;
+use rex_ycom_user;
+
 /**
  * Handler for `/oauth/authorize`.
  *
@@ -18,7 +26,7 @@ declare(strict_types=1);
  *                                   requested scopes and the user's
  *                                   group-mapped scopes)
  *  4. POST `_action=consent`     →  if "allow": create authorization_code
- *                                   in rex_ai_oauth_token_store and
+ *                                   in TokenStore and
  *                                   redirect to client redirect_uri;
  *                                   if "deny": redirect with
  *                                   error=access_denied
@@ -29,7 +37,7 @@ declare(strict_types=1);
  *   - All other errors redirect back to the registered redirect_uri with
  *     `?error=...&state=...` so the client sees them.
  */
-final class rex_ai_oauth_authorization_endpoint
+final class AuthorizationEndpoint
 {
     public static function dispatch(): never
     {
@@ -52,14 +60,14 @@ final class rex_ai_oauth_authorization_endpoint
         if ('' === $clientId) {
             self::renderError('invalid_request', 'client_id is required');
         }
-        $client = rex_ai_oauth_client_store::findByClientId($clientId);
+        $client = ClientStore::findByClientId($clientId);
         if (null === $client) {
             self::renderError('invalid_client', 'Unknown client_id');
         }
-        if (rex_ai_oauth_client_store::isExpired($client)) {
+        if (ClientStore::isExpired($client)) {
             self::renderError('invalid_client', 'Client registration has expired, please register again');
         }
-        if ('' === $redirectUri || !rex_ai_oauth_client_store::redirectUriMatches($client, $redirectUri)) {
+        if ('' === $redirectUri || !ClientStore::redirectUriMatches($client, $redirectUri)) {
             self::renderError('invalid_request', 'redirect_uri does not match a registered URI for this client');
         }
 
@@ -111,7 +119,7 @@ final class rex_ai_oauth_authorization_endpoint
         }
 
         // --- Effective scopes (intersection of requested ↔ user-granted)
-        $userScopes = rex_ai_oauth_scope_registry::resolveScopesForYcomUser($user->getId());
+        $userScopes = ScopeRegistry::resolveScopesForYcomUser($user->getId());
         if ([] === $requestedScopes) {
             $effective = $userScopes;
         } else {
@@ -125,7 +133,7 @@ final class rex_ai_oauth_authorization_endpoint
                 self::redirectWithError($redirectUri, 'access_denied', 'User denied the request', $state);
             }
 
-            $code = rex_ai_oauth_token_store::issueAuthorizationCode(
+            $code = TokenStore::issueAuthorizationCode(
                 $clientId,
                 $user->getId(),
                 $effective,
@@ -246,7 +254,7 @@ final class rex_ai_oauth_authorization_endpoint
         $fragment->setVar('userEmail', (string) $user->getValue('email'), false);
         $fragment->setVar('effective', $effective, false);
         $fragment->setVar('omitted', array_values(array_diff($requested, $effective)), false);
-        $fragment->setVar('descriptions', rex_ai_oauth_scope_registry::allScopes(), false);
+        $fragment->setVar('descriptions', ScopeRegistry::allScopes(), false);
         $fragment->setVar('hiddenFields', self::hiddenInputs($params, ['decision', '_action']), false);
 
         echo self::renderPage(rex_i18n::msg('ai_platform_oauth_consent_title'), $fragment->parse('ai_platform/oauth/consent.php'));

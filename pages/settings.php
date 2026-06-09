@@ -2,8 +2,10 @@
 
 declare(strict_types=1);
 
+use FriendsOfRedaxo\AiPlatform\Service;
+
 $addon = rex_addon::get('ai_platform');
-$service = rex_ai_platform_service::getInstance();
+$service = Service::getInstance();
 $csrfToken = rex_csrf_token::factory('ai_platform_settings');
 
 // Handle form submission
@@ -33,7 +35,7 @@ foreach ($types as $type => $config) {
     $profiles = $service->getProfiles($type);
     $options = '<option value="0">' . rex_i18n::msg('ai_platform_please_select') . '</option>';
     foreach ($profiles as $profile) {
-        $providers = rex_ai_platform_service::getProviders();
+        $providers = Service::getProviders();
         $providerLabel = $providers[$profile['provider']] ?? $profile['provider'];
         $label = rex_escape($profile['name'] . ' (' . $providerLabel . ' - ' . $profile['model'] . ')');
         $selected = (int) $profile['id'] === $config['current'] ? ' selected' : '';

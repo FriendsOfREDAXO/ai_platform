@@ -2,6 +2,9 @@
 
 declare(strict_types=1);
 
+use FriendsOfRedaxo\AiPlatform\OAuth\ClientStore;
+use FriendsOfRedaxo\AiPlatform\OAuth\TokenStore;
+
 $csrf = rex_csrf_token::factory('ai_platform_oauth_clients');
 $func = rex_request('func', 'string', '');
 $id = rex_request('id', 'int', 0);
@@ -12,8 +15,8 @@ if ('delete' === $func && $id > 0 && $csrf->isValid()) {
     $row = rex_sql::factory();
     $row->setQuery('SELECT client_id FROM ' . rex::getTable('ai_oauth_client') . ' WHERE id = ?', [$id]);
     if ($row->getRows() > 0) {
-        rex_ai_oauth_token_store::revokeAllForClient((string) $row->getValue('client_id'));
-        rex_ai_oauth_client_store::deleteById($id);
+        TokenStore::revokeAllForClient((string) $row->getValue('client_id'));
+        ClientStore::deleteById($id);
         echo rex_view::success(rex_i18n::msg('ai_platform_oauth_client_deleted'));
     }
 }
@@ -21,19 +24,19 @@ if ('delete' === $func && $id > 0 && $csrf->isValid()) {
 // Handle create
 if ('post' === rex_request::requestMethod() && 'create' === rex_post('action', 'string') && $csrf->isValid()) {
     $name = trim(rex_post('client_name', 'string', ''));
-    $type = rex_post('type', 'string', rex_ai_oauth_client_store::TYPE_PUBLIC);
+    $type = rex_post('type', 'string', ClientStore::TYPE_PUBLIC);
     $rawUris = rex_post('redirect_uris', 'string', '');
     $uris = array_values(array_filter(array_map('trim', preg_split('/\r?\n/', $rawUris) ?: [])));
 
     if ('' === $name || [] === $uris) {
         echo rex_view::error(rex_i18n::msg('ai_platform_oauth_client_redirect_required'));
     } else {
-        $created = rex_ai_oauth_client_store::create(
+        $created = ClientStore::create(
             $name,
             $uris,
-            rex_ai_oauth_client_store::TYPE_CONFIDENTIAL === $type
-                ? rex_ai_oauth_client_store::TYPE_CONFIDENTIAL
-                : rex_ai_oauth_client_store::TYPE_PUBLIC,
+            ClientStore::TYPE_CONFIDENTIAL === $type
+                ? ClientStore::TYPE_CONFIDENTIAL
+                : ClientStore::TYPE_PUBLIC,
             false,
         );
         $justCreated = $created;
@@ -61,7 +64,7 @@ if (null !== $justCreated) {
 }
 
 // --- Client list
-$clients = rex_ai_oauth_client_store::findAll();
+$clients = ClientStore::findAll();
 if ([] === $clients) {
     echo rex_view::info(rex_i18n::msg('ai_platform_oauth_clients_empty'));
 } else {
@@ -84,8 +87,8 @@ if ([] === $clients) {
             $csrf->getUrlParams(),
         ));
 
-        $expiresAt = rex_ai_oauth_client_store::expiresAt($client);
-        if (rex_ai_oauth_client_store::isExpired($client)) {
+        $expiresAt = ClientStore::expiresAt($client);
+        if (ClientStore::isExpired($client)) {
             $expiryCell = '<span class="label label-danger">' . rex_i18n::msg('ai_platform_oauth_client_expired') . '</span>';
         } elseif (null === $expiresAt) {
             $expiryCell = '<span class="text-muted">' . rex_i18n::msg('ai_platform_oauth_client_never_expires') . '</span>';

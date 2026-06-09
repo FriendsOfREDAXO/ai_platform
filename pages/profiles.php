@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use FriendsOfRedaxo\AiPlatform\Service;
+
 $func = rex_request('func', 'string');
 $id = rex_request('id', 'int');
 
@@ -29,7 +31,7 @@ if ('add' === $func || 'edit' === $func) {
     $field = $form->addSelectField('type');
     $field->setLabel(rex_i18n::msg('ai_platform_type'));
     $select = $field->getSelect();
-    foreach (rex_ai_platform_service::getTypes() as $key => $label) {
+    foreach (Service::getTypes() as $key => $label) {
         $select->addOption($label, $key);
     }
     $field->setAttribute('class', 'form-control selectpicker');
@@ -40,7 +42,7 @@ if ('add' === $func || 'edit' === $func) {
     $field->setLabel(rex_i18n::msg('ai_platform_provider'));
     $select = $field->getSelect();
     $select->addOption(rex_i18n::msg('ai_platform_please_select'), '');
-    foreach (rex_ai_platform_service::getProviders() as $key => $label) {
+    foreach (Service::getProviders() as $key => $label) {
         $select->addOption($label, $key);
     }
     $field->setAttribute('class', 'form-control selectpicker');
@@ -256,13 +258,13 @@ if ('add' === $func || 'edit' === $func) {
 
     $list->setColumnLabel('type', rex_i18n::msg('ai_platform_type'));
     $list->setColumnFormat('type', 'custom', static function ($params) {
-        $types = rex_ai_platform_service::getTypes();
+        $types = Service::getTypes();
         return $types[$params['value']] ?? $params['value'];
     });
 
     $list->setColumnLabel('provider', rex_i18n::msg('ai_platform_provider'));
     $list->setColumnFormat('provider', 'custom', static function ($params) {
-        $providers = rex_ai_platform_service::getProviders();
+        $providers = Service::getProviders();
         return $providers[$params['value']] ?? $params['value'];
     });
 

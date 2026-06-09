@@ -2,6 +2,10 @@
 
 declare(strict_types=1);
 
+namespace FriendsOfRedaxo\AiPlatform\Mcp;
+
+use rex_ycom_user;
+
 /**
  * Auth context passed to MCP tool handlers.
  *
@@ -9,7 +13,7 @@ declare(strict_types=1);
  * For anonymous (public) calls, isAuthenticated() returns false and the
  * scope list is empty.
  */
-final class rex_ai_mcp_context
+final class Context
 {
     /**
      * @param list<string> $scopes

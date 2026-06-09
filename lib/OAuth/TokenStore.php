@@ -2,6 +2,11 @@
 
 declare(strict_types=1);
 
+namespace FriendsOfRedaxo\AiPlatform\OAuth;
+
+use rex;
+use rex_sql;
+
 /**
  * Persistence layer for one-time authorization codes and the access/refresh
  * token pairs derived from them.
@@ -11,7 +16,7 @@ declare(strict_types=1);
  * usable bearer tokens. The plaintext is only returned to the caller at
  * issuance time.
  */
-final class rex_ai_oauth_token_store
+final class TokenStore
 {
     public const TYPE_ACCESS = 'access';
     public const TYPE_REFRESH = 'refresh';

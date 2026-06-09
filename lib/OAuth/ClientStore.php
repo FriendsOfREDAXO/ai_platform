@@ -2,6 +2,13 @@
 
 declare(strict_types=1);
 
+namespace FriendsOfRedaxo\AiPlatform\OAuth;
+
+use InvalidArgumentException;
+use rex;
+use rex_config;
+use rex_sql;
+
 /**
  * Persistence layer for OAuth 2.1 clients (rex_ai_oauth_client).
  *
@@ -15,7 +22,7 @@ declare(strict_types=1);
  * `created_by_dcr` flag distinguishes those two paths so the backend list
  * can highlight which clients were registered automatically.
  */
-final class rex_ai_oauth_client_store
+final class ClientStore
 {
     public const TYPE_PUBLIC = 'public';
     public const TYPE_CONFIDENTIAL = 'confidential';

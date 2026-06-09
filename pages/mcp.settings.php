@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use FriendsOfRedaxo\AiPlatform\Mcp\Server;
+
 $addon = rex_addon::get('ai_platform');
 $csrfToken = rex_csrf_token::factory('ai_platform_mcp');
 $csrfTools = rex_csrf_token::factory('ai_platform_mcp_tools');
@@ -20,7 +22,7 @@ if ('post' === rex_request::requestMethod() && $csrfToken->isValid()) {
 // so the disabled set is every registered tool name minus the submitted ones.
 if ('post' === rex_request::requestMethod() && $csrfTools->isValid()) {
     $enabled = array_keys(rex_post('tool_enabled', 'array', []));
-    $allToolNames = array_keys(rex_ai_mcp_server::collectTools());
+    $allToolNames = array_keys(Server::collectTools());
     $disabled = array_values(array_diff($allToolNames, $enabled));
     rex_config::set('ai_platform', 'mcp_disabled_tools', json_encode($disabled, JSON_THROW_ON_ERROR));
 
@@ -39,7 +41,7 @@ $discoveryProtectedResource = $base . '/.well-known/oauth-protected-resource';
 $discoveryAuthServer = $base . '/.well-known/oauth-authorization-server';
 
 // Collect registered tools for display
-$tools = rex_ai_mcp_server::collectTools();
+$tools = Server::collectTools();
 
 $content = '
 <form action="' . rex_url::currentBackendPage() . '" method="post" class="form-horizontal">
@@ -129,7 +131,7 @@ echo $phaseBanner;
 
 // Registered tools — each row can be activated / deactivated for the MCP server
 if (count($tools) > 0) {
-    $disabledTools = rex_ai_mcp_server::disabledTools();
+    $disabledTools = Server::disabledTools();
 
     $toolContent = '<table class="table table-striped"><thead><tr>'
         . '<th>' . rex_i18n::msg('ai_platform_mcp_tool_active') . '</th>'
@@ -179,10 +181,13 @@ if (count($tools) > 0) {
 
 // Show usage example
 $exampleContent = '<pre><code>' . rex_escape('// In einem anderen AddOn (boot.php oder lib/):
+use FriendsOfRedaxo\AiPlatform\Mcp\Tool;
+use FriendsOfRedaxo\AiPlatform\Mcp\Context;
+
 rex_extension::register(\'AI_PLATFORM_MCP_TOOLS\', function (rex_extension_point $ep) {
     $tools = $ep->getSubject();
 
-    $tools[\'my_tool_name\'] = new rex_ai_mcp_tool(
+    $tools[\'my_tool_name\'] = new Tool(
         name: \'my_tool_name\',
         description: \'Beschreibung des Tools\',
         inputSchema: [
@@ -192,7 +197,7 @@ rex_extension::register(\'AI_PLATFORM_MCP_TOOLS\', function (rex_extension_point
             ],
             \'required\' => [\'query\'],
         ],
-        handler: function (array $arguments, rex_ai_mcp_context $context): string {
+        handler: function (array $arguments, Context $context): string {
             // $context->getYcomUser() / $context->hasScope(\'...\') verfuegbar
             return \'Ergebnis fuer: \' . $arguments[\'query\'];
         },

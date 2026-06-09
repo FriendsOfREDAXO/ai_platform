@@ -41,5 +41,6 @@ return array(
     'Psr\\Clock\\' => array($vendorDir . '/psr/clock/src'),
     'PHPStan\\PhpDocParser\\' => array($vendorDir . '/phpstan/phpdoc-parser/src'),
     'OskarStark\\Enum\\' => array($vendorDir . '/oskarstark/enum-helper/src'),
+    'FriendsOfRedaxo\\AiPlatform\\' => array($baseDir . '/lib'),
     'Doctrine\\Deprecations\\' => array($vendorDir . '/doctrine/deprecations/src'),
 );

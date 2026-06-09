@@ -101,7 +101,7 @@ Alle Profil-Einstellungen (Temperature, Max Tokens, System-Prompt, Bildgroesse e
 ### Textgenerierung
 
 ```php
-$service = rex_ai_platform_service::getInstance();
+$service = FriendsOfRedaxo\AiPlatform\Service::getInstance();
 
 // Einfache Textgenerierung - nutzt Standard-Profil mit dessen Temperature,
 // Max Tokens und System-Prompt
@@ -120,7 +120,7 @@ $text = $service->generateText('Hallo', null, 2);
 ### Bildverstaendnis
 
 ```php
-$service = rex_ai_platform_service::getInstance();
+$service = FriendsOfRedaxo\AiPlatform\Service::getInstance();
 
 // Nutzt automatisch Detail-Level, Temperature und Max Tokens aus dem Profil
 $description = $service->understandImage(
@@ -138,7 +138,7 @@ $altText = $service->understandImage(
 ### Bildgenerierung
 
 ```php
-$service = rex_ai_platform_service::getInstance();
+$service = FriendsOfRedaxo\AiPlatform\Service::getInstance();
 
 // Nutzt automatisch Bildgroesse, Qualitaet und Stil aus dem Profil
 $imageUrl = $service->generateImage('Ein modernes Logo fuer ein CMS');
@@ -147,7 +147,7 @@ $imageUrl = $service->generateImage('Ein modernes Logo fuer ein CMS');
 ### Embeddings
 
 ```php
-$service = rex_ai_platform_service::getInstance();
+$service = FriendsOfRedaxo\AiPlatform\Service::getInstance();
 
 // Einzelnes Embedding - nutzt Standard-Embedding-Profil
 $vector = $service->generateEmbedding('REDAXO ist ein flexibles Open-Source-CMS.');
@@ -162,7 +162,7 @@ $vectors = $service->generateEmbedding([
 ### Profil-Optionen manuell nutzen
 
 ```php
-$service = rex_ai_platform_service::getInstance();
+$service = FriendsOfRedaxo\AiPlatform\Service::getInstance();
 
 // Alle Einstellungen eines Profils als Options-Array
 $options = $service->getProfileOptions($profileId);
@@ -185,7 +185,7 @@ $imageProfiles = $service->getProfiles('image_generation');
 use Symfony\AI\Platform\Message\Message;
 use Symfony\AI\Platform\Message\MessageBag;
 
-$service = rex_ai_platform_service::getInstance();
+$service = FriendsOfRedaxo\AiPlatform\Service::getInstance();
 $profile = $service->getDefaultProfile('text');
 $platform = $service->getPlatform($profile['id']);
 $options = $service->getProfileOptions($profile['id']);
@@ -206,7 +206,7 @@ echo $result->asText();
 use Symfony\AI\Platform\Message\Message;
 use Symfony\AI\Platform\Message\MessageBag;
 
-$service = rex_ai_platform_service::getInstance();
+$service = FriendsOfRedaxo\AiPlatform\Service::getInstance();
 
 // Agent erstellt - sammelt automatisch Tools von anderen AddOns
 $agent = $service->createAgent('text');
@@ -406,10 +406,13 @@ Andere AddOns koennen Tools ueber den Extension Point `AI_PLATFORM_MCP_TOOLS` be
 
 ```php
 // In boot.php oder lib/ des eigenen AddOns:
+use FriendsOfRedaxo\AiPlatform\Mcp\Tool;
+use FriendsOfRedaxo\AiPlatform\Mcp\Context;
+
 rex_extension::register('AI_PLATFORM_MCP_TOOLS', function (rex_extension_point $ep) {
     $tools = $ep->getSubject();
 
-    $tools['redaxo_article_search'] = new rex_ai_mcp_tool(
+    $tools['redaxo_article_search'] = new Tool(
         name: 'redaxo_article_search',
         description: 'Sucht nach REDAXO-Artikeln anhand eines Suchbegriffs.',
         inputSchema: [
@@ -426,7 +429,7 @@ rex_extension::register('AI_PLATFORM_MCP_TOOLS', function (rex_extension_point $
             ],
             'required' => ['query'],
         ],
-        handler: function (array $arguments, rex_ai_mcp_context $context): string {
+        handler: function (array $arguments, Context $context): string {
             // $context->getYcomUser() / $context->hasScope('...') verfuegbar.
             // Bei anonymem Zugriff (kein gueltiger Token) ist der Context
             // anonymous — geschuetzte Tools werden dann gar nicht erst erreicht.
@@ -467,19 +470,22 @@ rex_extension::register('AI_PLATFORM_MCP_TOOLS', function (rex_extension_point $
 | `name` | ja | Eindeutiger Tool-Name |
 | `description` | ja | Beschreibung, wird MCP-Clients als Tool-Hint angezeigt |
 | `inputSchema` | ja | JSON-Schema fuer die Argumente |
-| `handler` | ja | `function (array $arguments, rex_ai_mcp_context $context): mixed` |
+| `handler` | ja | `function (array $arguments, FriendsOfRedaxo\AiPlatform\Mcp\Context $context): mixed` |
 | `public` | nein | `true` macht das Tool ohne Authentifizierung aufrufbar (Default: `false`) |
 | `requiredScopes` | nein | Liste der Scopes, die der Caller besitzen muss. Wird beim Tool-Aufruf gegen die effektiven Scopes des angemeldeten Nutzers geprueft (aus seinen YCom-Gruppen, siehe Scope-Mapping) |
 
-Im Handler kann ueber `$context` der angemeldete YCom-User abgefragt werden — siehe `lib/rex_ai_mcp_context.php` fuer die volle API.
+Im Handler kann ueber `$context` der angemeldete YCom-User abgefragt werden — siehe `lib/Mcp/Context.php` fuer die volle API.
 
 ### Beispiel: Public Tool ohne Auth
 
 ```php
+use FriendsOfRedaxo\AiPlatform\Mcp\Tool;
+use FriendsOfRedaxo\AiPlatform\Mcp\Context;
+
 rex_extension::register('AI_PLATFORM_MCP_TOOLS', function (rex_extension_point $ep) {
     $tools = $ep->getSubject();
 
-    $tools['redaxo_media_info'] = new rex_ai_mcp_tool(
+    $tools['redaxo_media_info'] = new Tool(
         name: 'redaxo_media_info',
         description: 'Gibt Informationen zu einer Mediendatei zurueck.',
         inputSchema: [
@@ -492,7 +498,7 @@ rex_extension::register('AI_PLATFORM_MCP_TOOLS', function (rex_extension_point $
             ],
             'required' => ['filename'],
         ],
-        handler: function (array $arguments, rex_ai_mcp_context $context): string {
+        handler: function (array $arguments, Context $context): string {
             $media = rex_media::get($arguments['filename']);
             if (!$media) {
                 return 'Mediendatei nicht gefunden: ' . $arguments['filename'];
@@ -519,7 +525,7 @@ rex_extension::register('AI_PLATFORM_MCP_TOOLS', function (rex_extension_point $
 
 | Extension Point | Beschreibung | Subject |
 |---|---|---|
-| `AI_PLATFORM_MCP_TOOLS` | Tools fuer den MCP-Server registrieren | `array<string, rex_ai_mcp_tool>` |
+| `AI_PLATFORM_MCP_TOOLS` | Tools fuer den MCP-Server registrieren | `array<string, FriendsOfRedaxo\AiPlatform\Mcp\Tool>` |
 | `AI_PLATFORM_AGENT_TOOLS` | Tools fuer den Agent registrieren | `array<object>` (Symfony AI Tool-Objekte) |
 | `AI_PLATFORM_OAUTH_SCOPES` | Eigene Scopes fuer das Scope-Mapping ankuendigen | `array<string, string>` (scope → description) |
 

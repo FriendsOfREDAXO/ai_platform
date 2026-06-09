@@ -2,6 +2,10 @@
 
 declare(strict_types=1);
 
+namespace FriendsOfRedaxo\AiPlatform\Mcp;
+
+use FriendsOfRedaxo\AiPlatform\OAuth\TokenStore;
+
 /**
  * Resolves the auth context for an incoming MCP request.
  *
@@ -10,26 +14,26 @@ declare(strict_types=1);
  *                                       tools callable)
  *   2. Valid OAuth Bearer token       → authenticated context with the
  *                                       linked YCom user + scopes
- *   3. Invalid / expired / revoked    → throws rex_ai_mcp_invalid_token_exception
+ *   3. Invalid / expired / revoked    → throws InvalidTokenException
  *      Bearer                          which the server converts into a
  *                                       401 + WWW-Authenticate response
  *                                       per RFC 6750 §3.1
  */
-final class rex_ai_mcp_authenticator
+final class Authenticator
 {
-    public function authenticate(): rex_ai_mcp_context
+    public function authenticate(): Context
     {
         $token = self::extractBearerToken();
         if (null === $token) {
-            return rex_ai_mcp_context::anonymous();
+            return Context::anonymous();
         }
 
-        $row = rex_ai_oauth_token_store::findAccessToken($token);
+        $row = TokenStore::findAccessToken($token);
         if (null === $row) {
-            throw new rex_ai_mcp_invalid_token_exception('Access token is invalid, revoked or expired');
+            throw new InvalidTokenException('Access token is invalid, revoked or expired');
         }
 
-        return new rex_ai_mcp_context(
+        return new Context(
             ycomUserId: (int) $row['ycom_user_id'],
             scopes: $row['scopes'],
             authMode: 'oauth',
@@ -65,7 +69,7 @@ final class rex_ai_mcp_authenticator
      */
     public static function buildChallengeHeader(?string $error = null, ?string $errorDescription = null): string
     {
-        $resource = rex_ai_mcp_router::baseUrl() . '/.well-known/oauth-protected-resource';
+        $resource = Router::baseUrl() . '/.well-known/oauth-protected-resource';
         $parts = [
             'realm="MCP"',
             'resource="' . $resource . '"',
@@ -78,13 +82,4 @@ final class rex_ai_mcp_authenticator
         }
         return 'Bearer ' . implode(', ', $parts);
     }
-}
-
-/**
- * Thrown by the authenticator when the client sent a Bearer token that
- * does not resolve to a valid access token. The server catches this and
- * emits a 401 + WWW-Authenticate response per RFC 6750.
- */
-final class rex_ai_mcp_invalid_token_exception extends \RuntimeException
-{
 }
