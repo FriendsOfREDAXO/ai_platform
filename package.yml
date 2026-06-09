@@ -11,26 +11,21 @@ page:
     subpages:
         profiles:
             title: 'translate:ai_platform_profiles'
-            icon: rex-icon fa-key
         settings:
             title: 'translate:ai_platform_settings'
-            icon: rex-icon fa-cogs
         mcp:
             title: 'translate:ai_platform_mcp'
-            icon: rex-icon fa-plug
             subpages:
                 settings:
                     title: 'translate:ai_platform_mcp_settings_sub'
-                    icon: rex-icon fa-cogs
                 oauth-clients:
                     title: 'translate:ai_platform_oauth_clients'
-                    icon: rex-icon fa-id-card-o
                 scope-mapping:
                     title: 'translate:ai_platform_scopes'
-                    icon: rex-icon fa-shield
         docs:
             title: 'translate:ai_platform_docs'
-            icon: rex-icon fa-book
+            itemAttr:
+                class: pull-right
 
 requires:
     redaxo: '>=5.18'
