@@ -16,10 +16,12 @@ declare(strict_types=1);
  *   - application/json body
  *   - Required: redirect_uris (array of strings, at least one)
  *   - Optional: client_name (defaults to "Dynamic client")
- *   - Optional: token_endpoint_auth_method (must be "none" — we only
- *     issue public clients via DCR)
+ *   - Optional: token_endpoint_auth_method — "none" (public, PKCE only) or
+ *     "client_secret_post" (confidential; a client_secret is generated and
+ *     returned once). Defaults to "none". Anything else is rejected.
  *
- * Returns the client_id along with the supplied metadata per RFC 7591 §3.2.
+ * Returns the client_id (plus client_secret for confidential clients) along
+ * with the supplied metadata per RFC 7591 §3.2.
  */
 final class rex_ai_oauth_dcr_endpoint
 {
@@ -50,10 +52,18 @@ final class rex_ai_oauth_dcr_endpoint
             }
         }
 
+        // Match the methods advertised in the authorization-server metadata.
+        //   - "none"               → public client (PKCE only)
+        //   - "client_secret_post" → confidential client; secret sent in the
+        //                            token request body (verified by the token
+        //                            endpoint). Used by Claude / claude.ai.
         $authMethod = strtolower((string) ($params['token_endpoint_auth_method'] ?? 'none'));
-        if ('none' !== $authMethod) {
-            self::error(400, 'invalid_client_metadata', 'token_endpoint_auth_method must be "none" — DCR only issues public clients');
+        if (!in_array($authMethod, ['none', 'client_secret_post'], true)) {
+            self::error(400, 'invalid_client_metadata', 'token_endpoint_auth_method must be "none" or "client_secret_post"');
         }
+        $type = 'none' === $authMethod
+            ? rex_ai_oauth_client_store::TYPE_PUBLIC
+            : rex_ai_oauth_client_store::TYPE_CONFIDENTIAL;
 
         $clientName = trim((string) ($params['client_name'] ?? ''));
         if ('' === $clientName) {
@@ -66,20 +76,28 @@ final class rex_ai_oauth_dcr_endpoint
         $created = rex_ai_oauth_client_store::create(
             $clientName,
             array_values($redirectUris),
-            rex_ai_oauth_client_store::TYPE_PUBLIC,
+            $type,
             true,
         );
 
-        http_response_code(201);
-        echo json_encode([
+        $response = [
             'client_id' => $created['client_id'],
             'client_id_issued_at' => time(),
             'client_name' => $clientName,
             'redirect_uris' => array_values($redirectUris),
-            'token_endpoint_auth_method' => 'none',
+            'token_endpoint_auth_method' => $authMethod,
             'grant_types' => ['authorization_code', 'refresh_token'],
             'response_types' => ['code'],
-        ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+        ];
+        // For confidential clients the secret is returned exactly once (RFC 7591
+        // §3.2.1). client_secret_expires_at = 0 means it does not expire.
+        if (null !== $created['client_secret']) {
+            $response['client_secret'] = $created['client_secret'];
+            $response['client_secret_expires_at'] = 0;
+        }
+
+        http_response_code(201);
+        echo json_encode($response, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
         exit;
     }
 

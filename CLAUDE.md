@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 1. A backend UI for managing **profiles** (one profile = one use case = one type + provider + model + per-type options).
 2. A PHP service API (`rex_ai_platform_service`) for text generation, image generation, image understanding, and tool-using agents.
-3. An **MCP (Model Context Protocol) HTTP server** at `index.php?rex-api-call=ai_mcp` that other MCP clients (Claude Desktop, Cursor, Windsurf, Claude Code CLI) connect to via `mcp-remote`.
+3. An **MCP (Model Context Protocol) HTTP server** at `/mcp` that other MCP clients (Claude Desktop, Cursor, Windsurf, Claude Code CLI) connect to via `mcp-remote`.
 
 The repo is a standalone addon checked out directly into `redaxo/src/addons/ai_platform/` of a REDAXO install. The outer REDAXO repo (one level above `redaxo/src/addons/`) carries its own `CLAUDE.md` with the core/test commands — those apply when running checks against the whole CMS.
 
@@ -67,6 +67,9 @@ The backend form (`pages/profiles.php`) always renders **all** type fields; `ass
 | `default_image_understanding_profile` | Profile id used by `understandImage()`                           |
 | `mcp_enabled`                         | 0/1 — gates the MCP HTTP endpoint                                |
 | `mcp_description`                     | Sent as `instructions` in MCP `initialize` response              |
+| `mcp_require_auth`                    | 0/1 — when 1, `rex_ai_mcp_server::handle()` challenges anonymous requests with 401 on every method (incl. `initialize`/`tools/list`), forcing the client's OAuth flow. Needed for protected tools to surface in clients that only start OAuth on a 401 (e.g. Claude Desktop). 0 = anonymous clients allowed (public tools only). |
+| `mcp_disabled_tools`                  | JSON list of tool names switched off in the backend. Opt-out: `rex_ai_mcp_server::isToolEnabled()` hides them from `tools/list` and rejects them in `tools/call`. New tools default to enabled. |
+| `oauth_client_lifetime_days`           | Days after which an OAuth client registration expires (based on `createdate`). 0 = never. `rex_ai_oauth_client_store::isExpired()` is enforced in the authorize + token endpoints (expired → `invalid_client`, which makes MCP clients re-register via DCR). |
 
 The pre-1.0 `mcp_token` key was removed in 1.0.0-beta2; `install.php` actively deletes it on (re-)install. OAuth state lives in dedicated tables, not in `rex_config`.
 
@@ -89,7 +92,7 @@ Implements a JSON-RPC 2.0 / Streamable-HTTP MCP server (protocol version `2025-0
 
 | Class | Responsibility |
 |---|---|
-| `rex_ai_mcp_router` | Single entry point. Hooks `PACKAGES_INCLUDED` (frontend only) and matches `REQUEST_URI` against the route table; dispatches to the right endpoint or returns 405 / 501. `exit`s on match. `baseUrl()` derives the scheme from the actual request so discovery URLs don't end up as `http://` on HTTPS-served sites. |
+| `rex_ai_mcp_router` | Single entry point. Hooks `PACKAGES_INCLUDED` (frontend only) and matches `REQUEST_URI` against the route table; dispatches to the right endpoint or returns 404 / 405. `exit`s on match. `baseUrl()` derives scheme **and host** from the actual request (`X-Forwarded-Proto` / `X-Forwarded-Host` honoured), falling back to `rex::getServer()` — so discovery/issuer/redirect URLs are correct on HTTPS-served sites and behind a reverse proxy or tunnel (ngrok/Cloudflare). Without this, a tunneled request advertises the internal host and the client's DCR/authorize/token calls hit an unreachable host. |
 | `rex_ai_mcp_server` | JSON-RPC handler: `initialize`, `tools/list`, `tools/call`, `ping`. Calls the authenticator once per request, passes the resulting context to tool handlers, converts `rex_ai_mcp_invalid_token_exception` and `rex_ai_mcp_auth_required_exception` into RFC-6750 challenges. |
 | `rex_ai_mcp_authenticator` | Resolves the auth context: no Authorization header → anonymous; valid OAuth bearer → authenticated context with `ycomUserId` + `scopes` from `rex_ai_oauth_token`; invalid token → `rex_ai_mcp_invalid_token_exception` (server converts to 401 + `error="invalid_token"`). |
 | `rex_ai_mcp_context` | Value object: `getYcomUser()`, `hasScope()`, `hasAllScopes()`, `getAuthMode()`, `getClientId()`. |
@@ -99,15 +102,15 @@ Implements a JSON-RPC 2.0 / Streamable-HTTP MCP server (protocol version `2025-0
 | `rex_ai_oauth_dcr_endpoint` | `/oauth/register`. RFC-7591 Dynamic Client Registration. Auto-approves public clients (PKCE only, no secret). Validates absolute URIs and that `token_endpoint_auth_method` is `"none"`. |
 | `rex_ai_oauth_client_store` | CRUD for clients: create (public/confidential), findByClientId, findAll, deleteById, verifySecret (`password_verify`), redirectUriMatches (exact-match list). |
 | `rex_ai_oauth_token_store` | Issues + consumes authorization codes (single-use, expiry-aware), issues access+refresh pairs, rotates refresh tokens with joint revocation, revokes all tokens for a client. Lifetimes as class constants: `ACCESS_TOKEN_TTL=3600`, `REFRESH_TOKEN_TTL=30d`, `CODE_TTL=600`. |
-| `rex_ai_oauth_scope_registry` | Built-in scopes (`SCOPE_TOOLS_READ`, `SCOPE_TOOLS_CALL`), extension point `AI_PLATFORM_OAUTH_SCOPES` so third addons announce their own scopes, group↔scope CRUD, `resolveScopesForYcomUser()` aggregates via `rex_ycom_user::getGroups()`. |
+| `rex_ai_oauth_scope_registry` | No built-in scopes (`builtInScopes()` returns `[]`; the `SCOPE_TOOLS_*` constants are deprecated, unenforced). All selectable scopes come from third addons via the `AI_PLATFORM_OAUTH_SCOPES` extension point. Group↔scope CRUD; `resolveScopesForYcomUser()` aggregates via `rex_ycom_user::getGroups()`. |
 
-`rex_api_ai_mcp` still exists but is now a thin deprecated shim that delegates to `rex_ai_mcp_server` for clients still pointing at `?rex-api-call=ai_mcp`.
+The legacy `?rex-api-call=ai_mcp` endpoint (class `rex_api_ai_mcp`) was removed — `/mcp` is the only MCP entry point now. Unknown `/oauth/*` paths return 404 via `rex_ai_mcp_router::dispatchOauthUnknownEndpoint()`.
 
 **Auth model:**
 
 - Tools declare `public: true` → callable without authentication. `redaxo_status` is the canonical public tool.
 - Tools without `public: true` → require an authenticated context. Invalid / missing tokens trigger a 401 + `WWW-Authenticate: Bearer realm="MCP", resource="…", error="invalid_token"` so MCP clients automatically pick up the OAuth flow.
-- Scopes resolve via `YCom user → YCom groups → rex_ai_scope_mapping`. `mcp:tools:read` + `mcp:tools:call` are built-in; further scopes ship with consumer addons via `AI_PLATFORM_OAUTH_SCOPES`.
+- Scopes resolve via `YCom user → YCom groups → rex_ai_scope_mapping`. There are no built-in scopes; tools are gated only by their `public` flag and their own `requiredScopes`. Consumer addons announce scopes via `AI_PLATFORM_OAUTH_SCOPES` and declare them on tools via `requiredScopes`.
 
 **Tools** come from `AI_PLATFORM_MCP_TOOLS` with subject `array<string, rex_ai_mcp_tool>`. `tools/list` filters by `isCallableBy($context)` so anonymous callers only see public tools. `AI_PLATFORM_AGENT_TOOLS` feeds `rex_ai_platform_service::createAgent()`; subjects there are **Symfony AI Tool objects**, not `rex_ai_mcp_tool` — the two systems are intentionally separate because their tool-object shapes differ.
 
@@ -121,7 +124,7 @@ Live routes:
 - `GET/POST /oauth/authorize` → `rex_ai_oauth_authorization_endpoint::dispatch()` (login screen / consent screen / decision)
 - `POST /oauth/token` → `rex_ai_oauth_token_endpoint::dispatch()` (Code+PKCE or Refresh)
 - `POST /oauth/register` → `rex_ai_oauth_dcr_endpoint::dispatch()` (DCR auto-approve)
-- `?rex-api-call=ai_mcp` → legacy shim, deprecated
+- any other `/oauth/*` → 404 `not_found`
 
 **Important pitfall:** YCom's auth-init handler runs on `PACKAGES_INCLUDED` too, and the order isn't stable. Without an explicit `rex_ycom_auth::init()` call at the top of the authorize dispatch, `getUser()` returns null on every follow-up request after a successful login because the session UID hasn't been rehydrated from session yet.
 
@@ -134,7 +137,7 @@ ai_platform/
 ├── profiles/                     (LLM provider profile CRUD)
 ├── settings/                     (default profile dropdowns)
 ├── mcp/
-│   ├── settings/                 (mcp_enabled, mcp_description, tool list, deprecation warning for ?rex-api-call=ai_mcp)
+│   ├── settings/                 (mcp_enabled, mcp_description, endpoint URLs, auth/scopes banner, tool list)
 │   ├── oauth-clients/            (manual client CRUD + DCR-registered client list)
 │   └── scope-mapping/            (per-YCom-group multi-select of all known scopes)
 └── docs/                         (renders README.md via rex_markdown)
@@ -152,7 +155,7 @@ Drives the provider/type-aware field visibility on the profile edit form. It rea
 
 - `composer.lock` and `vendor/` are committed. Bump deps with `composer update`, run a manual test (profile create + connection test + MCP `tools/list` call), then commit the refreshed `composer.lock` + `vendor/` together — never split them across commits.
 - Symfony AI 0.6 is **alpha-ish**; pinning is `^0.6`. Breaking changes between minor 0.x bumps are likely — update with care and re-test all four `getPlatform()` branches.
-- When `rex_api_function` endpoints `exit` mid-flow (both `rex_api_ai_mcp` and `rex_api_ai_test` do this), they bypass REDAXO's normal response pipeline. Always `rex_response::cleanOutputBuffers()` first and never rely on `rex_api_result` for the response body.
+- When code `exit`s mid-flow (the `rex_ai_mcp_router` routes and the `rex_api_ai_test` endpoint do this), it bypasses REDAXO's normal response pipeline. Always `rex_response::cleanOutputBuffers()` first and never rely on `rex_api_result` for the response body.
 - `rex_ai_platform_service::getProfile()` filters by `status = 1`; inactive profiles are invisible to all callers. That's intentional — keep it that way unless adding an explicit "include inactive" parameter.
 - The MCP router runs on `PACKAGES_INCLUDED` and `exit`s on match. That bypasses REDAXO's normal request lifecycle. If you add a new route, always `rex_response::cleanOutputBuffers()` before sending anything, never call `rex_response::sendContent()`, and remember the router fires on every frontend request — keep the path table minimal.
 - The OAuth tables (`rex_ai_oauth_*`, `rex_ai_scope_mapping`) are created in `install.php` via `rex_sql_table::ensure*`. Adding a column → add an `ensureColumn()` line and reinstall the addon (`bin/console package:install ai_platform`, choose reinstall).

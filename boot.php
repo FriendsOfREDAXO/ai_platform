@@ -10,10 +10,6 @@ if (rex::isBackend() && rex::getUser()) {
     rex_view::addJsFile($addon->getAssetsUrl('profiles.js'));
 }
 
-// Backward-compat shim for old ?rex-api-call=ai_mcp consumers.
-// The canonical endpoint is /mcp, dispatched by rex_ai_mcp_router below.
-rex_api_function::register('ai_mcp', rex_api_ai_mcp::class);
-
 // Route /mcp, /.well-known/oauth-*, /oauth/* before structure/yrewrite
 // take over the frontend request.
 if (!rex::isBackend()) {

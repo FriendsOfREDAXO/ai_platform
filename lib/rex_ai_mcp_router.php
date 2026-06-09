@@ -8,12 +8,15 @@ declare(strict_types=1);
  * fires after all addons booted but before the structure / yrewrite routing
  * takes over.
  *
- * Routes (Phase 1):
+ * Routes:
  *
- *   POST /mcp                                    → MCP JSON-RPC
- *   GET  /.well-known/oauth-protected-resource   → discovery JSON
- *   GET  /.well-known/oauth-authorization-server → discovery JSON
- *   GET  /oauth/{authorize,token,register}       → 501 Not Implemented (Phase 2)
+ *   POST     /mcp                                    → MCP JSON-RPC
+ *   GET      /.well-known/oauth-protected-resource   → discovery JSON
+ *   GET      /.well-known/oauth-authorization-server → discovery JSON
+ *   GET/POST /oauth/authorize                        → OAuth login + consent
+ *   POST     /oauth/token                            → token endpoint (code + refresh)
+ *   POST     /oauth/register                         → dynamic client registration
+ *   *        /oauth/...                               → 404 Not Found (unknown endpoint)
  *
  * Anything else passes through untouched.
  */
@@ -65,7 +68,7 @@ final class rex_ai_mcp_router
         }
 
         if (str_starts_with($path, self::OAUTH_PREFIX)) {
-            self::dispatchOauthNotYetImplemented($path);
+            self::dispatchOauthUnknownEndpoint($path);
         }
     }
 
@@ -177,29 +180,65 @@ final class rex_ai_mcp_router
     }
 
     /**
-     * Builds the base URL that backs OAuth discovery / redirect URIs.
+     * Builds the base URL that backs OAuth discovery / redirect challenges.
      *
-     * rex::getServer() reflects the static REDAXO config and can be wrong
-     * (e.g. http://… while the site is actually reachable over HTTPS).
-     * That breaks OAuth flows because clients refuse mixed-scheme redirects.
-     * We derive the scheme from the actual request, falling back to the
-     * configured value when no request signal is available.
+     * Derives scheme + host from the actual request, honouring a forwarding
+     * proxy (X-Forwarded-Proto / X-Forwarded-Host). This is required whenever
+     * the site is reached under a different host than rex::getServer() — behind
+     * a reverse proxy, load balancer or a tunnel (ngrok/Cloudflare): discovery,
+     * issuer and the redirect challenge must advertise the host the client
+     * actually connected to, otherwise the client tries to reach the internal
+     * host and the OAuth flow (DCR, authorize, token) breaks. Falls back to
+     * rex::getServer() when no request signal is available (e.g. CLI).
      */
     public static function baseUrl(): string
     {
         $configured = rtrim(rex::getServer(), '/');
         $scheme = self::detectScheme();
-        if (null === $scheme) {
+        $host = self::detectHost();
+
+        if (null === $scheme && null === $host) {
             return $configured;
         }
 
         $parts = parse_url($configured);
-        if (false === $parts || !isset($parts['host'])) {
+        $configuredHost = (is_array($parts) && isset($parts['host'])) ? $parts['host'] : null;
+        if (null === $host && null === $configuredHost) {
             return $configured;
         }
 
-        $port = isset($parts['port']) ? ':' . $parts['port'] : '';
-        return $scheme . '://' . $parts['host'] . $port;
+        $configuredScheme = (is_array($parts) && isset($parts['scheme'])) ? $parts['scheme'] : 'https';
+        $finalScheme = $scheme ?? $configuredScheme;
+
+        if (null !== $host) {
+            // The request host already carries its port when non-standard.
+            return $finalScheme . '://' . $host;
+        }
+
+        $port = (is_array($parts) && isset($parts['port'])) ? ':' . $parts['port'] : '';
+        return $finalScheme . '://' . $configuredHost . $port;
+    }
+
+    /**
+     * Resolves the public host from the request, honouring a forwarding proxy
+     * (X-Forwarded-Host), else the Host header. Returns null when nothing
+     * usable is present. Validated as a bare host[:port] to guard against
+     * header injection.
+     */
+    private static function detectHost(): ?string
+    {
+        $forwarded = (string) ($_SERVER['HTTP_X_FORWARDED_HOST'] ?? '');
+        $candidate = '' !== $forwarded
+            ? trim(explode(',', $forwarded)[0])
+            : trim((string) ($_SERVER['HTTP_HOST'] ?? ''));
+
+        if ('' === $candidate) {
+            return null;
+        }
+        if (!preg_match('/^[A-Za-z0-9.\-]+(:\d+)?$/', $candidate)) {
+            return null;
+        }
+        return $candidate;
     }
 
     private static function detectScheme(): ?string
@@ -220,14 +259,14 @@ final class rex_ai_mcp_router
         return null;
     }
 
-    private static function dispatchOauthNotYetImplemented(string $path): never
+    private static function dispatchOauthUnknownEndpoint(string $path): never
     {
         rex_response::cleanOutputBuffers();
-        http_response_code(501);
+        http_response_code(404);
         header('Content-Type: application/json');
         echo json_encode([
-            'error' => 'not_implemented',
-            'error_description' => 'OAuth endpoint ' . $path . ' is planned for phase 2.',
+            'error' => 'not_found',
+            'error_description' => 'Unknown OAuth endpoint: ' . $path,
         ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
         exit;
     }

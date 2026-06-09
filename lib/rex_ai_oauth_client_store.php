@@ -110,6 +110,56 @@ final class rex_ai_oauth_client_store
         );
     }
 
+    /**
+     * Configured client lifetime in days. 0 (default) = clients never expire.
+     */
+    public static function clientLifetimeDays(): int
+    {
+        return max(0, (int) rex_config::get('ai_platform', 'oauth_client_lifetime_days', 0));
+    }
+
+    /**
+     * Whether a client registration has expired, based on its createdate and
+     * the configured lifetime. False when the lifetime is 0 (never expires)
+     * or the createdate is missing/unparseable.
+     *
+     * @param array<string, mixed> $client
+     */
+    public static function isExpired(array $client): bool
+    {
+        $expiry = self::expiryTimestamp($client);
+        return null !== $expiry && time() > $expiry;
+    }
+
+    /**
+     * Expiry datetime string ("Y-m-d H:i:s"), or null when the client never
+     * expires / has no usable createdate.
+     *
+     * @param array<string, mixed> $client
+     */
+    public static function expiresAt(array $client): ?string
+    {
+        $expiry = self::expiryTimestamp($client);
+        return null === $expiry ? null : date('Y-m-d H:i:s', $expiry);
+    }
+
+    /**
+     * @param array<string, mixed> $client
+     */
+    private static function expiryTimestamp(array $client): ?int
+    {
+        $days = self::clientLifetimeDays();
+        if ($days <= 0) {
+            return null;
+        }
+        $created = (string) ($client['createdate'] ?? '');
+        $ts = '' === $created ? false : strtotime($created);
+        if (false === $ts) {
+            return null;
+        }
+        return $ts + $days * 86400;
+    }
+
     public static function verifySecret(string $clientId, string $providedSecret): bool
     {
         $client = self::findByClientId($clientId);

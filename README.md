@@ -212,7 +212,7 @@ Das Untermenue **MCP Server** ist im Backend in drei Tabs gegliedert:
 
 | Tab | Inhalt |
 |---|---|
-| **Einstellungen** | MCP aktivieren, Server-Beschreibung, Discovery-URLs, Liste der registrierten Tools mit Auth-Status |
+| **Einstellungen** | MCP aktivieren, Server-Beschreibung, Discovery-URLs, Liste der registrierten Tools mit Auth-Status und **Aktiv-Schalter pro Tool** (deaktivierte Tools werden Clients nicht angezeigt und nicht ausgefuehrt) |
 | **OAuth-Clients** | Liste aller (manuell oder via DCR) registrierten OAuth-Clients, Anlegen + Loeschen |
 | **Scope-Mapping** | Welche Scopes bekommen Nutzer aufgrund ihrer YCom-Gruppenmitgliedschaft |
 
@@ -223,8 +223,9 @@ Das Untermenue **MCP Server** ist im Backend in drei Tabs gegliedert:
 | `POST /mcp` | MCP JSON-RPC Endpoint |
 | `GET /.well-known/oauth-protected-resource` | Discovery: zeigt MCP-Clients auf den Authorization-Server |
 | `GET /.well-known/oauth-authorization-server` | Discovery: OAuth-2.1-Endpunkt-Metadaten |
-| `GET /oauth/{authorize,token,register}` | OAuth-Flow (Phase 2, aktuell `501 Not Implemented`) |
-| `POST /index.php?rex-api-call=ai_mcp` | Deprecated-Legacy-Endpoint, bleibt aus Kompatibilitaetsgruenden erreichbar |
+| `GET/POST /oauth/authorize` | OAuth-2.1-Login (gegen YCom) + Consent-Screen |
+| `POST /oauth/token` | Token-Endpoint (`authorization_code` + `refresh_token`) |
+| `POST /oauth/register` | Dynamic Client Registration (RFC 7591) |
 
 Bei einer lokalen Entwicklungsumgebung z.B.:
 
@@ -238,6 +239,8 @@ Auth-Modi:
 
 - **Public Tools** (`public: true`) — ohne Authentifizierung aufrufbar. Das eingebaute `redaxo_status` Tool ist als public markiert, damit Monitoring-Tools und Discovery ohne Account funktionieren.
 - **Geschuetzte Tools** — erfordern einen gueltigen OAuth-2.1-Access-Token mit den deklarierten Scopes.
+
+> **Wichtig fuer geschuetzte Tools:** MCP-Clients starten den OAuth-Login erst, wenn sie ein `401` erhalten. Solange der Server anonyme Anfragen mit `200` beantwortet (Default), verbinden sich Clients wie Claude Desktop **anonym** und sehen ausschliesslich public Tools — geschuetzte Tools tauchen gar nicht erst in der Tool-Liste auf. Damit ein Client sich einloggt, unter **MCP Server > Einstellungen** die Option **Authentifizierung erforderlich** auf "Ja" stellen (Config-Key `mcp_require_auth`). Dann antwortet `/mcp` schon beim Verbinden mit `401`, der Client durchlaeuft den YCom-Login und der ausgestellte Token traegt die Scopes des Nutzers — erst dann werden passende geschuetzte Tools sichtbar. Nach dem Umstellen den Connector im Client neu verbinden.
 
 Der OAuth-2.1-Stack laeuft komplett ueber Standard-Pfade:
 
@@ -264,7 +267,7 @@ WWW-Authenticate: Bearer realm="MCP", resource="https://example.org/.well-known/
 Empfohlener Ablauf, wenn der MCP-Server in Produktion gehen soll:
 
 1. **Gruppe(n) in YCom anlegen.** Die normale YCom-Gruppen-Verwaltung. Beispielsweise eine Gruppe `mcp-users` fuer Standard-Zugriff.
-2. **Scopes pro Gruppe vergeben** unter **AI Platform > MCP Server > Scope-Mapping**. Pro YCom-Gruppe Checkboxen fuer alle bekannten Scopes (eingebaut: `mcp:tools:read`, `mcp:tools:call`; weitere koennen Drittaddons ueber den Extension Point `AI_PLATFORM_OAUTH_SCOPES` registrieren).
+2. **Scopes pro Gruppe vergeben** unter **AI Platform > MCP Server > Scope-Mapping**. Pro YCom-Gruppe Checkboxen fuer alle bekannten Scopes. Es gibt keine eingebauten Scopes — die auswaehlbaren Scopes stammen ausschliesslich aus AddOns, die sie ueber den Extension Point `AI_PLATFORM_OAUTH_SCOPES` ankuendigen. Ein geschuetztes Tool ist fuer eine Gruppe sichtbar/aufrufbar, sobald die Gruppe alle `requiredScopes` dieses Tools gemappt hat.
 3. **YCom-Nutzer in die Gruppe(n) eintragen** ueber die YCom-User-Verwaltung.
 4. **OAuth-Client anlegen** unter **AI Platform > MCP Server > OAuth-Clients**, falls eine feste Client-Definition gewuenscht ist. Alternativ koennen MCP-Clients sich via DCR (`POST /oauth/register`) selbst registrieren — `mcp-remote` macht das automatisch beim ersten Verbindungsaufbau.
    - **public client** (PKCE only): geeignet fuer mcp-remote, Cursor, Claude Desktop. Kein Secret.
@@ -293,103 +296,59 @@ Das AddOn registriert automatisch das Tool `redaxo_status` (public), das folgend
 - Debug- und Safe-Mode Status
 - Liste aller installierten AddOns mit Versionen und Plugins
 
-### Einbindung in Claude Desktop
+### MCP-Clients anbinden
 
-In der Claude Desktop Konfigurationsdatei (`claude_desktop_config.json`):
+Es gibt zwei Wege — je nachdem, **wer** die Verbindung aufbaut.
 
-**macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
-**Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
+> **Pfad immer mit `/mcp`!** Der Client postet die JSON-RPC an die eingetragene URL. Endet sie nur auf der Domain, gehen die Aufrufe an die Startseite (HTML) und schlagen fehl.
+>
+> **Geschuetzte Tools** erscheinen nur, wenn der Client sich per OAuth einloggt. Dazu unter **MCP Server > Einstellungen** die Option **Authentifizierung erforderlich** auf „Ja" setzen — sonst verbindet sich der Client anonym und sieht ausschliesslich `public` Tools.
 
-Claude Desktop unterstuetzt HTTP-basierte MCP-Server ueber `mcp-remote` als Proxy. Installiere zuerst `mcp-remote`:
+#### Nativer Remote-Connector (empfohlen, produktiv)
+
+Claude Desktop / claude.ai (Custom Connector) und Claude Code sprechen den `/mcp`-Endpoint direkt und uebernehmen OAuth selbst — kein `mcp-remote` noetig.
+
+- **Claude Desktop:** Einstellungen → Connectors → „Custom Connector hinzufuegen" → URL `https://deine-domain.de/mcp`
+- **Claude Code:** `claude mcp add --transport http redaxo https://deine-domain.de/mcp`
+
+Wichtig: Bei diesem Weg vermittelt der Client den OAuth-Flow ueber die Cloud des Anbieters. Der Server muss daher **oeffentlich erreichbar** sein — eine reine `*.localhost`-Domain funktioniert NICHT (Fehler „Couldn't register with sign-in service"). Fuer lokale Tests einen Tunnel davorschalten (siehe unten).
+
+#### mcp-remote (stdio-Bridge)
+
+Fuer Clients, die nur stdio sprechen, oder fuer einen lokalen Server: `mcp-remote` laeuft lokal auf deinem Rechner und erreicht daher auch lokale Domains.
+
+`claude_desktop_config.json` (macOS: `~/Library/Application Support/Claude/`, Windows: `%APPDATA%\Claude\`):
+
+```json
+{
+    "mcpServers": {
+        "redaxo": {
+            "command": "npx",
+            "args": ["-y", "mcp-remote", "https://deine-domain.de/mcp"]
+        }
+    }
+}
+```
+
+Beim ersten Verbinden oeffnet `mcp-remote` einen Browser-Tab fuer die YCom-Anmeldung. Cursor / Windsurf analog in `.cursor/mcp.json`. Claude Code als stdio-Variante: `claude mcp add redaxo -- npx -y mcp-remote https://deine-domain.de/mcp`.
+
+Lokaler Server mit selbstsigniertem / mkcert-Zertifikat — Node das CA-Root mitgeben (sauberer als TLS abschalten):
+
+```json
+"env": { "NODE_EXTRA_CA_CERTS": "<Ausgabe von: mkcert -CAROOT>/rootCA.pem" }
+```
+
+(Ersatzweise `"NODE_TLS_REJECT_UNAUTHORIZED": "0"`.)
+
+#### Lokal testen via Tunnel (ngrok)
+
+Damit der native Connector gegen eine lokale Instanz funktioniert, einen oeffentlichen HTTPS-Tunnel davorschalten:
 
 ```bash
-npm install -g mcp-remote
+ngrok http https://redaxo.localhost --url=https://dein-name.ngrok-free.dev
 ```
 
-Dann in der `claude_desktop_config.json`:
-
-```json
-{
-    "mcpServers": {
-        "redaxo": {
-            "command": "npx",
-            "args": [
-                "mcp-remote",
-                "https://deine-domain.de/mcp"
-            ]
-        }
-    }
-}
-```
-
-Sobald der OAuth-Flow aktiv ist, oeffnet `mcp-remote` beim ersten Verbindungsaufbau automatisch einen Browser-Tab fuer die YCom-Anmeldung.
-
-#### Lokaler Server (z.B. https://redaxo.localhost)
-
-Bei einem lokalen Server mit selbstsigniertem SSL-Zertifikat muss die Zertifikatspruefung deaktiviert werden:
-
-```json
-{
-    "mcpServers": {
-        "redaxo": {
-            "command": "npx",
-            "args": [
-                "mcp-remote",
-                "https://redaxo.localhost/mcp"
-            ],
-            "env": {
-                "NODE_TLS_REJECT_UNAUTHORIZED": "0"
-            }
-        }
-    }
-}
-```
-
-#### Lokaler Server ohne HTTPS
-
-```json
-{
-    "mcpServers": {
-        "redaxo": {
-            "command": "npx",
-            "args": [
-                "mcp-remote",
-                "http://localhost:8080/mcp"
-            ]
-        }
-    }
-}
-```
-
-### Einbindung in Cursor / Windsurf
-
-In der Cursor-Konfiguration (`.cursor/mcp.json` im Projektverzeichnis):
-
-```json
-{
-    "mcpServers": {
-        "redaxo": {
-            "command": "npx",
-            "args": [
-                "mcp-remote",
-                "https://deine-domain.de/mcp"
-            ]
-        }
-    }
-}
-```
-
-### Einbindung in Claude Code (CLI)
-
-```bash
-claude mcp add redaxo -- npx mcp-remote "https://deine-domain.de/mcp"
-```
-
-Fuer lokale Server mit selbstsigniertem Zertifikat:
-
-```bash
-NODE_TLS_REJECT_UNAUTHORIZED=0 claude mcp add redaxo -- npx mcp-remote "https://redaxo.localhost/mcp"
-```
+HTTPS-Upstream verwenden (SNI/Zertifikat passen, richtiger vhost wird getroffen). Discovery, Issuer und OAuth-Redirects uebernehmen automatisch den oeffentlichen Host (aus `X-Forwarded-Host`). Die Tunnel-URL inkl. `/mcp` im Connector eintragen.
 
 ### MCP-Protokoll
 
@@ -446,9 +405,9 @@ rex_extension::register('AI_PLATFORM_MCP_TOOLS', function (rex_extension_point $
             'required' => ['query'],
         ],
         handler: function (array $arguments, rex_ai_mcp_context $context): string {
-            // $context->getYcomUser() / $context->hasScope('...') verfuegbar,
-            // sobald Phase 2 die Auth aktiviert. Im Phase-1-Modus ist der
-            // Context anonymous und reicht durch.
+            // $context->getYcomUser() / $context->hasScope('...') verfuegbar.
+            // Bei anonymem Zugriff (kein gueltiger Token) ist der Context
+            // anonymous — geschuetzte Tools werden dann gar nicht erst erreicht.
             $query = $arguments['query'];
             $limit = $arguments['limit'] ?? 10;
 
@@ -470,7 +429,9 @@ rex_extension::register('AI_PLATFORM_MCP_TOOLS', function (rex_extension_point $
             return json_encode($results, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
         },
         public: false,
-        requiredScopes: ['mcp:tools:call'],
+        // Eigener Scope des AddOns — vorher via AI_PLATFORM_OAUTH_SCOPES
+        // ankuendigen, dann im Backend einer YCom-Gruppe zuordnen.
+        requiredScopes: ['redaxo:articles:read'],
     );
 
     return $tools;
@@ -486,7 +447,7 @@ rex_extension::register('AI_PLATFORM_MCP_TOOLS', function (rex_extension_point $
 | `inputSchema` | ja | JSON-Schema fuer die Argumente |
 | `handler` | ja | `function (array $arguments, rex_ai_mcp_context $context): mixed` |
 | `public` | nein | `true` macht das Tool ohne Authentifizierung aufrufbar (Default: `false`) |
-| `requiredScopes` | nein | Liste der Scopes, die der Caller besitzen muss (greift erst mit OAuth in Phase 2) |
+| `requiredScopes` | nein | Liste der Scopes, die der Caller besitzen muss. Wird beim Tool-Aufruf gegen die effektiven Scopes des angemeldeten Nutzers geprueft (aus seinen YCom-Gruppen, siehe Scope-Mapping) |
 
 Im Handler kann ueber `$context` der angemeldete YCom-User abgefragt werden — siehe `lib/rex_ai_mcp_context.php` fuer die volle API.
 

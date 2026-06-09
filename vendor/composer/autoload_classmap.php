@@ -47,6 +47,5 @@ return array(
     'rex_ai_oauth_token_endpoint' => $baseDir . '/lib/rex_ai_oauth_token_endpoint.php',
     'rex_ai_oauth_token_store' => $baseDir . '/lib/rex_ai_oauth_token_store.php',
     'rex_ai_platform_service' => $baseDir . '/lib/rex_ai_platform_service.php',
-    'rex_api_ai_mcp' => $baseDir . '/lib/rex_api_ai_mcp.php',
     'rex_api_ai_test' => $baseDir . '/lib/rex_api_ai_test.php',
 );

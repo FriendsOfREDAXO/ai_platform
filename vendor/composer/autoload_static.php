@@ -268,7 +268,6 @@ class ComposerStaticInita2468993b9624631610b23a6e08c4641
         'rex_ai_oauth_token_endpoint' => __DIR__ . '/../..' . '/lib/rex_ai_oauth_token_endpoint.php',
         'rex_ai_oauth_token_store' => __DIR__ . '/../..' . '/lib/rex_ai_oauth_token_store.php',
         'rex_ai_platform_service' => __DIR__ . '/../..' . '/lib/rex_ai_platform_service.php',
-        'rex_api_ai_mcp' => __DIR__ . '/../..' . '/lib/rex_api_ai_mcp.php',
         'rex_api_ai_test' => __DIR__ . '/../..' . '/lib/rex_api_ai_test.php',
     );
 

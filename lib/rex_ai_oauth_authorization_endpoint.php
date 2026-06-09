@@ -56,6 +56,9 @@ final class rex_ai_oauth_authorization_endpoint
         if (null === $client) {
             self::renderError('invalid_client', 'Unknown client_id');
         }
+        if (rex_ai_oauth_client_store::isExpired($client)) {
+            self::renderError('invalid_client', 'Client registration has expired, please register again');
+        }
         if ('' === $redirectUri || !rex_ai_oauth_client_store::redirectUriMatches($client, $redirectUri)) {
             self::renderError('invalid_request', 'redirect_uri does not match a registered URI for this client');
         }
@@ -135,7 +138,10 @@ final class rex_ai_oauth_authorization_endpoint
             if ('' !== $state) {
                 $query['state'] = $state;
             }
-            self::redirect($redirectUri . (str_contains($redirectUri, '?') ? '&' : '?') . http_build_query($query));
+            // Force "&" as the separator: the web SAPI's php.ini may set
+        // arg_separator.output to "&amp;", which would corrupt the redirect
+        // query (state= becomes amp;state=) and break the OAuth callback.
+        self::redirect($redirectUri . (str_contains($redirectUri, '?') ? '&' : '?') . http_build_query($query, '', '&'));
         }
 
         self::renderConsent($client, $user, $requestedScopes, $effective, $userScopes, $params);
@@ -182,7 +188,10 @@ final class rex_ai_oauth_authorization_endpoint
         if ('' !== $state) {
             $query['state'] = $state;
         }
-        self::redirect($redirectUri . (str_contains($redirectUri, '?') ? '&' : '?') . http_build_query($query));
+        // Force "&" as the separator: the web SAPI's php.ini may set
+        // arg_separator.output to "&amp;", which would corrupt the redirect
+        // query (state= becomes amp;state=) and break the OAuth callback.
+        self::redirect($redirectUri . (str_contains($redirectUri, '?') ? '&' : '?') . http_build_query($query, '', '&'));
     }
 
     private static function redirect(string $url): never

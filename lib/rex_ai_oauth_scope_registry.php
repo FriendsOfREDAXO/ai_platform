@@ -15,20 +15,30 @@ declare(strict_types=1);
  */
 final class rex_ai_oauth_scope_registry
 {
+    /**
+     * @deprecated since 1.0.0-beta3 — never enforced and removed from the
+     * advertised scope list. Tool access is gated solely by the tool's
+     * `public` flag and its own `requiredScopes`; there is no global
+     * "tools" scope (a global gate would conflict with public tools, which
+     * must stay reachable without any scope). Kept only so existing
+     * references don't fatal.
+     */
     public const SCOPE_TOOLS_READ = 'mcp:tools:read';
+    /** @deprecated since 1.0.0-beta3 — see {@see SCOPE_TOOLS_READ}. */
     public const SCOPE_TOOLS_CALL = 'mcp:tools:call';
 
     /**
      * Built-in scopes provided by this addon.
      *
+     * Empty by design: tools declare their own `requiredScopes`, so there is
+     * no global tools scope to grant. The selectable scopes in the backend
+     * therefore come entirely from consumer addons via AI_PLATFORM_OAUTH_SCOPES.
+     *
      * @return array<string, string> scope => human-readable description
      */
     public static function builtInScopes(): array
     {
-        return [
-            self::SCOPE_TOOLS_READ => 'List available MCP tools (tools/list).',
-            self::SCOPE_TOOLS_CALL => 'Call MCP tools (tools/call). Individual tools may require additional scopes.',
-        ];
+        return [];
     }
 
     /**

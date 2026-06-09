@@ -63,14 +63,16 @@ if (null !== $justCreated) {
 // --- Client list
 $clients = rex_ai_oauth_client_store::findAll();
 if ([] === $clients) {
-    $listBody = '<p class="text-muted">' . rex_i18n::msg('ai_platform_mcp_no_tools') . '</p>';
+    echo rex_view::info(rex_i18n::msg('ai_platform_oauth_clients_empty'));
 } else {
     $listBody = '<table class="table table-striped"><thead><tr>'
         . '<th>' . rex_i18n::msg('ai_platform_oauth_client_name') . '</th>'
         . '<th>' . rex_i18n::msg('ai_platform_oauth_client_id') . '</th>'
         . '<th>' . rex_i18n::msg('ai_platform_oauth_client_type') . '</th>'
         . '<th>' . rex_i18n::msg('ai_platform_oauth_client_redirect') . '</th>'
+        . '<th>' . rex_i18n::msg('ai_platform_oauth_client_created_at') . '</th>'
         . '<th>' . rex_i18n::msg('ai_platform_oauth_client_last_used') . '</th>'
+        . '<th>' . rex_i18n::msg('ai_platform_oauth_client_expires') . '</th>'
         . '<th>' . rex_i18n::msg('ai_platform_actions') . '</th>'
         . '</tr></thead><tbody>';
     foreach ($clients as $client) {
@@ -81,30 +83,39 @@ if ([] === $clients) {
             ['func' => 'delete', 'id' => $client['id']],
             $csrf->getUrlParams(),
         ));
+
+        $expiresAt = rex_ai_oauth_client_store::expiresAt($client);
+        if (rex_ai_oauth_client_store::isExpired($client)) {
+            $expiryCell = '<span class="label label-danger">' . rex_i18n::msg('ai_platform_oauth_client_expired') . '</span>';
+        } elseif (null === $expiresAt) {
+            $expiryCell = '<span class="text-muted">' . rex_i18n::msg('ai_platform_oauth_client_never_expires') . '</span>';
+        } else {
+            $expiryCell = rex_escape($expiresAt);
+        }
+
         $listBody .= '<tr>'
             . '<td>' . rex_escape($client['client_name']) . $dcrBadge . '</td>'
             . '<td><code>' . rex_escape($client['client_id']) . '</code></td>'
             . '<td>' . rex_escape($client['type']) . '</td>'
             . '<td>' . nl2br(rex_escape(implode("\n", $client['redirect_uris']))) . '</td>'
+            . '<td>' . rex_escape((string) ($client['createdate'] ?? '–')) . '</td>'
             . '<td>' . rex_escape((string) ($client['last_used_at'] ?? '–')) . '</td>'
+            . '<td>' . $expiryCell . '</td>'
             . '<td><a class="btn btn-delete" href="' . $deleteUrl . '" '
             . 'data-confirm="' . rex_escape(rex_i18n::msg('ai_platform_oauth_client_delete_confirm')) . '">'
             . '<i class="rex-icon rex-icon-delete"></i></a></td>'
             . '</tr>';
     }
     $listBody .= '</tbody></table>';
+
+    $fragment = new rex_fragment();
+    $fragment->setVar('title', rex_i18n::msg('ai_platform_oauth_clients_title'), false);
+    $fragment->setVar('content', $listBody, false);
+    echo $fragment->parse('core/page/section.php');
 }
 
-$fragment = new rex_fragment();
-$fragment->setVar('title', rex_i18n::msg('ai_platform_oauth_clients_title'), false);
-$fragment->setVar('content', $listBody, false);
-echo $fragment->parse('core/page/section.php');
-
 // --- Create form
-$createForm = '<form method="post" action="' . rex_url::currentBackendPage() . '" class="form-horizontal">'
-    . $csrf->getHiddenField()
-    . '<input type="hidden" name="action" value="create">'
-    . '<div class="form-group">'
+$formFields = '<div class="form-group">'
     . '<label class="control-label col-sm-3" for="oauth-client-name">' . rex_i18n::msg('ai_platform_oauth_client_name') . '</label>'
     . '<div class="col-sm-9"><input type="text" class="form-control" id="oauth-client-name" name="client_name" required></div>'
     . '</div>'
@@ -120,13 +131,19 @@ $createForm = '<form method="post" action="' . rex_url::currentBackendPage() . '
     . '<div class="col-sm-9">'
     . '<textarea class="form-control" id="oauth-client-redirect" name="redirect_uris" rows="3" required></textarea>'
     . '<p class="help-block">' . rex_i18n::msg('ai_platform_oauth_client_redirect_notice') . '</p>'
-    . '</div></div>'
-    . '<div class="form-group"><div class="col-sm-offset-3 col-sm-9">'
-    . '<button type="submit" class="btn btn-save">' . rex_i18n::msg('ai_platform_oauth_client_add') . '</button>'
-    . '</div></div></form>';
+    . '</div></div>';
+
+$submitButton = '<button type="submit" class="btn btn-save rex-form-aligned">' . rex_i18n::msg('ai_platform_oauth_client_add') . '</button>';
 
 $fragment = new rex_fragment();
 $fragment->setVar('class', 'edit', false);
 $fragment->setVar('title', rex_i18n::msg('ai_platform_oauth_client_add'), false);
-$fragment->setVar('body', $createForm, false);
-echo $fragment->parse('core/page/section.php');
+$fragment->setVar('body', $formFields, false);
+$fragment->setVar('buttons', $submitButton, false);
+$createSection = $fragment->parse('core/page/section.php');
+
+echo '<form method="post" action="' . rex_url::currentBackendPage() . '" class="form-horizontal">'
+    . $csrf->getHiddenField()
+    . '<input type="hidden" name="action" value="create">'
+    . $createSection
+    . '</form>';

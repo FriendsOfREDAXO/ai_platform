@@ -36,9 +36,7 @@ echo '<p>' . rex_i18n::msg('ai_platform_scopes_intro') . '</p>';
 
 $allScopes = rex_ai_oauth_scope_registry::allScopes();
 
-$body = '<form method="post" action="' . rex_url::currentBackendPage() . '">'
-    . $csrf->getHiddenField()
-    . '<table class="table table-striped">'
+$body = '<table class="table table-striped">'
     . '<thead><tr>'
     . '<th>' . rex_i18n::msg('ai_platform_scopes_group') . '</th>'
     . '<th>' . rex_i18n::msg('ai_platform_scopes_scopes') . '</th>'
@@ -67,11 +65,18 @@ foreach ($groups as $group) {
         . '</tr>';
 }
 
-$body .= '</tbody></table>'
-    . '<button type="submit" class="btn btn-save">' . rex_i18n::msg('ai_platform_save') . '</button>'
-    . '</form>';
+$body .= '</tbody></table>';
+
+$submitButton = '<button type="submit" class="btn btn-save">' . rex_i18n::msg('ai_platform_save') . '</button>';
 
 $fragment = new rex_fragment();
+$fragment->setVar('class', 'edit', false);
 $fragment->setVar('title', rex_i18n::msg('ai_platform_scopes_title'), false);
 $fragment->setVar('content', $body, false);
-echo $fragment->parse('core/page/section.php');
+$fragment->setVar('buttons', $submitButton, false);
+$section = $fragment->parse('core/page/section.php');
+
+echo '<form method="post" action="' . rex_url::currentBackendPage() . '">'
+    . $csrf->getHiddenField()
+    . $section
+    . '</form>';

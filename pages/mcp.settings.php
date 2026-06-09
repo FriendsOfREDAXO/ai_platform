@@ -4,30 +4,45 @@ declare(strict_types=1);
 
 $addon = rex_addon::get('ai_platform');
 $csrfToken = rex_csrf_token::factory('ai_platform_mcp');
+$csrfTools = rex_csrf_token::factory('ai_platform_mcp_tools');
 
-// Handle form submission
+// Handle settings form submission
 if ('post' === rex_request::requestMethod() && $csrfToken->isValid()) {
     rex_config::set('ai_platform', 'mcp_enabled', rex_post('mcp_enabled', 'int', 0));
     rex_config::set('ai_platform', 'mcp_description', rex_post('mcp_description', 'string', ''));
+    rex_config::set('ai_platform', 'mcp_require_auth', rex_post('mcp_require_auth', 'int', 0));
+    rex_config::set('ai_platform', 'oauth_client_lifetime_days', max(0, rex_post('oauth_client_lifetime_days', 'int', 0)));
 
     echo rex_view::success(rex_i18n::msg('ai_platform_settings_saved'));
 }
 
+// Handle tool activation form submission. Checkboxes only submit when checked,
+// so the disabled set is every registered tool name minus the submitted ones.
+if ('post' === rex_request::requestMethod() && $csrfTools->isValid()) {
+    $enabled = array_keys(rex_post('tool_enabled', 'array', []));
+    $allToolNames = array_keys(rex_ai_mcp_server::collectTools());
+    $disabled = array_values(array_diff($allToolNames, $enabled));
+    rex_config::set('ai_platform', 'mcp_disabled_tools', json_encode($disabled, JSON_THROW_ON_ERROR));
+
+    echo rex_view::success(rex_i18n::msg('ai_platform_mcp_tools_saved'));
+}
+
 $mcpEnabled = (int) rex_config::get('ai_platform', 'mcp_enabled', 0);
 $mcpDescription = rex_config::get('ai_platform', 'mcp_description', '');
+$mcpRequireAuth = (int) rex_config::get('ai_platform', 'mcp_require_auth', 0);
+$oauthClientLifetimeDays = (int) rex_config::get('ai_platform', 'oauth_client_lifetime_days', 0);
 
 // Endpoint URLs — canonical /mcp plus the OAuth discovery endpoints
 $base = rtrim(rex::getServer(), '/');
 $mcpUrl = $base . '/mcp';
 $discoveryProtectedResource = $base . '/.well-known/oauth-protected-resource';
 $discoveryAuthServer = $base . '/.well-known/oauth-authorization-server';
-$legacyUrl = $base . '/' . ltrim(rex_url::frontendController(['rex-api-call' => 'ai_mcp'], false), '/');
 
 // Collect registered tools for display
 $tools = rex_ai_mcp_server::collectTools();
 
 $content = '
-<form action="' . rex_url::currentBackendPage() . '" method="post">
+<form action="' . rex_url::currentBackendPage() . '" method="post" class="form-horizontal">
     ' . $csrfToken->getHiddenField() . '
     <fieldset>
         <legend>' . rex_i18n::msg('ai_platform_mcp_settings') . '</legend>
@@ -39,6 +54,25 @@ $content = '
                     <option value="1"' . (1 === $mcpEnabled ? ' selected' : '') . '>' . rex_i18n::msg('ai_platform_status_active') . '</option>
                     <option value="0"' . (0 === $mcpEnabled ? ' selected' : '') . '>' . rex_i18n::msg('ai_platform_status_inactive') . '</option>
                 </select>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="control-label col-sm-3" for="mcp-require-auth">' . rex_i18n::msg('ai_platform_mcp_require_auth') . '</label>
+            <div class="col-sm-9">
+                <select class="form-control selectpicker" id="mcp-require-auth" name="mcp_require_auth">
+                    <option value="0"' . (0 === $mcpRequireAuth ? ' selected' : '') . '>' . rex_i18n::msg('ai_platform_mcp_require_auth_off') . '</option>
+                    <option value="1"' . (1 === $mcpRequireAuth ? ' selected' : '') . '>' . rex_i18n::msg('ai_platform_mcp_require_auth_on') . '</option>
+                </select>
+                <p class="help-block">' . rex_i18n::msg('ai_platform_mcp_require_auth_notice') . '</p>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="control-label col-sm-3" for="oauth-client-lifetime">' . rex_i18n::msg('ai_platform_oauth_client_lifetime') . '</label>
+            <div class="col-sm-9">
+                <input type="number" min="0" step="1" class="form-control" id="oauth-client-lifetime" name="oauth_client_lifetime_days" value="' . $oauthClientLifetimeDays . '">
+                <p class="help-block">' . rex_i18n::msg('ai_platform_oauth_client_lifetime_notice') . '</p>
             </div>
         </div>
 
@@ -69,13 +103,6 @@ $content = '
             </div>
         </div>
 
-        <div class="form-group">
-            <label class="control-label col-sm-3">' . rex_i18n::msg('ai_platform_mcp_legacy_endpoint') . '</label>
-            <div class="col-sm-9">
-                <p class="form-control-static"><code>' . rex_escape($legacyUrl) . '</code></p>
-                <p class="help-block text-warning">' . rex_i18n::msg('ai_platform_mcp_legacy_endpoint_notice') . '</p>
-            </div>
-        </div>
     </fieldset>
 
     <fieldset>
@@ -93,21 +120,25 @@ $fragment->setVar('title', rex_i18n::msg('ai_platform_mcp_settings'), false);
 $fragment->setVar('body', $content, false);
 echo $fragment->parse('core/page/section.php');
 
-// Phase-1 status banner — make it obvious that OAuth is not wired up yet
+// Auth/scopes info banner — explains the two access modes and where to configure them
 $phaseBanner = '<div class="alert alert-info">'
     . '<strong>' . rex_i18n::msg('ai_platform_mcp_oauth_phase_title') . '</strong><br>'
     . rex_i18n::msg('ai_platform_mcp_oauth_phase_notice')
     . '</div>';
 echo $phaseBanner;
 
-// Show registered tools with their auth requirements
+// Registered tools — each row can be activated / deactivated for the MCP server
 if (count($tools) > 0) {
+    $disabledTools = rex_ai_mcp_server::disabledTools();
+
     $toolContent = '<table class="table table-striped"><thead><tr>'
+        . '<th>' . rex_i18n::msg('ai_platform_mcp_tool_active') . '</th>'
         . '<th>' . rex_i18n::msg('ai_platform_mcp_tool_name') . '</th>'
         . '<th>' . rex_i18n::msg('ai_platform_mcp_tool_description') . '</th>'
         . '<th>' . rex_i18n::msg('ai_platform_mcp_tool_auth') . '</th>'
         . '</tr></thead><tbody>';
     foreach ($tools as $tool) {
+        $toolName = $tool->getName();
         if ($tool->isPublic()) {
             $authLabel = '<span class="label label-success">' . rex_i18n::msg('ai_platform_mcp_tool_public') . '</span>';
         } else {
@@ -117,21 +148,34 @@ if (count($tools) > 0) {
                 $authLabel .= ' <code>' . rex_escape(implode(', ', $scopes)) . '</code>';
             }
         }
+        $checked = in_array($toolName, $disabledTools, true) ? '' : ' checked';
+        $fieldId = 'tool-enabled-' . preg_replace('/[^A-Za-z0-9_-]/', '_', $toolName);
         $toolContent .= '<tr>'
-            . '<td><code>' . rex_escape($tool->getName()) . '</code></td>'
+            . '<td><input type="checkbox" id="' . rex_escape($fieldId) . '" name="tool_enabled[' . rex_escape($toolName) . ']" value="1"' . $checked . '></td>'
+            . '<td><label for="' . rex_escape($fieldId) . '"><code>' . rex_escape($toolName) . '</code></label></td>'
             . '<td>' . rex_escape($tool->getDescription()) . '</td>'
             . '<td>' . $authLabel . '</td>'
             . '</tr>';
     }
     $toolContent .= '</tbody></table>';
-} else {
-    $toolContent = '<p class="text-muted">' . rex_i18n::msg('ai_platform_mcp_no_tools') . '</p>';
-}
 
-$fragment = new rex_fragment();
-$fragment->setVar('title', rex_i18n::msg('ai_platform_mcp_registered_tools'), false);
-$fragment->setVar('content', $toolContent, false);
-echo $fragment->parse('core/page/section.php');
+    $toolsSave = '<button type="submit" class="btn btn-save">' . rex_i18n::msg('ai_platform_save') . '</button>';
+
+    $fragment = new rex_fragment();
+    $fragment->setVar('class', 'edit', false);
+    $fragment->setVar('title', rex_i18n::msg('ai_platform_mcp_registered_tools'), false);
+    $fragment->setVar('content', $toolContent, false);
+    $fragment->setVar('buttons', $toolsSave, false);
+    $toolsSection = $fragment->parse('core/page/section.php');
+
+    echo '<p>' . rex_i18n::msg('ai_platform_mcp_tools_notice') . '</p>';
+    echo '<form method="post" action="' . rex_url::currentBackendPage() . '">'
+        . $csrfTools->getHiddenField()
+        . $toolsSection
+        . '</form>';
+} else {
+    echo rex_view::info(rex_i18n::msg('ai_platform_mcp_no_tools'));
+}
 
 // Show usage example
 $exampleContent = '<pre><code>' . rex_escape('// In einem anderen AddOn (boot.php oder lib/):
@@ -153,7 +197,7 @@ rex_extension::register(\'AI_PLATFORM_MCP_TOOLS\', function (rex_extension_point
             return \'Ergebnis fuer: \' . $arguments[\'query\'];
         },
         public: false,
-        requiredScopes: [\'mcp:tools:call\'],
+        requiredScopes: [\'my_addon:read\'],
     );
 
     return $tools;
@@ -161,27 +205,5 @@ rex_extension::register(\'AI_PLATFORM_MCP_TOOLS\', function (rex_extension_point
 
 $fragment = new rex_fragment();
 $fragment->setVar('title', rex_i18n::msg('ai_platform_mcp_example'), false);
-$fragment->setVar('content', $exampleContent, false);
-echo $fragment->parse('core/page/section.php');
-
-// Show Claude Desktop config example
-$configExample = '<p>' . rex_i18n::msg('ai_platform_mcp_client_intro') . '</p>';
-$configExample .= '<pre><code>npm install -g mcp-remote</code></pre>';
-$configExample .= '<p><strong>claude_desktop_config.json:</strong></p>';
-$configExample .= '<pre><code>' . rex_escape(json_encode([
-    'mcpServers' => [
-        'redaxo' => [
-            'command' => 'npx',
-            'args' => [
-                'mcp-remote',
-                $mcpUrl,
-            ],
-        ],
-    ],
-], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)) . '</code></pre>';
-$configExample .= '<p class="help-block">' . rex_i18n::msg('ai_platform_mcp_client_hint') . '</p>';
-
-$fragment = new rex_fragment();
-$fragment->setVar('title', rex_i18n::msg('ai_platform_mcp_client_config'), false);
-$fragment->setVar('content', $configExample, false);
+$fragment->setVar('body', $exampleContent, false);
 echo $fragment->parse('core/page/section.php');

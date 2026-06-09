@@ -55,6 +55,16 @@ final class rex_ai_mcp_server
 
         try {
             $context = $this->authenticator->authenticate();
+
+            // Optional: require authentication for the whole endpoint. Without
+            // this, anonymous clients get a 200 on initialize/tools/list and
+            // never receive the 401 that triggers their OAuth flow — so they
+            // stay anonymous and protected tools never surface. With it on, an
+            // unauthenticated request is challenged so the client logs in.
+            if (!$context->isAuthenticated() && rex_config::get('ai_platform', 'mcp_require_auth', false)) {
+                throw new rex_ai_mcp_auth_required_exception('Authentication required');
+            }
+
             $result = match ($method) {
                 'initialize' => $this->handleInitialize($params),
                 'tools/list' => $this->handleToolsList($context),
@@ -110,6 +120,9 @@ final class rex_ai_mcp_server
         $tools = self::collectTools();
         $toolList = [];
         foreach ($tools as $tool) {
+            if (!self::isToolEnabled($tool->getName())) {
+                continue;
+            }
             if (!$tool->isCallableBy($context)) {
                 continue;
             }
@@ -130,6 +143,10 @@ final class rex_ai_mcp_server
 
         $tools = self::collectTools();
         $tool = $tools[$toolName] ?? null;
+        if (null !== $tool && !self::isToolEnabled($toolName)) {
+            // Disabled tools behave as if they were never registered.
+            $tool = null;
+        }
 
         if (null === $tool) {
             return [
@@ -192,6 +209,32 @@ final class rex_ai_mcp_server
         ));
 
         return $tools;
+    }
+
+    /**
+     * Tool names the admin has switched off via the backend. Disabled tools
+     * are hidden from tools/list and rejected by tools/call. Stored as a JSON
+     * list under the `mcp_disabled_tools` config key (opt-out: tools are
+     * enabled by default, so newly registered tools stay available).
+     *
+     * @return list<string>
+     */
+    public static function disabledTools(): array
+    {
+        $raw = rex_config::get('ai_platform', 'mcp_disabled_tools', '');
+        if (!is_string($raw) || '' === $raw) {
+            return [];
+        }
+        $decoded = json_decode($raw, true);
+        if (!is_array($decoded)) {
+            return [];
+        }
+        return array_values(array_filter($decoded, 'is_string'));
+    }
+
+    public static function isToolEnabled(string $name): bool
+    {
+        return !in_array($name, self::disabledTools(), true);
     }
 
     /**

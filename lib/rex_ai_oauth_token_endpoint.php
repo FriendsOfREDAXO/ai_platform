@@ -171,6 +171,10 @@ final class rex_ai_oauth_token_endpoint
         if (null === $client) {
             throw new rex_ai_oauth_error('invalid_client', 'Unknown client_id', 401);
         }
+        if (rex_ai_oauth_client_store::isExpired($client)) {
+            // Expired registration → force the client to register again (DCR).
+            throw new rex_ai_oauth_error('invalid_client', 'Client registration has expired, please register again', 401);
+        }
 
         if (rex_ai_oauth_client_store::TYPE_CONFIDENTIAL === $client['type']) {
             $secret = (string) ($params['client_secret'] ?? '');
