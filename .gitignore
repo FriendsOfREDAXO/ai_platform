@@ -1,3 +1,6 @@
-/.claude/
+# Ignore local Claude Code state, but track the shared skills + test harness.
+/.claude/*
+!/.claude/skills/
+!/.claude/tests/
 /.playwright-mcp/
 .DS_Store

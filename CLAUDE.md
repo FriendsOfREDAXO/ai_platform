@@ -161,7 +161,7 @@ Drives the provider/type-aware field visibility on the profile edit form. It rea
 - The MCP router runs on `PACKAGES_INCLUDED` and `exit`s on match. That bypasses REDAXO's normal request lifecycle. If you add a new route, always `rex_response::cleanOutputBuffers()` before sending anything, never call `rex_response::sendContent()`, and remember the router fires on every frontend request — keep the path table minimal.
 - The OAuth tables (`rex_ai_oauth_*`, `rex_ai_scope_mapping`) are created in `install.php` via `rex_sql_table::ensure*`. Adding a column → add an `ensureColumn()` line and reinstall the addon (`bin/console package:install ai_platform`, choose reinstall).
 - `rex_ai_oauth_token_store` rotates refresh tokens with joint revocation: when `rotateRefreshToken()` succeeds, **both** the old refresh and its parent access token are revoked. Don't change that — it's the replay protection.
-- Reproducible test harness in `.claude/tests/` (gitignored):
+- Reproducible test harness in `.claude/tests/` (committed; DB creds derived from `data/core/config.yml`, `BASE` overridable via env):
   - `oauth-storage-test.php` — 44 storage asserts, runs via REDAXO bootstrap + addon init
   - `oauth-token-endpoint-test.sh` — 20 token-endpoint asserts, seeds via mysql client, drives via curl
   - `oauth-authorize-test.sh` — 29 end-to-end asserts incl. browser-style login + consent + token exchange, uses `oauth-authorize-test-seed.php` for YCom user/group setup
