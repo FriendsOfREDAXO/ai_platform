@@ -5,7 +5,7 @@ Die **AI Platform** ist das zentrale AddOn fuer die Integration von KI-Diensten 
 ## Features
 
 - Verwaltung mehrerer AI-Provider und API-Keys ueber Profile
-- Pro Profil ein Typ (Text/Code, Bildgenerierung, Bildverstaendnis) mit typspezifischen Einstellungen
+- Pro Profil ein Typ (Text/Code, Embeddings, Bildgenerierung, Bildverstaendnis) mit typspezifischen Einstellungen
 - Automatische Modell-Vorauswahl je nach Provider und Typ
 - API-Verbindungstest direkt im Backend
 - MCP-Server (Model Context Protocol) als HTTP-Endpoint auf `/mcp` mit OAuth-2.1-Discovery
@@ -17,12 +17,12 @@ Die **AI Platform** ist das zentrale AddOn fuer die Integration von KI-Diensten 
 
 ## Unterstuetzte Provider
 
-| Provider | Text | Bildgenerierung | Bildverstaendnis |
-|---|---|---|---|
-| **OpenAI** | `gpt-4o`, `gpt-4o-mini`, `o1`, `o3-mini` | `dall-e-3`, `gpt-image-1` | `gpt-4o`, `gpt-4o-mini` |
-| **Anthropic** | `claude-sonnet-4-20250514`, `claude-opus-4-20250514`, `claude-3-7-sonnet-latest` | - | `claude-sonnet-4-20250514`, `claude-opus-4-20250514` |
-| **Google** | `gemini-2.5-flash`, `gemini-2.5-pro` | `gemini-2.0-flash-exp` | `gemini-2.5-flash`, `gemini-2.5-pro` |
-| **Ollama** | `llama3.2`, `mistral`, `deepseek-r1` u.a. | - | `llava`, `llama3.2-vision` |
+| Provider | Text | Embeddings | Bildgenerierung | Bildverstaendnis |
+|---|---|---|---|---|
+| **OpenAI** | `gpt-4o`, `gpt-4o-mini`, `o1`, `o3-mini` | `text-embedding-3-small`, `text-embedding-3-large`, `text-embedding-ada-002` | `dall-e-3`, `gpt-image-1` | `gpt-4o`, `gpt-4o-mini` |
+| **Anthropic** | `claude-sonnet-4-20250514`, `claude-opus-4-20250514`, `claude-3-7-sonnet-latest` | - | - | `claude-sonnet-4-20250514`, `claude-opus-4-20250514` |
+| **Google** | `gemini-2.5-flash`, `gemini-2.5-pro` | `text-embedding-004` | `gemini-2.0-flash-exp` | `gemini-2.5-flash`, `gemini-2.5-pro` |
+| **Ollama** | `llama3.2`, `mistral`, `deepseek-r1` u.a. | `nomic-embed-text`, `mxbai-embed-large` | - | `llava`, `llama3.2-vision` |
 
 Bei Ollama wird kein API-Key benoetigt, nur die Basis-URL (Standard: `http://localhost:11434`).
 
@@ -44,7 +44,7 @@ Unter **AI Platform > Profile** werden Profile fuer jeden Anwendungsfall separat
 | Feld | Beschreibung |
 |---|---|
 | **Profilname** | Eindeutiger Name, z.B. "Claude Text" oder "DALL-E Bilder" |
-| **Typ** | Text/Code, Bildgenerierung oder Bildverstaendnis |
+| **Typ** | Text/Code, Embeddings, Bildgenerierung oder Bildverstaendnis |
 | **Provider** | OpenAI, Anthropic, Google, Ollama oder Replicate |
 | **API-Key** | API-Schluessel (wird bei Ollama ausgeblendet) |
 | **Basis-URL** | Nur bei Ollama sichtbar (Standard: `http://localhost:11434`) |
@@ -59,6 +59,12 @@ Unter **AI Platform > Profile** werden Profile fuer jeden Anwendungsfall separat
 | **System-Prompt** | Standard-Anweisung, z.B. "Du bist ein hilfreicher Assistent." | leer |
 
 Der System-Prompt wird automatisch bei jedem Aufruf verwendet, kann aber per API ueberschrieben werden.
+
+#### Typ: Embeddings
+
+Embeddings erzeugen numerische Vektoren fuer semantische Suche, Aehnlichkeitsvergleiche und RAG-Workflows.
+
+Typische Modelle sind z.B. `text-embedding-3-small` (OpenAI), `text-embedding-004` (Google) oder `nomic-embed-text` (Ollama).
 
 #### Typ: Bildgenerierung
 
@@ -138,6 +144,21 @@ $service = rex_ai_platform_service::getInstance();
 $imageUrl = $service->generateImage('Ein modernes Logo fuer ein CMS');
 ```
 
+### Embeddings
+
+```php
+$service = rex_ai_platform_service::getInstance();
+
+// Einzelnes Embedding - nutzt Standard-Embedding-Profil
+$vector = $service->generateEmbedding('REDAXO ist ein flexibles Open-Source-CMS.');
+
+// Mehrere Embeddings in einem Aufruf
+$vectors = $service->generateEmbedding([
+    'Artikel ueber CMS-Architektur',
+    'Dokumentation zu REDAXO AddOns',
+]);
+```
+
 ### Profil-Optionen manuell nutzen
 
 ```php
@@ -154,6 +175,7 @@ $profile = $service->getDefaultProfile('text');
 
 // Profile nach Typ filtern
 $textProfiles = $service->getProfiles('text');
+$embeddingProfiles = $service->getProfiles('embedding');
 $imageProfiles = $service->getProfiles('image_generation');
 ```
 

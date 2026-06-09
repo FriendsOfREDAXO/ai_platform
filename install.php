@@ -6,7 +6,7 @@ declare(strict_types=1);
 rex_sql_table::get(rex::getTable('ai_profile'))
     ->ensurePrimaryIdColumn()
     ->ensureColumn(new rex_sql_column('name', 'varchar(255)'))
-    ->ensureColumn(new rex_sql_column('type', 'varchar(50)', false, 'text', null, 'text, image_generation, image_understanding'))
+    ->ensureColumn(new rex_sql_column('type', 'varchar(50)', false, 'text', null, 'text, image_generation, image_understanding, embedding'))
     ->ensureColumn(new rex_sql_column('provider', 'varchar(50)', false, null, null, 'openai, anthropic, google, ollama'))
     ->ensureColumn(new rex_sql_column('api_key', 'text', true))
     ->ensureColumn(new rex_sql_column('base_url', 'varchar(500)', true))
@@ -35,6 +35,9 @@ if (!rex_config::has('ai_platform', 'default_image_generation_profile')) {
 }
 if (!rex_config::has('ai_platform', 'default_image_understanding_profile')) {
     rex_config::set('ai_platform', 'default_image_understanding_profile', 0);
+}
+if (!rex_config::has('ai_platform', 'default_embedding_profile')) {
+    rex_config::set('ai_platform', 'default_embedding_profile', 0);
 }
 if (!rex_config::has('ai_platform', 'mcp_enabled')) {
     rex_config::set('ai_platform', 'mcp_enabled', 0);

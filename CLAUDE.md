@@ -65,6 +65,7 @@ The backend form (`pages/profiles.php`) always renders **all** type fields; `ass
 | `default_text_profile`                | Profile id used by `generateText()` / `createAgent('text')`      |
 | `default_image_generation_profile`    | Profile id used by `generateImage()`                             |
 | `default_image_understanding_profile` | Profile id used by `understandImage()`                           |
+| `default_embedding_profile`           | Profile id used by `generateEmbedding()`                         |
 | `mcp_enabled`                         | 0/1 — gates the MCP HTTP endpoint                                |
 | `mcp_description`                     | Sent as `instructions` in MCP `initialize` response              |
 | `mcp_require_auth`                    | 0/1 — when 1, `rex_ai_mcp_server::handle()` challenges anonymous requests with 401 on every method (incl. `initialize`/`tools/list`), forcing the client's OAuth flow. Needed for protected tools to surface in clients that only start OAuth on a 401 (e.g. Claude Desktop). 0 = anonymous clients allowed (public tools only). |

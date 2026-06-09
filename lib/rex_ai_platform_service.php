@@ -44,6 +44,7 @@ class rex_ai_platform_service
     {
         return [
             'text' => rex_i18n::msg('ai_platform_type_text'),
+            'embedding' => rex_i18n::msg('ai_platform_type_embedding'),
             'image_generation' => rex_i18n::msg('ai_platform_type_image_generation'),
             'image_understanding' => rex_i18n::msg('ai_platform_type_image_understanding'),
         ];
@@ -74,23 +75,27 @@ class rex_ai_platform_service
                 'text' => ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'o1', 'o1-mini', 'o3-mini'],
                 'image_generation' => ['dall-e-3', 'dall-e-2', 'gpt-image-1'],
                 'image_understanding' => ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'],
+                'embedding' => ['text-embedding-3-small', 'text-embedding-3-large', 'text-embedding-ada-002'],
             ],
             'anthropic' => [
                 'text' => ['claude-sonnet-4-20250514', 'claude-opus-4-20250514', 'claude-3-5-haiku-latest', 'claude-3-7-sonnet-latest'],
                 'image_generation' => [],
                 'image_understanding' => ['claude-sonnet-4-20250514', 'claude-opus-4-20250514', 'claude-3-7-sonnet-latest'],
+                'embedding' => [],
             ],
             'google' => [
                 'text' => ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash'],
                 'image_generation' => ['gemini-2.0-flash-exp'],
                 'image_understanding' => ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash'],
+                'embedding' => ['text-embedding-004'],
             ],
             'ollama' => [
                 'text' => ['llama3.1', 'llama3.2', 'mistral', 'codellama', 'deepseek-r1'],
                 'image_generation' => [],
                 'image_understanding' => ['llava', 'llama3.2-vision'],
+                'embedding' => ['nomic-embed-text', 'mxbai-embed-large'],
             ],
-            default => ['text' => [], 'image_generation' => [], 'image_understanding' => []],
+            default => ['text' => [], 'image_generation' => [], 'image_understanding' => [], 'embedding' => []],
         };
 
         return $models[$type] ?? [];
@@ -336,6 +341,47 @@ class rex_ai_platform_service
 
         $result = $platform->invoke($model, $prompt, $options);
         return $result->asText();
+    }
+
+
+    /**
+     * Generate an embedding vector for a given text.
+     * Takes a single string and returns a single array of floats, 
+     * or takes an array of strings and returns an array of float arrays.
+     *
+     * @param string|array<string> $prompt
+     * @return array<float>|array<int, array<float>>
+     */
+    public function generateEmbedding(string|array $prompt, ?int $profileId = null): array
+    {
+        if (null === $profileId) {
+            $profile = $this->getDefaultProfile('embedding');
+            $profileId = $profile['id'];
+        } else {
+            $profile = $this->getProfile($profileId);
+        }
+
+        $platform = $this->getPlatform($profileId);
+        $model = (string) ($profile['model'] ?? '');
+        if ('' === $model) {
+            throw new rex_exception('No model configured for embedding profile id: ' . $profileId);
+        }
+        $options = $this->getProfileOptions($profileId);
+
+        $result = $platform->invoke($model, $prompt, $options);
+        
+        $vectors = $result->asVectors();
+        
+        $embeddings = [];
+        foreach ($vectors as $vector) {
+            $embeddings[] = $vector->getData();
+        }
+
+        if (is_string($prompt)) {
+            return $embeddings[0] ?? [];
+        }
+
+        return $embeddings;
     }
 
     /**

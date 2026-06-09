@@ -9,6 +9,7 @@ ai_platform_type = Type
 ai_platform_type_text = Text / Code
 ai_platform_type_image_generation = Image Generation
 ai_platform_type_image_understanding = Image Understanding
+ai_platform_type_embedding = Embeddings (Vector Arrays)
 
 # Profiles
 ai_platform_profile_add = Add Profile
@@ -23,7 +24,7 @@ ai_platform_api_key_notice = The provider's API key. Not required for Ollama.
 ai_platform_base_url = Base URL
 ai_platform_base_url_notice = Only required for Ollama (default: http://localhost:11434)
 ai_platform_model = Model
-ai_platform_model_notice = Provider model name, e.g. gpt-4o, claude-sonnet-4-20250514, gemini-2.5-flash, dall-e-3
+ai_platform_model_notice = Provider model name, e.g. gpt-4o, claude-sonnet-4-20250514, gemini-2.5-flash, dall-e-3, text-embedding-3-small, nomic-embed-text
 
 # Type-specific settings
 ai_platform_temperature = Temperature
@@ -67,6 +68,8 @@ ai_platform_default_image_generation = Image Generation (Default)
 ai_platform_default_image_generation_notice = Profile used by default for image generation.
 ai_platform_default_image_understanding = Image Understanding (Default)
 ai_platform_default_image_understanding_notice = Profile used by default for image analysis.
+ai_platform_default_embedding = Default Embeddings Profile
+ai_platform_default_embedding_notice = Profile used by default for embedding generation.
 
 # MCP
 ai_platform_mcp_settings = MCP Server Settings
