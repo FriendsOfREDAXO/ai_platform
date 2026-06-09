@@ -151,9 +151,12 @@ $assert(null === $wrongClient, 'rotateRefreshToken rejects mismatched client_id'
 
 echo "\n=== Scope registry ===\n";
 
+// No built-in scopes by design (since commit 90f99d6): tools are gated solely
+// by their `public` flag and own `requiredScopes`. Selectable scopes come from
+// consumer addons via AI_PLATFORM_OAUTH_SCOPES, surfaced through allScopes().
 $builtIn = ScopeRegistry::builtInScopes();
-$assert(array_key_exists('mcp:tools:read', $builtIn), 'builtin scope mcp:tools:read present');
-$assert(array_key_exists('mcp:tools:call', $builtIn), 'builtin scope mcp:tools:call present');
+$assert([] === $builtIn, 'builtInScopes is empty by design (no built-in scopes)');
+$assert(is_array(ScopeRegistry::allScopes()), 'allScopes returns an array (built-ins + extension-point scopes)');
 
 ScopeRegistry::setScopesForGroup(7, ['mcp:tools:read', 'mcp:tools:call', 'mcp:tools:read']);
 $stored = ScopeRegistry::getScopesForGroup(7);
