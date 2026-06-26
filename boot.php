@@ -10,7 +10,6 @@ $addon = rex_addon::get('ai_platform');
 
 // Backend assets
 if (rex::isBackend() && rex::getUser()) {
-    rex_view::addCssFile($addon->getAssetsUrl('styles.css'));
     rex_view::addJsFile($addon->getAssetsUrl('profiles.js'));
 }
 
