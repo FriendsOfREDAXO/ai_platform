@@ -261,6 +261,7 @@ class ComposerStaticInita2468993b9624631610b23a6e08c4641
         'ReflectionConstant' => __DIR__ . '/..' . '/symfony/polyfill-php84/Resources/stubs/ReflectionConstant.php',
         'RoundingMode' => __DIR__ . '/..' . '/symfony/polyfill-php84/Resources/stubs/RoundingMode.php',
         'SQLite3Exception' => __DIR__ . '/..' . '/symfony/polyfill-php83/Resources/stubs/SQLite3Exception.php',
+        'rex_api_ai_change_file' => __DIR__ . '/../..' . '/lib/rex_api_ai_change_file.php',
         'rex_api_ai_test' => __DIR__ . '/../..' . '/lib/rex_api_ai_test.php',
     );
 

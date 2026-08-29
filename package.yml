@@ -3,14 +3,21 @@ version: '1.0.0-beta3'
 author: REDAXO Community
 supportpage: https://github.com/redaxo/redaxo
 
+# `prio` 24 puts this immediately above `ai_changes` (25), so the addon and its
+# inbox read as one pair in the menu instead of sitting at opposite ends of it.
+# Both land just after the media pool (20) and ahead of templates and modules.
 page:
     title: 'translate:ai_platform_title'
     perm: admin[]
     icon: rex-icon fa-brain
     block: system
+    prio: 24
     subpages:
         profiles:
             title: 'translate:ai_platform_profiles'
+        # One page, deliberately. The change-request master switch and the
+        # settings it governs used to sit on two different pages; an admin had to
+        # find the second one to finish configuring what the first switched on.
         settings:
             title: 'translate:ai_platform_settings'
         mcp:
@@ -26,6 +33,37 @@ page:
             title: 'translate:ai_platform_docs'
             itemAttr:
                 class: pull-right
+            subpages:
+                addon:
+                    title: 'translate:ai_platform_docs_addon'
+                changes:
+                    title: 'translate:ai_platform_changes_docs'
+
+# Second top-level menu entry, next to Structure and Media pool rather than
+# buried under System > AI Platform. Reviewing content changes is editorial
+# day-to-day work, and editors should not have to look for it in an admin area
+# whose other pages they cannot even open.
+#
+# It is now a single page — the inbox. Settings and guide moved under
+# `ai_platform`, where the rest of the addon's administration and documentation
+# already lives: an editor deciding on requests never needed them, and an admin
+# was looking for them in two places.
+#
+# `prio` 25 keeps it directly below `ai_platform` (24). The two belong together
+# for an admin, and an editor — who cannot open `ai_platform` at all — still finds
+# the inbox next to structure and the media pool, which is the point of it being
+# a top-level entry.
+#
+# `ai_changes[]` is registered in boot.php.
+pages:
+    ai_changes:
+        title: 'translate:ai_platform_changes_title'
+        main: true
+        block: system
+        prio: 25
+        pjax: true
+        icon: rex-icon fa-code-branch
+        perm: ai_changes[]
 
 requires:
     redaxo: '>=5.18'

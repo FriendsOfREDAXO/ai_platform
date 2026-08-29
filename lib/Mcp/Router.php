@@ -162,7 +162,7 @@ final class Router
             'resource' => $base . self::MCP_PATH,
             'authorization_servers' => [$base . '/'],
             'bearer_methods_supported' => ['header'],
-            'resource_documentation' => $base . '/redaxo/index.php?page=ai_platform/docs',
+            'resource_documentation' => $base . '/redaxo/index.php?page=ai_platform/docs/addon',
         ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
         exit;
     }
