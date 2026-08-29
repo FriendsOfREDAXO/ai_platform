@@ -3,7 +3,7 @@ name: ai-platform-release
 description: Release- und Publish-Workflow fuer das ai_platform Addon zu REDAXO.org (FriendsOfREDAXO/installer-action). Use whenever the user wants to cut a new release/tag, debug the publish-to-redaxo workflow, bumpen die composer-deps oder Probleme mit Symfony-AI-Versionspins auf PHP 8.2 hat.
 ---
 
-# AI Platform Release Workflow
+# KI Platform Release Workflow
 
 Lokale Notizen zum Release-Pfad dieses Addons. Repo lebt auf `https://github.com/FriendsOfREDAXO/ai_platform` (Branch `main`). Auf myredaxo.com unter Slug `ai_platform`.
 
