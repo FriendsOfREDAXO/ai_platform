@@ -2,3 +2,206 @@
     background-color: #fff;
     padding: 20px;
 }
+
+/* --- Change request diff --------------------------------------------------
+   Colours are kept close to REDAXO's own label palette so the diff reads as
+   part of the backend rather than as an embedded tool. */
+
+.ai-diff-table th.ai-diff-field { width: 22%; }
+.ai-diff-table td { vertical-align: top; }
+
+.ai-diff-value { word-break: break-word; }
+
+.ai-diff-table tr.ai-diff-added td.ai-diff-after,
+.ai-diff-table tr.ai-diff-changed td.ai-diff-after { background-color: #eaf5ea; }
+
+.ai-diff-table tr.ai-diff-removed td.ai-diff-before { background-color: #fbeaea; }
+
+.ai-diff-table tr.ai-diff-unchanged { opacity: .65; }
+
+.ai-diff-current { background-color: #fdf6e3; }
+
+/* A conflicting cell is the one thing a reviewer must not miss: it means the
+   target moved after the proposal was made. */
+.ai-diff-conflict {
+    background-color: #fdf0d5;
+    border-left: 3px solid #d58512;
+    padding-left: .5em;
+}
+
+.ai-diff-block {
+    max-height: 24em;
+    overflow: auto;
+    font-size: 12px;
+    line-height: 1.45;
+    background: #fafafa;
+}
+
+.ai-diff-block .ai-diff-line-add { display: block; background-color: #eaf5ea; }
+.ai-diff-block .ai-diff-line-del { display: block; background-color: #fbeaea; }
+.ai-diff-block .ai-diff-line-same { display: block; color: #666; }
+
+/* Filter bar above the inbox table.
+   Padding comes from the .panel-body wrapper in the page, so only the visual
+   separation from the table and the spacing between controls is set here. */
+.ai-change-filter-wrap {
+    background-color: #f9f9f9;
+    border-bottom: 1px solid #ddd;
+}
+
+.ai-change-filter { margin: 0; }
+
+.ai-change-filter .form-group {
+    margin-right: .75em;
+    margin-bottom: 0;
+    vertical-align: top;
+}
+
+.ai-change-filter .form-group:last-of-type { margin-right: .5em; }
+
+/* On narrow screens the inline form wraps; keep the controls full width so they
+   do not end up in a ragged column. */
+@media (max-width: 767px) {
+    .ai-change-filter .form-group,
+    .ai-change-filter .form-control,
+    .ai-change-filter .btn {
+        display: block;
+        width: 100%;
+        margin-right: 0;
+    }
+}
+
+.ai-change-reason {
+    font-size: 14px;
+    border-left-color: #4d90fe;
+}
+
+.ai-change-meta dt { white-space: normal; }
+
+/* Dark theme (be_style 5.x supports a dark variant). */
+@media (prefers-color-scheme: dark) {
+    .rex-theme-dark .ai-diff-table tr.ai-diff-added td.ai-diff-after,
+    .rex-theme-dark .ai-diff-table tr.ai-diff-changed td.ai-diff-after { background-color: #1f3320; }
+    .rex-theme-dark .ai-diff-table tr.ai-diff-removed td.ai-diff-before { background-color: #3a1f1f; }
+    .rex-theme-dark .ai-diff-current { background-color: #33301f; }
+    .rex-theme-dark .ai-diff-conflict { background-color: #3a3220; }
+    .rex-theme-dark .ai-diff-block { background: #23252a; }
+    .rex-theme-dark .ai-diff-block .ai-diff-line-add { background-color: #1f3320; }
+    .rex-theme-dark .ai-diff-block .ai-diff-line-del { background-color: #3a1f1f; }
+    .rex-theme-dark .ai-diff-block .ai-diff-line-same { color: #999; }
+}
+
+/* Greyed-out allow list while "allow all" is active. Kept visible rather than
+   hidden so the stored selection is still readable — switching the checkbox off
+   brings it straight back. */
+.ai-list-disabled {
+    opacity: .45;
+    pointer-events: none;
+}
+
+/*
+ * The change-request detail settings, hidden while the master switch is off.
+ *
+ * Spelled out rather than left to the browser default: `fieldset` carries a
+ * `display` of its own, and any stylesheet setting `display` on it — Bootstrap or
+ * a project theme — beats the user-agent rule for `[hidden]`. A settings block
+ * that quietly stays visible would post nothing wrong, but it would show settings
+ * for a feature that is switched off.
+ */
+[data-ai-changes-detail][hidden] {
+    display: none !important;
+}
+
+/*
+ * Preview of a staged file in the inbox.
+ *
+ * Scaled by CSS, not by a thumbnail service: the media manager only works on
+ * files that are already in the media pool, and a staged file deliberately is
+ * not. `max-height` rather than a fixed size so a portrait photo and a wide
+ * banner both stay recognisable, and the aspect ratio is never distorted —
+ * a reviewer judging a picture needs to see its real proportions.
+ */
+.ai-upload-block {
+    margin-bottom: 15px;
+}
+
+.ai-upload-preview {
+    max-width: 100%;
+    max-height: 320px;
+    height: auto;
+    border: 1px solid rgba(0, 0, 0, .15);
+    background-color: #fff;
+    background-image:
+        linear-gradient(45deg, #eee 25%, transparent 25%, transparent 75%, #eee 75%),
+        linear-gradient(45deg, #eee 25%, transparent 25%, transparent 75%, #eee 75%);
+    background-size: 16px 16px;
+    background-position: 0 0, 8px 8px;
+}
+
+.ai-upload-meta {
+    margin-top: 8px;
+}
+
+/* Dark theme for the filter bar. */
+@media (prefers-color-scheme: dark) {
+    .rex-theme-dark .ai-change-filter-wrap {
+        background-color: #2a2c31;
+        border-bottom-color: #3a3d44;
+    }
+}
+
+/* --- Change request form: type tabs in the panel heading -------------------
+   be_style styles `.panel-heading .nav-tabs` so the active tab drops its bottom
+   border and takes the body's background — that is what makes tabs and content
+   read as one surface. Two things it does not cover for this form: */
+
+/* be_style pulls the tabs 10px down into the body (`margin-bottom: -10px`), so
+   the body needs that much back at the top or the first legend sits under the
+   tab row. */
+#ai-change-form {
+    padding-top: 10px;
+}
+
+/* The tab row is a flex container and would otherwise overflow rather than wrap
+   once six type labels no longer fit. */
+.panel-heading .nav-tabs {
+    flex-wrap: wrap;
+}
+
+/* The submit fieldset carries no legend, so it needs its own separation from the
+   last field group. */
+#ai-change-form > fieldset:last-of-type {
+    margin-top: 10px;
+    padding-top: 15px;
+    border-top: 1px solid #e5e5e5;
+}
+
+@media (prefers-color-scheme: dark) {
+    .rex-theme-dark #ai-change-form > fieldset:last-of-type {
+        border-top-color: #3a3d44;
+    }
+}
+
+/*
+ * Open-request count on the "KI Änderungen" menu entry.
+ *
+ * Rendered from a data attribute rather than appended to the page title:
+ * `rex_be_controller::getPageTitle()` puts the title into the `<title>` element
+ * verbatim, so a `<span class="badge">` there is spelled out in the browser tab.
+ * See ChangeService::preparePages().
+ */
+.rex-nav-main a[data-ai-changes-open]::after {
+    content: attr(data-ai-changes-open);
+    display: inline-block;
+    min-width: 18px;
+    margin-left: 6px;
+    padding: 1px 5px;
+    border-radius: 9px;
+    background-color: rgba(0, 0, 0, .35);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 16px;
+    text-align: center;
+    vertical-align: text-top;
+}

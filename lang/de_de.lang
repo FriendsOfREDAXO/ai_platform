@@ -1,7 +1,8 @@
-ai_platform_title = AI Platform
+ai_platform_title = KI Platform
 ai_platform_profiles = Profile
 ai_platform_settings = Einstellungen
 ai_platform_mcp = MCP Server
+ai_platform_docs_addon = AddOn
 ai_platform_docs = Dokumentation
 
 # Types
@@ -148,3 +149,305 @@ ai_platform_scopes_group = YCom-Gruppe
 ai_platform_scopes_scopes = Scopes
 ai_platform_scopes_saved = Mapping gespeichert.
 ai_platform_scopes_no_groups = Es sind noch keine YCom-Gruppen angelegt. Lege zuerst Gruppen unter YCom an, danach kann hier die Scope-Zuordnung erfolgen.
+
+# --- Änderungswünsche ------------------------------------------------------
+ai_platform_changes = Änderungswünsche
+ai_platform_changes_title = KI Änderungen
+ai_platform_changes_inbox = Eingang
+ai_platform_changes_settings = Einstellungen
+
+ai_platform_change_type_slice = Artikelinhalt (Slice)
+ai_platform_change_type_article = Artikel
+ai_platform_change_type_category = Kategorie
+ai_platform_change_type_meta = Metainfo
+ai_platform_change_type_media = Medium
+ai_platform_change_type_yform = YForm-Datensatz
+
+ai_platform_change_operation_create = Neu anlegen
+ai_platform_change_operation_update = Ändern
+ai_platform_change_operation_delete = Löschen
+
+ai_platform_changes_needs_api = Zum Einreichen von Änderungswünschen wird das AddOn <strong>api</strong> benötigt — die REST-Routen werden dort angemeldet. Ohne aktives api-AddOn kann die Funktion eingeschaltet werden, erhält aber keine Wünsche.
+ai_platform_changes_needs_api_active = KI Änderungen sind aktiv, aber das AddOn <strong>api</strong> ist nicht verfügbar. Es gibt derzeit keinen Weg, Änderungswünsche einzureichen: die REST-Routen werden im api-AddOn angemeldet. Bitte das api-AddOn installieren und aktivieren.
+ai_platform_change_setting_thin_hint = Die Datenmenge alter, entschiedener Wünsche wird über den Cronjob „KI Änderungen: Datenmenge alter Wünsche reduzieren“ verkleinert — dort wird auch der Zeitraum eingestellt. Einträge werden dabei nie gelöscht, nur ihre Nutzlast geleert.
+ai_platform_cronjob_thin_name = KI Änderungen: Datenmenge alter Wünsche reduzieren
+ai_platform_cronjob_thin_days = Älter als (Tage)
+ai_platform_cronjob_thin_days_notice = Bei entschiedenen Änderungswünschen, die älter sind, werden Nutzlast und Momentaufnahmen geleert. Der Eintrag selbst bleibt dauerhaft erhalten — wer wann was entschieden hat, ist weiter nachvollziehbar. Offene Wünsche werden nie angefasst.
+ai_platform_cronjob_thin_done = {0} Änderungswünsche älter als {1} Tage wurden verkleinert.
+ai_platform_cronjob_thin_needs_days = Es muss ein Zeitraum in Tagen angegeben werden (mindestens 1).
+ai_platform_change_status_pending = Offen
+ai_platform_change_status_approved = Freigegeben
+ai_platform_change_status_applied = Übernommen
+ai_platform_change_status_rejected = Abgelehnt
+ai_platform_change_status_failed = Fehlgeschlagen
+ai_platform_change_status_superseded = Überholt
+ai_platform_change_status_withdrawn = zurückgezogen
+ai_platform_change_status_expired = Verfallen
+
+ai_platform_changeset_status_open = Offen
+ai_platform_changeset_status_applied = Übernommen
+ai_platform_changeset_status_partially_applied = Teilweise übernommen
+ai_platform_changeset_status_rejected = Abgelehnt
+
+ai_platform_change_target_article = Artikel
+ai_platform_change_target_category = Kategorie
+ai_platform_change_target_media = Medium
+ai_platform_change_target_clang = Sprache
+ai_platform_change_target_meta = Metainfo
+ai_platform_change_target_yform = YForm
+ai_platform_change_target_new_slice = neuer Slice
+ai_platform_change_target_new_article = Neuer Artikel
+ai_platform_change_target_new_category = Neue Kategorie
+ai_platform_change_target_new_dataset = neuer Datensatz
+ai_platform_change_target_in_category = in Kategorie
+
+ai_platform_change_field_article_name = Artikelname
+ai_platform_change_field_article_priority = Priorität
+ai_platform_change_field_article_template_id = Template
+ai_platform_change_field_article_status = Status
+ai_platform_change_field_category_catname = Kategoriename
+ai_platform_change_field_category_catpriority = Priorität
+ai_platform_change_field_category_status = Status
+ai_platform_change_field_media_title = Titel
+ai_platform_change_field_media_category_id = Medienkategorie
+
+ai_platform_change_slice_unmapped_note = Für dieses Modul ist keine Feldzuordnung hinterlegt — die Slots heißen wie in der Datenbank.
+ai_platform_change_meta_updated = Metainfo-Werte gespeichert.
+ai_platform_change_media_deleted = Medium gelöscht.
+ai_platform_change_yform_saved = Datensatz gespeichert.
+ai_platform_change_yform_deleted = Datensatz gelöscht.
+
+ai_platform_change_disabled = Änderungswünsche sind deaktiviert.
+ai_platform_change_no_approve_permission = Für dieses Ziel fehlt die Berechtigung zur Freigabe.
+
+ai_platform_change_err_no_fields = Es ist kein Feld zum Ändern angegeben.
+ai_platform_change_err_not_writable = "{0}" ist kein beschreibbares Feld.
+ai_platform_change_err_slice_gone = Der Slice oder sein Modul existiert nicht mehr.
+ai_platform_change_err_module_not_allowed = Modul {0} steht nicht auf der Liste der für Änderungswünsche erlaubten Module.
+ai_platform_change_err_module_gone = Modul {0} existiert nicht.
+ai_platform_change_err_article_gone = Artikel {0} existiert in dieser Sprache nicht.
+ai_platform_change_err_category_gone = Kategorie {0} existiert nicht.
+ai_platform_change_err_category_unresolved = Die Zielkategorie lässt sich nicht bestimmen.
+ai_platform_change_err_name_required = Ein Name ist erforderlich.
+ai_platform_change_err_template_not_allowed = Template {0} ist für diese Kategorie nicht erlaubt. Erlaubt: {1}
+ai_platform_change_err_carrier_gone = {0} existiert nicht mehr.
+ai_platform_change_err_meta_prefix = Das Feld "{0}" passt nicht zum Ziel — erwartet wird ein Name mit dem Präfix "{1}".
+ai_platform_change_err_meta_unknown = Unbekanntes Metainfo-Feld "{0}". Bekannt: {1}
+ai_platform_change_err_media_gone = Das Medium "{0}" existiert nicht mehr.
+ai_platform_change_err_media_category_gone = Medienkategorie {0} existiert nicht.
+ai_platform_change_err_yform_missing = YForm ist nicht installiert.
+ai_platform_change_err_yform_table_not_allowed = Die YForm-Tabelle "{0}" ist nicht für Änderungswünsche freigegeben.
+ai_platform_change_err_yform_table_gone = Die YForm-Tabelle "{0}" existiert nicht oder hat keine Felder.
+ai_platform_change_err_yform_dataset_gone = Datensatz {0} in "{1}" existiert nicht mehr.
+ai_platform_change_err_yform_field_unknown = Unbekanntes YForm-Feld "{0}" in "{1}". Bekannt: {2}
+ai_platform_change_err_yform_invalid = Der Datensatz ist nach den Regeln der Tabelle nicht gültig.
+ai_platform_change_err_yform_delete_failed = Der Datensatz konnte nicht gelöscht werden.
+ai_platform_change_note_relative_priority = Die Priorität ist eine relative Position — REDAXO nummeriert die Geschwister beim Speichern lückenlos neu. Der gespeicherte Wert kann daher abweichen.
+
+# --- Änderungswünsche: Oberfläche ------------------------------------------
+ai_platform_change_col_type = Typ
+ai_platform_change_col_operation = Aktion
+ai_platform_change_col_target = Ziel
+ai_platform_change_col_status = Status
+ai_platform_change_col_source = Quelle
+ai_platform_change_col_reason = Begründung
+ai_platform_change_col_created = Eingereicht
+ai_platform_change_col_reviewed = Entschieden
+ai_platform_change_col_note = Notiz
+ai_platform_change_col_error = Fehler
+ai_platform_change_col_context = Kontext
+
+ai_platform_change_detail_heading = Änderungswunsch #{0}
+ai_platform_change_reason_heading = Begründung
+ai_platform_change_diff_heading = Änderung
+ai_platform_change_bulk_heading = Auswahl bearbeiten
+ai_platform_change_handlers_heading = Registrierte Typen
+ai_platform_change_counts_heading = Bestand
+ai_platform_change_handler_key = Schlüssel
+ai_platform_change_handler_revert = Rücknahme
+ai_platform_change_revert_yes = möglich
+ai_platform_change_revert_no = nicht möglich
+
+ai_platform_change_diff_field = Feld
+ai_platform_change_diff_before = Vorher
+ai_platform_change_diff_after = Vorschlag
+ai_platform_change_diff_current = Aktuell
+ai_platform_change_diff_empty = Dieser Änderungswunsch enthält keine Feldänderungen.
+ai_platform_change_diff_empty_value = (leer)
+
+ai_platform_change_summary_changed = {0} geändert
+ai_platform_change_summary_added = {0} neu
+ai_platform_change_summary_removed = {0} entfernt
+ai_platform_change_summary_none = keine Änderung
+
+ai_platform_change_approve = Freigeben und übernehmen
+ai_platform_change_reject = Ablehnen
+ai_platform_change_approve_selected = Auswahl freigeben
+ai_platform_change_reject_selected = Auswahl ablehnen
+ai_platform_change_approve_filtered = Alle {0} offenen freigeben
+ai_platform_change_approve_changeset = Ganzes Paket freigeben ({0})
+ai_platform_change_back = Zurück zur Liste
+ai_platform_change_open_target = Im Backend öffnen
+ai_platform_change_open_request = Änderungswunsch ansehen
+ai_platform_change_note_label = Notiz für die Entscheidung (optional)
+ai_platform_change_force_label = Auch anwenden, wenn das Ziel zwischenzeitlich geändert wurde
+ai_platform_change_no_reason = Keine Begründung angegeben.
+
+ai_platform_change_applied_one = Änderung übernommen.
+ai_platform_change_rejected_one = Änderungswunsch abgelehnt.
+ai_platform_change_applied_many = {0} Änderungen übernommen.
+ai_platform_change_rejected_many = {0} Änderungswünsche abgelehnt.
+ai_platform_change_batch_stale = {0} Einträge wurden nicht übernommen, weil sich das Ziel zwischenzeitlich geändert hat:
+ai_platform_change_batch_failed = {0} Einträge sind fehlgeschlagen:
+ai_platform_change_batch_skipped = {0} Einträge wurden übersprungen:
+
+ai_platform_change_not_found = Änderungswunsch {0} wurde nicht gefunden, oder der zugehörige Typ ist nicht installiert.
+ai_platform_change_list_empty = Keine Änderungswünsche vorhanden.
+ai_platform_change_stale_blocked = Das Ziel wurde nach der Einreichung geändert. Der Vergleich zeigt zusätzlich den aktuellen Stand. Die Freigabe ist gesperrt, bis sie ausdrücklich übersteuert wird.
+ai_platform_change_stale_warned = Das Ziel wurde nach der Einreichung geändert. Der Vergleich zeigt zusätzlich den aktuellen Stand.
+ai_platform_change_target_gone_warning = Das Ziel existiert nicht mehr. Dieser Änderungswunsch kann nicht angewendet werden.
+ai_platform_change_payload_edited = Die Werte wurden nach der Einreichung redaktionell korrigiert. Angewendet wird die korrigierte Fassung.
+ai_platform_change_on_behalf_of = im Namen von {0}
+ai_platform_change_deviation_notice = REDAXO hat beim Speichern Werte normalisiert — gespeichert wurde nicht überall der vorgeschlagene Wert:
+ai_platform_change_deviation_proposed = Vorgeschlagen
+ai_platform_change_deviation_stored = Gespeichert
+
+ai_platform_change_filter_open = Offen
+ai_platform_change_filter_all = Alle
+ai_platform_change_filter_all_types = Alle Typen
+ai_platform_change_filter_all_sources = Alle Quellen
+ai_platform_change_filter_search = Ziel oder Begründung
+ai_platform_change_filter_apply = Filtern
+
+ai_platform_change_new_intro = Für welchen Inhaltstyp soll ein Änderungswunsch angelegt werden?
+ai_platform_change_created = Änderungswunsch #{0} angelegt.
+ai_platform_change_form_heading = Änderungswunsch anlegen: {0}
+ai_platform_change_form_target = Ziel
+ai_platform_change_form_values = Werte
+ai_platform_change_form_context = Kontext
+ai_platform_change_form_submit = Änderungswunsch einreichen
+ai_platform_change_form_article_id = Artikel-ID
+ai_platform_change_form_category_id = Kategorie-ID
+ai_platform_change_form_parent_id = Übergeordnete Kategorie-ID
+ai_platform_change_form_slice_id = Slice-ID
+ai_platform_change_form_slice_id_help = Nur bei Ändern und Löschen.
+ai_platform_change_form_module_id = Modul-ID
+ai_platform_change_form_module_id_help = Nur beim Anlegen. Bestehende Slices bringen ihr Modul selbst mit.
+ai_platform_change_form_ctype_id = ctype
+ai_platform_change_form_clang = Sprache
+ai_platform_change_form_carrier = Träger
+ai_platform_change_form_filename = Dateiname
+ai_platform_change_form_yform_table = YForm-Tabelle
+ai_platform_change_form_dataset_id = Datensatz-ID
+ai_platform_change_form_changeset = Paket
+ai_platform_change_form_changeset_help = Freier Name. Änderungswünsche mit gleichem Namen bilden ein Paket und können gemeinsam freigegeben werden.
+ai_platform_change_form_reason_help = Was soll geändert werden und warum? Der Redakteur entscheidet anhand dieses Textes.
+ai_platform_change_form_slots_help = Ohne Feldzuordnung für das Modul heißen die Felder wie in der Datenbank. Leere Felder werden nicht übernommen.
+ai_platform_change_form_list_help = Mehrere Werte mit Komma trennen.
+ai_platform_change_no_meta_fields = Es sind keine Metainfo-Felder definiert.
+ai_platform_change_no_yform_tables = Es ist keine YForm-Tabelle für Änderungswünsche freigegeben. Freigabe unter Einstellungen.
+ai_platform_change_no_yform_installed = YForm ist nicht installiert.
+ai_platform_change_module_mapped = Feldzuordnung vorhanden
+
+ai_platform_change_setting_enabled = Änderungswünsche
+ai_platform_change_setting_stale = Wenn das Ziel zwischenzeitlich geändert wurde
+ai_platform_change_setting_stale_block = Freigabe sperren, Übersteuern möglich
+ai_platform_change_setting_stale_warn = Nur warnen
+ai_platform_change_setting_stale_help = Sperren verhindert, dass eine späte Freigabe die Handarbeit eines Redakteurs unbemerkt überschreibt.
+ai_platform_change_setting_yform = Erlaubte YForm-Tabellen
+ai_platform_change_setting_yform_help = Nur ausgewählte Tabellen sind beschreibbar. Keine Auswahl bedeutet: keine Tabelle — ein Änderungswunsch könnte sonst jede Tabelle der Datenbank benennen.
+
+ai_platform_change_via_api = ohne Sichtung freigegeben
+ai_platform_change_via_api_hint = Diese Änderung wurde über die REST-API freigegeben und angewendet, ohne dass ein Mensch sie geprüft hat. Der Eintrag bleibt dauerhaft erhalten.
+perm_general_ai_changes[] = KI Änderungen: Bereich öffnen und Wünsche sichten
+
+# --- Änderungswünsche: Situationsprüfung -----------------------------------
+ai_platform_change_col_state = Zustand
+ai_platform_change_state_gone = Ziel weg
+ai_platform_change_state_broken = Verweis kaputt
+ai_platform_change_state_changed = Ziel geändert
+ai_platform_change_state_context = Umfeld geändert
+
+ai_platform_change_broken_references = Der Vorschlag verweist auf Objekte, die es nicht mehr gibt. Ein Anwenden würde ins Leere zeigende Verweise schreiben, deshalb ist die Freigabe gesperrt:
+ai_platform_change_context_changed = Das Umfeld des Ziels hat sich seit der Einreichung geändert. Der Vorschlag ist deshalb nicht falsch, sitzt aber möglicherweise an anderer Stelle als gedacht:
+ai_platform_change_changed_generic = Das Ziel wurde nach der Einreichung geändert.
+ai_platform_change_changed_fields = Geändert seit der Einreichung: {0}
+ai_platform_change_context_changed_generic = Das Umfeld hat sich geändert.
+ai_platform_change_context_field_changed = {0}: vorher {1}, jetzt {2}
+ai_platform_change_approve_blocked = Freigabe nicht möglich, solange Verweise ins Leere zeigen.
+
+ai_platform_change_ref_module_gone = Das Modul {0} existiert nicht mehr.
+ai_platform_change_ref_media_gone = Feld {0}: die Datei "{1}" existiert nicht mehr im Medienpool.
+ai_platform_change_ref_media_pending = Feld {0}: die Datei „{1}“ ist noch nicht im Medienpool — sie wartet als eigener Änderungswunsch. Zuerst den Medien-Wunsch freigeben lassen, danach diesen Slice einreichen. In einem Changeset zusammen einzureichen genügt nicht: Verweise werden bereits beim Einreichen geprüft.
+ai_platform_change_ref_media_file_missing = Zu "{0}" existiert der Datenbankeintrag, aber die Datei fehlt auf der Platte.
+ai_platform_change_ref_article_gone = Feld {0}: der verlinkte Artikel {1} existiert nicht mehr.
+ai_platform_change_ref_category_gone = Die Kategorie {0} existiert nicht mehr.
+ai_platform_change_ref_template_gone = Das Template {0} existiert nicht mehr.
+ai_platform_change_ref_media_category_gone = Die Medienkategorie {0} existiert nicht mehr.
+ai_platform_change_ref_yform_dataset_gone = Feld {0}: der verknüpfte Datensatz {2} in "{1}" existiert nicht mehr.
+ai_platform_change_ref_yform_table_unreadable = Feld {0}: die verknüpfte Tabelle "{1}" ist nicht lesbar.
+ai_platform_changes_docs = Anleitung
+ai_platform_changes_docs_missing = Die Anleitung ({0}) wurde nicht gefunden.
+ai_platform_changes_docs_source = Dieser Text liegt unter {0} und dient gleichzeitig als Skill für KI-Agenten. Änderungen dort wirken an beiden Stellen.
+
+# --- Änderungswünsche: Rechte und Schalter ---------------------------------
+ai_platform_changes_enabled = KI Änderungen
+ai_platform_changes_enabled_notice = Schaltet das Einreichen und Freigeben von Änderungswünschen ein. Ist es inaktiv, erscheint der Menüpunkt "KI Änderungen" nicht.
+ai_platform_changes_enabled_open_hint = Aktuell liegen {0} unbearbeitete Änderungswünsche vor — beim Abschalten verschwinden sie aus dem Menü, bleiben aber gespeichert.
+ai_platform_changes_open_inbox = Eingang öffnen
+
+ai_platform_changes_settings_admin_only = Diese Einstellungen sind Administratoren vorbehalten.
+ai_platform_change_read_only_notice = Zum Freigeben oder Ablehnen fehlt die Berechtigung. Die Liste ist einsehbar, Entscheidungen trifft jemand mit dem Recht "Änderungswünsche freigeben".
+
+ai_platform_change_setting_all_yform = Alle YForm-Tabellen erlauben
+ai_platform_change_setting_all_yform_warning = Damit ist jede YForm-Tabelle der Datenbank beschreibbar — auch Tabellen anderer AddOns wie Benutzerkonten. Nur einschalten, wenn die einreichenden Quellen vertrauenswürdig sind.
+
+perm_options_ai_changes[approve] = KI Änderungen: freigeben und ablehnen (öffnet den Bereich mit)
+ai_platform_changes_disabled_page = Die KI Änderungen sind deaktiviert. Es werden keine Änderungswünsche angenommen und keine freigegeben.
+ai_platform_changes_disabled_page_admin_link = In den Einstellungen aktivieren
+
+# --- Änderungswünsche: Formular-Feinheiten ---------------------------------
+ai_platform_status_online = Online
+ai_platform_status_offline = Offline
+ai_platform_change_form_leave_unchanged = — nicht ändern —
+ai_platform_change_form_category_id_help = 0 ist die oberste Ebene.
+ai_platform_change_form_parent_id_help = 0 legt die Kategorie auf der obersten Ebene an.
+ai_platform_change_form_carrier_help = Wovon sollen die Metainfo-Werte geändert werden? Die Felder darunter richten sich nach dieser Auswahl.
+ai_platform_change_form_dataset_id_help = Nur bei Ändern und Löschen.
+ai_platform_change_form_template_help = Ist das Template für die Zielkategorie nicht erlaubt, wird der Wunsch beim Einreichen abgewiesen — mit Angabe der erlaubten Templates.
+ai_platform_change_form_media_help = Dateiname aus dem Medienpool.
+ai_platform_change_form_link_help = ID des zu verlinkenden Artikels.
+ai_platform_change_form_media_meta_hint = Alt-Text, Copyright und Bildbeschreibung sind Metainfo-Felder. Sie werden über den Typ "Metainfo" mit Träger "Medium" geändert, nicht hier.
+ai_platform_change_form_delete_no_values = Beim Löschen werden keine Werte gebraucht.
+ai_platform_change_form_yform_table_help = Beim Wechsel wird die Seite neu geladen, damit nur die Felder dieser Tabelle erscheinen.
+ai_platform_change_no_yform_fields = Diese Tabelle hat keine Felder, die sich per Änderungswunsch setzen lassen. Automatisch gepflegte Felder wie Zeitstempel sind ausgenommen.
+ai_platform_change_configure_now = Jetzt einrichten
+ai_platform_change_count = Anzahl
+ai_platform_change_count_total = {0} insgesamt
+ai_platform_change_show_in_inbox = Im Eingang anzeigen
+
+# --- Vorgeschlagene Medien (Staging) --------------------------------------
+ai_platform_change_field_media_upload = Datei
+ai_platform_change_media_root = Hauptkategorie
+ai_platform_change_media_created = Datei wurde in den Medienpool aufgenommen.
+ai_platform_change_upload_err_missing = Die Datei wurde nicht gefunden.
+ai_platform_change_upload_err_empty = Die Datei ist leer.
+ai_platform_change_upload_err_too_big = Die Datei ist größer als {0} MB.
+ai_platform_change_upload_err_extension = Die Endung „{0}“ ist im Medienpool nicht erlaubt.
+ai_platform_change_upload_err_mime = Der Dateityp „{0}“ passt nicht zur Endung „{1}“ oder ist nicht erlaubt.
+ai_platform_change_upload_err_taken = Der Dateiname „{0}“ ist schon belegt oder für einen anderen Vorschlag reserviert. Bitte einen anderen Namen wählen.
+ai_platform_change_upload_err_store = Die Datei konnte nicht zwischengespeichert werden.
+ai_platform_change_err_upload_required = Ein neues Medium braucht eine hochgeladene Datei — zuerst hochladen, dann das Handle im Feld „upload“ angeben.
+ai_platform_change_err_upload_filename = Der vorgeschlagene Dateiname „{0}“ passt nicht zum reservierten Namen „{1}“ des Uploads.
+ai_platform_change_err_upload_consumed = Die Datei „{0}“ wurde bereits in den Medienpool aufgenommen.
+ai_platform_change_err_upload_foreign = Dieser Upload gehört einer anderen Quelle.
+ai_platform_change_ref_upload_missing = Der Vorschlag nennt keine hochgeladene Datei.
+ai_platform_change_ref_upload_gone = Der Upload „{0}“ existiert nicht mehr.
+ai_platform_change_ref_upload_file_gone = Die zwischengespeicherte Datei zu „{0}“ ist nicht mehr vorhanden.
+ai_platform_change_ref_upload_taken = Der Dateiname „{0}“ wurde inzwischen anderweitig im Medienpool belegt.
+ai_platform_change_upload_preview = Vorschau
+ai_platform_change_upload_open = Datei öffnen
+ai_platform_change_upload_meta = {0} · {1}
+ai_platform_change_upload_no_preview = Für diesen Dateityp gibt es keine Vorschau.
+ai_platform_change_upload_forbidden = Kein Zugriff auf diese Datei.
+ai_platform_cronjob_thin_uploads = , {0} zwischengespeicherte Dateien entfernt
