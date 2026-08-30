@@ -23,7 +23,7 @@ ai_platform_default = Default
 ai_platform_api_key = API Key
 ai_platform_api_key_notice = The provider's API key. Optional for Ollama -- leave empty for an unsecured local instance, or use it as a Bearer token for externally reachable/secured Ollama servers.
 ai_platform_base_url = Base URL
-ai_platform_base_url_notice = Only required for Ollama (default: http://localhost:11434)
+ai_platform_base_url_notice = Required for Ollama (default: http://localhost:11434). For "OpenAI-compatible", enter the server's base URL without any path suffix, e.g. https://my-server.example/v1 -- /chat/completions is appended automatically.
 ai_platform_model = Model
 ai_platform_model_notice = Provider model name, e.g. gpt-4o, claude-sonnet-4-20250514, gemini-2.5-flash, dall-e-3, text-embedding-3-small, nomic-embed-text
 

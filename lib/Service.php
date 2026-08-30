@@ -16,6 +16,7 @@ use Symfony\AI\Platform\Bridge\OpenAi\PlatformFactory as OpenAiFactory;
 use Symfony\AI\Platform\Bridge\Anthropic\PlatformFactory as AnthropicFactory;
 use Symfony\AI\Platform\Bridge\Gemini\PlatformFactory as GeminiFactory;
 use Symfony\AI\Platform\Bridge\Ollama\PlatformFactory as OllamaFactory;
+use FriendsOfRedaxo\AiPlatform\Bridge\OpenAiCompatible\PlatformFactory as OpenAiCompatibleFactory;
 use Symfony\AI\Platform\Message\Message;
 use Symfony\AI\Platform\Message\MessageBag;
 use Symfony\AI\Platform\Message\Content\Image;
@@ -69,6 +70,7 @@ class Service
             'anthropic' => 'Anthropic (Claude)',
             'google' => 'Google (Gemini)',
             'ollama' => 'Ollama (Lokal)',
+            'openai_compatible' => 'OpenAI-kompatibel (eigener Endpoint)',
         ];
     }
 
@@ -103,6 +105,12 @@ class Service
                 'image_generation' => [],
                 'image_understanding' => ['llava', 'llama3.2-vision'],
                 'embedding' => ['nomic-embed-text', 'mxbai-embed-large'],
+            ],
+            'openai_compatible' => [
+                'text' => [],
+                'image_generation' => [],
+                'image_understanding' => [],
+                'embedding' => [],
             ],
             default => ['text' => [], 'image_generation' => [], 'image_understanding' => [], 'embedding' => []],
         };
@@ -187,6 +195,10 @@ class Service
             'google' => GeminiFactory::create($profile['api_key']),
             'ollama' => OllamaFactory::create(
                 $profile['base_url'] ?: 'http://localhost:11434',
+                '' !== (string) ($profile['api_key'] ?? '') ? $profile['api_key'] : null,
+            ),
+            'openai_compatible' => OpenAiCompatibleFactory::create(
+                (string) ($profile['base_url'] ?? ''),
                 '' !== (string) ($profile['api_key'] ?? '') ? $profile['api_key'] : null,
             ),
             default => throw new rex_exception('Unknown AI provider: ' . $profile['provider']),

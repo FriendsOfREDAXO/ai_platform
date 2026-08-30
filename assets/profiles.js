@@ -22,7 +22,7 @@ $(document).on("rex:ready", function () {
     ];
 
     // Which provider-specific fields to show/hide
-    // base_url: only Ollama
+    // base_url: Ollama + openai_compatible
     // api_key: everything, inkl. Ollama -- optional dort (leer = kein
     // Authorization-Header, z.B. lokale Instanz ohne Absicherung), aber fuer
     // extern erreichbare/Reverse-Proxy-abgesicherte Ollama-Server als
@@ -34,6 +34,7 @@ $(document).on("rex:ready", function () {
         anthropic: { api_key: true, base_url: false, image_quality: false, image_style: false },
         google: { api_key: true, base_url: false, image_quality: false, image_style: false },
         ollama: { api_key: true, base_url: true, image_quality: false, image_style: false },
+        openai_compatible: { api_key: true, base_url: true, image_quality: false, image_style: false },
     };
 
     // Default models per provider+type
@@ -61,6 +62,12 @@ $(document).on("rex:ready", function () {
             image_generation: "",
             image_understanding: "llava",
             embedding: "nomic-embed-text",
+        },
+        openai_compatible: {
+            text: "",
+            image_generation: "",
+            image_understanding: "",
+            embedding: "",
         },
     };
 
