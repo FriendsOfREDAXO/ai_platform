@@ -187,6 +187,7 @@ class Service
             'google' => GeminiFactory::create($profile['api_key']),
             'ollama' => OllamaFactory::create(
                 $profile['base_url'] ?: 'http://localhost:11434',
+                '' !== (string) ($profile['api_key'] ?? '') ? $profile['api_key'] : null,
             ),
             default => throw new rex_exception('Unknown AI provider: ' . $profile['provider']),
         };

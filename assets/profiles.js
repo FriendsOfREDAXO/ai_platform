@@ -23,13 +23,17 @@ $(document).on("rex:ready", function () {
 
     // Which provider-specific fields to show/hide
     // base_url: only Ollama
-    // api_key: everything except Ollama
+    // api_key: everything, inkl. Ollama -- optional dort (leer = kein
+    // Authorization-Header, z.B. lokale Instanz ohne Absicherung), aber fuer
+    // extern erreichbare/Reverse-Proxy-abgesicherte Ollama-Server als
+    // Bearer-Token nutzbar (siehe Service::getPlatform(), OllamaFactory::create()
+    // nimmt den API-Key als zweites Argument entgegen).
     // image_quality, image_style: only OpenAI (DALL-E specific)
     var providerFields = {
         openai: { api_key: true, base_url: false, image_quality: true, image_style: true },
         anthropic: { api_key: true, base_url: false, image_quality: false, image_style: false },
         google: { api_key: true, base_url: false, image_quality: false, image_style: false },
-        ollama: { api_key: false, base_url: true, image_quality: false, image_style: false },
+        ollama: { api_key: true, base_url: true, image_quality: false, image_style: false },
     };
 
     // Default models per provider+type
