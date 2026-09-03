@@ -22,7 +22,7 @@ Die **KI Platform** ist das zentrale AddOn fuer die Integration von KI-Diensten 
 |---|---|---|---|---|
 | **OpenAI** | `gpt-4o`, `gpt-4o-mini`, `o1`, `o3-mini` | `text-embedding-3-small`, `text-embedding-3-large`, `text-embedding-ada-002` | `dall-e-3`, `gpt-image-1` | `gpt-4o`, `gpt-4o-mini` |
 | **Anthropic** | `claude-sonnet-4-20250514`, `claude-opus-4-20250514`, `claude-3-7-sonnet-latest` | - | - | `claude-sonnet-4-20250514`, `claude-opus-4-20250514` |
-| **Google** | `gemini-2.5-flash`, `gemini-2.5-pro` | `text-embedding-004` | `gemini-2.0-flash-exp` | `gemini-2.5-flash`, `gemini-2.5-pro` |
+| **Google** | `gemini-2.5-flash`, `gemini-2.5-pro` | `gemini-embedding-001` | `gemini-2.5-flash-image`, `gemini-3-pro-image-preview` | `gemini-2.5-flash`, `gemini-2.5-pro` |
 | **Ollama** | `llama3.2`, `mistral`, `deepseek-r1` u.a. | `nomic-embed-text`, `mxbai-embed-large` | - | `llava`, `llama3.2-vision` |
 | **OpenAI-kompatibel** | beliebige Modellnamen des Servers | beliebige Modellnamen des Servers | - | beliebige Modellnamen des Servers |
 
@@ -59,7 +59,9 @@ rex_extension::register(ProviderRegistry::EXTENSION_POINT, function (rex_extensi
 });
 ```
 
-Die Modellauswahl im Profilformular kommt aus `catalog` -- gefiltert nach den Faehigkeiten, die der gewaehlte Typ braucht. Die Auswahl hat immer den Eintrag "eigener Modellname", der ein Textfeld freischaltet: die Kataloge sind nicht vollstaendig (bei Ollama fehlt `llama3.2-vision` etwa ganz), und eine geschlossene Liste wuerde funktionierende Modellnamen verbieten. Kennt ein Provider fuer den Typ keine Modelle, entfaellt die Auswahl und es bleibt das Textfeld.
+Die Modellauswahl im Profilformular kommt aus `catalog` -- gefiltert nach den Faehigkeiten, die der gewaehlte Typ braucht. Kennt ein Provider fuer den Typ keine Modelle, entfaellt die Auswahl und es bleibt ein Textfeld; ausserdem hat die Auswahl immer den Eintrag "eigener Modellname", der dieses Textfeld freischaltet.
+
+Ob ein selbst eingetragener Name funktioniert, entscheidet der Katalog des Providers: `FallbackModelCatalog` (OpenAI-kompatibel, und was ein Fremd-AddOn mitbringt) akzeptiert jeden Namen, die gepflegten Kataloge von OpenAI, Anthropic, Google und Ollama weisen einen unbekannten Namen mit `ModelNotFoundException` ab -- bei Ollama betrifft das etwa `llama3.2-vision`, das im Katalog fehlt. Wer dort ein Modell braucht, das Symfony AI noch nicht kennt, ergaenzt den Provider per Extension Point mit einem eigenen Katalog.
 
 ## Installation
 
@@ -99,7 +101,7 @@ Der System-Prompt wird automatisch bei jedem Aufruf verwendet, kann aber per API
 
 Embeddings erzeugen numerische Vektoren fuer semantische Suche, Aehnlichkeitsvergleiche und RAG-Workflows.
 
-Typische Modelle sind z.B. `text-embedding-3-small` (OpenAI), `text-embedding-004` (Google) oder `nomic-embed-text` (Ollama).
+Typische Modelle sind z.B. `text-embedding-3-small` (OpenAI), `gemini-embedding-001` (Google) oder `nomic-embed-text` (Ollama).
 
 #### Typ: Bildgenerierung
 

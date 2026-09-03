@@ -7,7 +7,7 @@ ai_platform_docs = Dokumentation
 
 # Types
 ai_platform_type = Typ
-ai_platform_type_text = Text / Code
+ai_platform_type_text = Text / Code / Completion
 ai_platform_type_image_generation = Bildgenerierung
 ai_platform_type_image_understanding = Bildverstaendnis
 ai_platform_type_embedding = Embeddings (Vektor-Arrays)

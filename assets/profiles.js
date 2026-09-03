@@ -109,6 +109,22 @@ $(document).on("rex:ready", function () {
         return (configFor(providerSelect.value).models || {})[typeSelect.value] || [];
     }
 
+    // What to hide when there is nothing to pick. bootstrap-select (be_style initialises
+    // every .selectpicker on rex:ready) wraps the select in a .bootstrap-select div and
+    // hides the original element itself, so hiding the select would hide nothing visible.
+    // Without the plugin -- in a test harness -- the select is its own box.
+    function modelPickerBox() {
+        return (modelSelect && modelSelect.closest("div.bootstrap-select")) || modelSelect;
+    }
+
+    // bootstrap-select renders its own markup once and does not watch the option list, so
+    // every change to the options or the value has to be announced.
+    function refreshModelSelect() {
+        if (window.jQuery && window.jQuery.fn && window.jQuery.fn.selectpicker) {
+            window.jQuery(modelSelect).selectpicker("refresh");
+        }
+    }
+
     // Show the free-text input only while the name cannot come from the select.
     function setCustomModel(on) {
         if (modelInput) modelInput.style.display = on ? "" : "none";
@@ -121,15 +137,17 @@ $(document).on("rex:ready", function () {
         if (!modelSelect) return;
 
         var models = catalogModels();
+        var box = modelPickerBox();
         modelSelect.innerHTML = "";
 
         if (models.length === 0) {
-            modelSelect.style.display = "none";
+            box.style.display = "none";
+            refreshModelSelect();
             setCustomModel(true);
             return;
         }
 
-        modelSelect.style.display = "";
+        box.style.display = "";
         for (var i = 0; i < models.length; i++) {
             modelSelect.appendChild(new Option(models[i], models[i]));
         }
@@ -150,6 +168,7 @@ $(document).on("rex:ready", function () {
 
         var known = catalogModels().indexOf(modelInput.value) >= 0;
         modelSelect.value = known ? modelInput.value : CUSTOM_MODEL;
+        refreshModelSelect();
         setCustomModel(!known);
     }
 
@@ -177,6 +196,27 @@ $(document).on("rex:ready", function () {
         lastAutoModel = model;
     }
 
+    // A model only ever belongs to one provider and one type, so after switching either
+    // of them a leftover name is wrong -- gpt-4o-mini does not become an embedding model
+    // by picking the embedding type. If the new pairing has a catalog, the value is
+    // replaced by its default (or its first entry when the default does not fit either).
+    // An empty catalog is left alone: there the typed name is the only source there is.
+    function ensureModelFitsSelection() {
+        if (!modelInput) return;
+
+        var models = catalogModels();
+        if (models.length === 0 || models.indexOf(modelInput.value) >= 0) return;
+
+        var fallback = (configFor(providerSelect.value).defaults || {})[typeSelect.value] || "";
+        if (models.indexOf(fallback) < 0) {
+            fallback = models[0];
+        }
+
+        modelInput.value = fallback;
+        lastAutoModel = fallback;
+        modelManuallyEdited = false;
+    }
+
     function onSelectionChange() {
         // If model was auto-filled, allow changing it when type or provider changes
         if (modelInput && modelInput.value === lastAutoModel) {
@@ -184,6 +224,7 @@ $(document).on("rex:ready", function () {
         }
         updateVisibility();
         updateModel();
+        ensureModelFitsSelection();
         updateModelSelect();
     }
 

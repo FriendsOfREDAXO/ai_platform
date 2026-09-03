@@ -76,7 +76,7 @@ if ('add' === $func || 'edit' === $func) {
     $field->setAttribute('autocomplete', 'off');
     $field->setAttribute('placeholder', rex_i18n::msg('ai_platform_model_placeholder'));
     $field->setPrefix(
-        '<select id="ai-model-select" class="form-control ai-model-select" data-custom-label="'
+        '<select id="ai-model-select" class="form-control selectpicker ai-model-select" data-custom-label="'
         . rex_escape(rex_i18n::msg('ai_platform_model_custom_option'), 'html_attr')
         . '"></select>',
     );

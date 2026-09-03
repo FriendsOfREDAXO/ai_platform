@@ -87,9 +87,9 @@ page script runs.
 **The model picker is a select plus an escape hatch, and the escape hatch is not
 optional.** The catalogs are Symfony AI's own and stay current without work here, but they
 are not exhaustive: for Ollama `llama3.2-vision` is missing entirely and `llava` carries no
-`INPUT_IMAGE` capability, so both drop out of the image-understanding list while working
-perfectly well — and the generic provider has no catalog at all. A closed select would
-lock out model names that work. Hence: the select is the field's *prefix* and only writes
+`INPUT_IMAGE` capability, so both drop out of the image-understanding list — and the
+generic provider has no catalog at all, because a self-hosted server can call its models
+anything. A closed select would lock those out. Hence: the select is the field's *prefix* and only writes
 into the `model` input, which stays the single control bound to the column; the last option
 reveals that input for a name of one's own; an empty catalog hides the select entirely
 rather than offering a list of one; and `syncModelSelect()` derives the select from the
@@ -103,11 +103,43 @@ a related reason — `OUTPUT_TEXT` alone also matches `whisper-1`.
 their own versioned path (`/v1/chat/completions` for the generic one) while every provider
 documents its endpoint *with* the `/v1`. Both spellings have to reach the same URL.
 
+**What a name outside the catalog actually does, though, depends on the provider** — and
+it is not "it just works". `AbstractModelCatalog::getModel()` throws
+`ModelNotFoundException` for a name it does not know, before any request is built. So the
+free-text input is load-bearing for `generic` (its `FallbackModelCatalog` accepts anything)
+and for providers a third addon registers with an open catalog, while for Ollama a typed
+`llama3.2-vision` is refused by Symfony AI, not by us. Extending that provider means
+handing it a different catalog through the extension point, not widening the form.
+
 The `generic` provider is `symfony/ai-generic-platform`, i.e. plain OpenAI chat
 completions against a free base URL — Open WebUI, LiteLLM, vLLM, LM Studio, OpenRouter
 and the like. Do **not** hand-roll a bridge for one of those: the upstream package covers
 tool calls, streaming, the 401/400/429 mapping and token usage, which a minimal
 `choices[0].message.content` converter does not (that was the flaw in PR #9).
+
+**bootstrap-select is the reason the picker needs two courtesies.** be_style initialises
+every `.selectpicker` on `rex:ready` and the plugin then renders its own markup once: it
+does not watch the option list, so `updateModelSelect()` and `syncModelSelect()` have to
+call `selectpicker('refresh')` after touching options or the value — without it the box
+stays empty and looks nothing like the type and provider boxes next to it. And the plugin
+hides the original `<select>` itself and wraps it in a `div.bootstrap-select`, so
+visibility is toggled on that wrapper (`modelPickerBox()`); toggling the select would
+toggle something already invisible. Both fall back gracefully when the plugin is absent,
+which is what makes the picker testable outside a browser.
+
+Test: `.claude/tests/provider-registry-test.php` (100 asserts) covers the registry against
+the real REDAXO boot — so a label coming out as `[translate:…]` fails — and drives the
+bridges through a `MockHttpClient`, which is how the base-URL normalisation, the bearer
+header and Ollama's native `/api/chat` are asserted without a network. It also pins that a
+default model is offered by its catalog; that assertion is what surfaced the stale
+`gemini-2.0-flash-exp` and `text-embedding-004` defaults.
+
+Test: `.claude/tests/model-picker-test.mjs` (19 asserts, plain `node`, no npm) runs
+`assets/profiles.js` against a hand-rolled minimal DOM: the custom entry, the visibility
+of the credential fields, the refresh calls, the wrapper-not-select toggle, and the two
+cases where a stored model name has to survive being opened. Its provider payload is a
+fixture on purpose — the picker's behaviour must not start failing because Symfony AI
+added a model. That the real payload has that shape is asserted in the PHP test.
 
 `getProfileOptions()` is the central place that translates a stored profile into provider-specific invoke options. **Important quirk**: OpenAI's Responses API uses the key `max_output_tokens`, every other provider uses `max_tokens`. The method already branches on this — don't "fix" it.
 
@@ -944,7 +976,7 @@ das liest, sucht am falschen Ende.
 ## Things to know before changing code
 
 - `composer.lock` and `vendor/` are committed. Bump deps with `composer update`, run a manual test (profile create + connection test + MCP `tools/list` call), then commit the refreshed `composer.lock` + `vendor/` together — never split them across commits.
-- Symfony AI 0.6 is **alpha-ish**; pinning is `^0.6`. Breaking changes between minor 0.x bumps are likely — update with care and re-test all four `getPlatform()` branches.
+- Symfony AI 0.6 is **alpha-ish**; pinning is `^0.6`. Breaking changes between minor 0.x bumps are likely — update with care and re-run `.claude/tests/provider-registry-test.php`, which drives every provider in `ProviderRegistry` through its bridge.
 - When code `exit`s mid-flow (the `FriendsOfRedaxo\AiPlatform\Mcp\Router` routes and the `rex_api_ai_test` endpoint do this), it bypasses REDAXO's normal response pipeline. Always `rex_response::cleanOutputBuffers()` first and never rely on `rex_api_result` for the response body.
 - `FriendsOfRedaxo\AiPlatform\Service::getProfile()` filters by `status = 1`; inactive profiles are invisible to all callers. That's intentional — keep it that way unless adding an explicit "include inactive" parameter.
 - The MCP router runs on `PACKAGES_INCLUDED` and `exit`s on match. That bypasses REDAXO's normal request lifecycle. If you add a new route, always `rex_response::cleanOutputBuffers()` before sending anything, never call `rex_response::sendContent()`, and remember the router fires on every frontend request — keep the path table minimal.

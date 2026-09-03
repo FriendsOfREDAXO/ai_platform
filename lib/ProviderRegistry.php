@@ -21,6 +21,7 @@ use Symfony\AI\Platform\Bridge\OpenAi\PlatformFactory as OpenAiFactory;
 use Symfony\AI\Platform\Capability;
 use Symfony\AI\Platform\ModelCatalog\ModelCatalogInterface;
 use Symfony\AI\Platform\PlatformInterface;
+use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 /**
  * The providers a profile can be built on — one entry each, and everything about
@@ -80,7 +81,7 @@ final class ProviderRegistry
     ];
 
     /**
-     * @return array<string, array{label: string, fields: list<string>, defaults: array<string, string>, catalog: callable(): ModelCatalogInterface, factory: callable(array<string, mixed>): PlatformInterface}>
+     * @return array<string, array{label: string, fields: list<string>, defaults: array<string, string>, catalog: callable(): ModelCatalogInterface, factory: callable(array<string, mixed>, ?HttpClientInterface): PlatformInterface}>
      */
     public static function all(): array
     {
@@ -95,8 +96,9 @@ final class ProviderRegistry
                     'embedding' => 'text-embedding-3-small',
                 ],
                 'catalog' => static fn (): ModelCatalogInterface => new OpenAiCatalog(),
-                'factory' => static fn (array $profile): PlatformInterface => OpenAiFactory::create(
+                'factory' => static fn (array $profile, ?HttpClientInterface $httpClient): PlatformInterface => OpenAiFactory::create(
                     self::requireApiKey($profile, 'openai'),
+                    $httpClient,
                 ),
             ],
             'anthropic' => [
@@ -107,22 +109,29 @@ final class ProviderRegistry
                     'image_understanding' => 'claude-sonnet-4-20250514',
                 ],
                 'catalog' => static fn (): ModelCatalogInterface => new AnthropicCatalog(),
-                'factory' => static fn (array $profile): PlatformInterface => AnthropicFactory::create(
+                'factory' => static fn (array $profile, ?HttpClientInterface $httpClient): PlatformInterface => AnthropicFactory::create(
                     self::requireApiKey($profile, 'anthropic'),
+                    $httpClient,
                 ),
             ],
             'google' => [
                 'label' => 'Google (Gemini)',
                 'fields' => ['api_key'],
+                // gemini-2.0-flash-exp and text-embedding-004 used to stand here; both are
+                // gone from the bridge's catalog, so they landed the form on "custom model
+                // name" the moment the provider was picked. A default has to be offered by
+                // the catalog -- ProviderRegistryTest::testDefaultModelIsOfferedByTheCatalog
+                // keeps it that way.
                 'defaults' => [
                     'text' => 'gemini-2.5-flash',
-                    'image_generation' => 'gemini-2.0-flash-exp',
+                    'image_generation' => 'gemini-2.5-flash-image',
                     'image_understanding' => 'gemini-2.5-flash',
-                    'embedding' => 'text-embedding-004',
+                    'embedding' => 'gemini-embedding-001',
                 ],
                 'catalog' => static fn (): ModelCatalogInterface => new GeminiCatalog(),
-                'factory' => static fn (array $profile): PlatformInterface => GeminiFactory::create(
+                'factory' => static fn (array $profile, ?HttpClientInterface $httpClient): PlatformInterface => GeminiFactory::create(
                     self::requireApiKey($profile, 'google'),
+                    $httpClient,
                 ),
             ],
             'ollama' => [
@@ -134,9 +143,10 @@ final class ProviderRegistry
                     'embedding' => 'nomic-embed-text',
                 ],
                 'catalog' => static fn (): ModelCatalogInterface => new OllamaCatalog(),
-                'factory' => static fn (array $profile): PlatformInterface => OllamaFactory::create(
+                'factory' => static fn (array $profile, ?HttpClientInterface $httpClient): PlatformInterface => OllamaFactory::create(
                     self::baseUrl($profile) ?? 'http://localhost:11434',
                     self::apiKey($profile),
+                    $httpClient,
                 ),
             ],
             'generic' => [
@@ -144,23 +154,23 @@ final class ProviderRegistry
                 'fields' => ['api_key', 'base_url'],
                 'defaults' => [],
                 'catalog' => static fn (): ModelCatalogInterface => new GenericCatalog(),
-                'factory' => static function (array $profile): PlatformInterface {
+                'factory' => static function (array $profile, ?HttpClientInterface $httpClient): PlatformInterface {
                     $baseUrl = self::baseUrl($profile);
                     if (null === $baseUrl) {
                         throw new rex_exception('AI provider "generic" needs a base URL on the profile.');
                     }
 
-                    return GenericFactory::create($baseUrl, self::apiKey($profile));
+                    return GenericFactory::create($baseUrl, self::apiKey($profile), $httpClient);
                 },
             ],
         ];
 
-        /** @var array<string, array{label: string, fields: list<string>, defaults: array<string, string>, catalog: callable(): ModelCatalogInterface, factory: callable(array<string, mixed>): PlatformInterface}> */
+        /** @var array<string, array{label: string, fields: list<string>, defaults: array<string, string>, catalog: callable(): ModelCatalogInterface, factory: callable(array<string, mixed>, ?HttpClientInterface): PlatformInterface}> */
         return rex_extension::registerPoint(new rex_extension_point(self::EXTENSION_POINT, $providers));
     }
 
     /**
-     * @return array{label: string, fields: list<string>, defaults: array<string, string>, catalog: callable(): ModelCatalogInterface, factory: callable(array<string, mixed>): PlatformInterface}
+     * @return array{label: string, fields: list<string>, defaults: array<string, string>, catalog: callable(): ModelCatalogInterface, factory: callable(array<string, mixed>, ?HttpClientInterface): PlatformInterface}
      *
      * @throws rex_exception if no provider is registered under that key
      */
@@ -187,13 +197,17 @@ final class ProviderRegistry
     /**
      * Build the Symfony AI platform for a profile row.
      *
+     * Every bridge factory takes an optional HTTP client, and it is passed through here:
+     * that is the seam for custom headers, timeouts or a proxy, and it is what lets a test
+     * put a MockHttpClient in front of a provider instead of talking to the network.
+     *
      * @param array<string, mixed> $profile
      */
-    public static function createPlatform(array $profile): PlatformInterface
+    public static function createPlatform(array $profile, ?HttpClientInterface $httpClient = null): PlatformInterface
     {
         $provider = (string) ($profile['provider'] ?? '');
 
-        return (self::get($provider)['factory'])($profile);
+        return (self::get($provider)['factory'])($profile, $httpClient);
     }
 
     /**
