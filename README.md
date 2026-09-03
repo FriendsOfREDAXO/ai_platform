@@ -25,7 +25,7 @@ Die **KI Platform** ist das zentrale AddOn fuer die Integration von KI-Diensten 
 | **Google** | `gemini-2.5-flash`, `gemini-2.5-pro` | `text-embedding-004` | `gemini-2.0-flash-exp` | `gemini-2.5-flash`, `gemini-2.5-pro` |
 | **Ollama** | `llama3.2`, `mistral`, `deepseek-r1` u.a. | `nomic-embed-text`, `mxbai-embed-large` | - | `llava`, `llama3.2-vision` |
 
-Bei Ollama wird kein API-Key benoetigt, nur die Basis-URL (Standard: `http://localhost:11434`).
+Bei Ollama ist nur die Basis-URL Pflicht (Standard: `http://localhost:11434`). Der API-Key ist dort optional: bleibt er leer, wird kein `Authorization`-Header gesendet -- gesetzt, geht er als Bearer-Token mit, wie es ein per Reverse Proxy abgesicherter Ollama-Server erwartet.
 
 ## Installation
 
@@ -47,7 +47,7 @@ Unter **KI Platform > Profile** werden Profile fuer jeden Anwendungsfall separat
 | **Profilname** | Eindeutiger Name, z.B. "Claude Text" oder "DALL-E Bilder" |
 | **Typ** | Text/Code, Embeddings, Bildgenerierung oder Bildverstaendnis |
 | **Provider** | OpenAI, Anthropic, Google, Ollama oder Replicate |
-| **API-Key** | API-Schluessel (wird bei Ollama ausgeblendet) |
+| **API-Key** | API-Schluessel; bei Ollama optional (Bearer-Token fuer abgesicherte Server) |
 | **Basis-URL** | Nur bei Ollama sichtbar (Standard: `http://localhost:11434`) |
 | **Modell** | Wird automatisch passend zum Provider und Typ vorausgefuellt |
 
