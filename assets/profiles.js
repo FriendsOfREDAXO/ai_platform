@@ -21,47 +21,34 @@ $(document).on("rex:ready", function () {
         "detail_level",
     ];
 
-    // Which provider-specific fields to show/hide
-    // base_url: only Ollama
-    // api_key: all providers -- optional for Ollama (empty means no Authorization
-    // header, as on a local instance), but needed as a bearer token for an Ollama
-    // server exposed behind a reverse proxy. OllamaFactory::create() takes it as
-    // its second argument; see Service::getPlatform().
-    // image_quality, image_style: only OpenAI (DALL-E specific)
-    var providerFields = {
-        openai: { api_key: true, base_url: false, image_quality: true, image_style: true },
-        anthropic: { api_key: true, base_url: false, image_quality: false, image_style: false },
-        google: { api_key: true, base_url: false, image_quality: false, image_style: false },
-        ollama: { api_key: true, base_url: true, image_quality: false, image_style: false },
-    };
+    // Fields whose visibility depends on the provider, not on the type alone.
+    var credentialFields = ["api_key", "base_url"];
+    // Provider options that live inside a type block: image_quality and image_style are
+    // DALL-E settings, so they need the type to show them AND the provider to have them.
+    var providerOptionFields = ["image_quality", "image_style"];
 
-    // Default models per provider+type
-    var defaultModels = {
-        openai: {
-            text: "gpt-4o",
-            image_generation: "dall-e-3",
-            image_understanding: "gpt-4o",
-            embedding: "text-embedding-3-small",
-        },
-        anthropic: {
-            text: "claude-sonnet-4-20250514",
-            image_generation: "",
-            image_understanding: "claude-sonnet-4-20250514",
-            embedding: "",
-        },
-        google: {
-            text: "gemini-2.5-flash",
-            image_generation: "gemini-2.0-flash-exp",
-            image_understanding: "gemini-2.5-flash",
-            embedding: "text-embedding-004",
-        },
-        ollama: {
-            text: "llama3.2",
-            image_generation: "",
-            image_understanding: "llava",
-            embedding: "nomic-embed-text",
-        },
-    };
+    // Everything provider-specific -- which fields to show, the default model per type
+    // and the model suggestions -- comes from PHP (ProviderRegistry::formConfig(),
+    // emitted by pages/profiles.php). This file deliberately knows no provider names:
+    // the previous copy of that knowledge here is what kept the Ollama API-key field
+    // hidden long after the PHP side had started supporting it.
+    var providerConfig = readProviderConfig();
+
+    function readProviderConfig() {
+        var node = document.getElementById("ai-provider-config");
+        if (!node) return {};
+        try {
+            return JSON.parse(node.textContent) || {};
+        } catch (e) {
+            return {};
+        }
+    }
+
+    function configFor(provider) {
+        // Unknown provider (added by an extension point that failed to render, say):
+        // show both credential fields rather than hiding what might be required.
+        return providerConfig[provider] || { fields: credentialFields, defaults: {}, models: {} };
+    }
 
     function getFieldRow(suffix) {
         var input = document.querySelector("[name$='[" + suffix + "]']");
@@ -85,14 +72,8 @@ $(document).on("rex:ready", function () {
 
     function updateVisibility() {
         var type = typeSelect.value;
-        var provider = providerSelect.value;
         var visibleType = typeFields[type] || [];
-        var pf = providerFields[provider] || {
-            api_key: true,
-            base_url: false,
-            image_quality: false,
-            image_style: false,
-        };
+        var fields = configFor(providerSelect.value).fields || [];
 
         // Type-specific fields
         for (var i = 0; i < allTypeFields.length; i++) {
@@ -100,59 +81,63 @@ $(document).on("rex:ready", function () {
             var row = getFieldRow(field);
             if (!row) continue;
 
-            var showByType = visibleType.indexOf(field) >= 0;
-
-            // image_quality and image_style: additionally check provider
-            if (field === "image_quality" || field === "image_style") {
-                row.style.display = showByType && pf[field] ? "" : "none";
-            } else {
-                row.style.display = showByType ? "" : "none";
+            var show = visibleType.indexOf(field) >= 0;
+            if (show && providerOptionFields.indexOf(field) >= 0) {
+                show = fields.indexOf(field) >= 0;
             }
+
+            row.style.display = show ? "" : "none";
         }
 
-        // Provider-specific fields (api_key, base_url)
-        var apiKeyRow = getFieldRow("api_key");
-        var baseUrlRow = getFieldRow("base_url");
-        if (apiKeyRow) apiKeyRow.style.display = pf.api_key ? "" : "none";
-        if (baseUrlRow) baseUrlRow.style.display = pf.base_url ? "" : "none";
+        // Provider credentials (api_key, base_url)
+        for (var j = 0; j < credentialFields.length; j++) {
+            var credentialRow = getFieldRow(credentialFields[j]);
+            if (credentialRow) {
+                credentialRow.style.display = fields.indexOf(credentialFields[j]) >= 0 ? "" : "none";
+            }
+        }
+    }
+
+    // Fill the datalist behind the model field with what the provider's catalog offers
+    // for this type. Suggestions only -- the field stays free text, because the
+    // catalogs miss working model names (see ProviderRegistry::models()).
+    function updateSuggestions() {
+        var list = document.getElementById("ai-model-suggestions");
+        if (!list) return;
+
+        var models = (configFor(providerSelect.value).models || {})[typeSelect.value] || [];
+        list.innerHTML = "";
+        for (var i = 0; i < models.length; i++) {
+            var option = document.createElement("option");
+            option.value = models[i];
+            list.appendChild(option);
+        }
     }
 
     function updateModel() {
         if (!modelInput || modelManuallyEdited) return;
 
-        var provider = providerSelect.value;
-        var type = typeSelect.value;
-        var models = defaultModels[provider];
-        if (!models) return;
-
-        var model = models[type] || "";
+        var model = (configFor(providerSelect.value).defaults || {})[typeSelect.value] || "";
         modelInput.value = model;
         lastAutoModel = model;
     }
 
-    function onTypeChange() {
-        // If model was auto-filled, allow changing it when type changes
+    function onSelectionChange() {
+        // If model was auto-filled, allow changing it when type or provider changes
         if (modelInput && modelInput.value === lastAutoModel) {
             modelManuallyEdited = false;
         }
         updateVisibility();
+        updateSuggestions();
         updateModel();
     }
 
-    function onProviderChange() {
-        // If model was auto-filled, allow changing it when provider changes
-        if (modelInput && modelInput.value === lastAutoModel) {
-            modelManuallyEdited = false;
-        }
-        updateVisibility();
-        updateModel();
-    }
-
-    typeSelect.addEventListener("change", onTypeChange);
-    providerSelect.addEventListener("change", onProviderChange);
+    typeSelect.addEventListener("change", onSelectionChange);
+    providerSelect.addEventListener("change", onSelectionChange);
 
     // Initial update (visibility only, don't overwrite existing model in edit mode)
     updateVisibility();
+    updateSuggestions();
 
     // Only auto-fill model if the field is empty (add mode)
     if (modelInput && modelInput.value === "") {

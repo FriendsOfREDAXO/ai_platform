@@ -11,7 +11,8 @@
         "symfony/ai-anthropic-platform": "^0.6",
         "symfony/ai-gemini-platform": "^0.6",
         "symfony/ai-ollama-platform": "^0.6",
-        "symfony/http-client": "^6.4|^7.0"
+        "symfony/http-client": "^6.4|^7.0",
+        "symfony/ai-generic-platform": "^0.6"
     },
     "autoload": {
         "psr-4": {

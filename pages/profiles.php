@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use FriendsOfRedaxo\AiPlatform\ProviderRegistry;
 use FriendsOfRedaxo\AiPlatform\Service;
 
 $func = rex_request('func', 'string');
@@ -61,10 +62,14 @@ if ('add' === $func || 'edit' === $func) {
     $field->setAttribute('class', 'form-control');
     $field->setNotice(rex_i18n::msg('ai_platform_base_url_notice'));
 
-    // Model
+    // Model -- free text with the provider's catalog as suggestions (see
+    // ProviderRegistry::models(): the catalogs are not exhaustive, so a select
+    // would reject model names that work).
     $field = $form->addTextField('model');
     $field->setLabel(rex_i18n::msg('ai_platform_model'));
     $field->setAttribute('class', 'form-control');
+    $field->setAttribute('list', 'ai-model-suggestions');
+    $field->setAttribute('autocomplete', 'off');
     $field->setNotice(rex_i18n::msg('ai_platform_model_notice'));
 
     // --- Type-specific fields ---
@@ -163,7 +168,16 @@ if ('add' === $func || 'edit' === $func) {
     $select->addOption(rex_i18n::msg('ai_platform_status_inactive'), '0');
     $field->setAttribute('class', 'form-control selectpicker');
 
-    $content = $form->get();
+    // Which fields a provider needs, its default model per type and the catalog
+    // suggestions -- all of it from ProviderRegistry, so assets/profiles.js carries no
+    // provider knowledge of its own. Written here rather than via
+    // rex_view::setJsProperty() because that renders in the head, which is already out
+    // the door by the time a page script runs.
+    $content = $form->get()
+        . '<script type="application/json" id="ai-provider-config">'
+        . json_encode(ProviderRegistry::formConfig(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG)
+        . '</script>'
+        . '<datalist id="ai-model-suggestions"></datalist>';
 
     $fragment = new rex_fragment();
     $fragment->setVar('class', 'edit', false);

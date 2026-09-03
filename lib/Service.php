@@ -12,10 +12,6 @@ use rex_extension_point;
 use rex_i18n;
 use rex_sql;
 use Symfony\AI\Platform\PlatformInterface;
-use Symfony\AI\Platform\Bridge\OpenAi\PlatformFactory as OpenAiFactory;
-use Symfony\AI\Platform\Bridge\Anthropic\PlatformFactory as AnthropicFactory;
-use Symfony\AI\Platform\Bridge\Gemini\PlatformFactory as GeminiFactory;
-use Symfony\AI\Platform\Bridge\Ollama\PlatformFactory as OllamaFactory;
 use Symfony\AI\Platform\Message\Message;
 use Symfony\AI\Platform\Message\MessageBag;
 use Symfony\AI\Platform\Message\Content\Image;
@@ -64,50 +60,21 @@ class Service
      */
     public static function getProviders(): array
     {
-        return [
-            'openai' => 'OpenAI (GPT, DALL-E)',
-            'anthropic' => 'Anthropic (Claude)',
-            'google' => 'Google (Gemini)',
-            'ollama' => 'Ollama (Lokal)',
-        ];
+        return ProviderRegistry::labels();
     }
 
     /**
      * Get suggested models for a given provider and type.
      *
+     * Comes from the provider's Symfony AI model catalog, filtered by the capabilities
+     * the type needs — see ProviderRegistry::models() for why these stay suggestions
+     * rather than becoming a closed list.
+     *
      * @return list<string>
      */
     public static function getModelSuggestions(string $provider, string $type): array
     {
-        $models = match ($provider) {
-            'openai' => [
-                'text' => ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'o1', 'o1-mini', 'o3-mini'],
-                'image_generation' => ['dall-e-3', 'dall-e-2', 'gpt-image-1'],
-                'image_understanding' => ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'],
-                'embedding' => ['text-embedding-3-small', 'text-embedding-3-large', 'text-embedding-ada-002'],
-            ],
-            'anthropic' => [
-                'text' => ['claude-sonnet-4-20250514', 'claude-opus-4-20250514', 'claude-3-5-haiku-latest', 'claude-3-7-sonnet-latest'],
-                'image_generation' => [],
-                'image_understanding' => ['claude-sonnet-4-20250514', 'claude-opus-4-20250514', 'claude-3-7-sonnet-latest'],
-                'embedding' => [],
-            ],
-            'google' => [
-                'text' => ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash'],
-                'image_generation' => ['gemini-2.0-flash-exp'],
-                'image_understanding' => ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash'],
-                'embedding' => ['text-embedding-004'],
-            ],
-            'ollama' => [
-                'text' => ['llama3.1', 'llama3.2', 'mistral', 'codellama', 'deepseek-r1'],
-                'image_generation' => [],
-                'image_understanding' => ['llava', 'llama3.2-vision'],
-                'embedding' => ['nomic-embed-text', 'mxbai-embed-large'],
-            ],
-            default => ['text' => [], 'image_generation' => [], 'image_understanding' => [], 'embedding' => []],
-        };
-
-        return $models[$type] ?? [];
+        return ProviderRegistry::models($provider, $type);
     }
 
     /**
@@ -181,16 +148,7 @@ class Service
             throw new rex_exception('AI profile not found: ' . $profileId);
         }
 
-        $platform = match ($profile['provider']) {
-            'openai' => OpenAiFactory::create($profile['api_key']),
-            'anthropic' => AnthropicFactory::create($profile['api_key']),
-            'google' => GeminiFactory::create($profile['api_key']),
-            'ollama' => OllamaFactory::create(
-                $profile['base_url'] ?: 'http://localhost:11434',
-                '' !== (string) ($profile['api_key'] ?? '') ? $profile['api_key'] : null,
-            ),
-            default => throw new rex_exception('Unknown AI provider: ' . $profile['provider']),
-        };
+        $platform = ProviderRegistry::createPlatform($profile);
 
         $this->platformCache[$profileId] = $platform;
         return $platform;

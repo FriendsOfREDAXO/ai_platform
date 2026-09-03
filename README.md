@@ -13,7 +13,7 @@ Die **KI Platform** ist das zentrale AddOn fuer die Integration von KI-Diensten 
 - Scope-System mit Mapping `YCom-Gruppe → Scopes` ueber das Backend
 - Eingebautes `redaxo_status` MCP-Tool (Systeminfos der REDAXO-Instanz, public)
 - Änderungswuensche: Agenten und AddOns reichen Inhaltsaenderungen ein, ein Redakteur gibt sie frei — fuer Slices, Artikel, Kategorien, Metainfo, Medien und YForm-Datensaetze
-- Extension Points fuer andere AddOns (MCP-Tools, Agent-Tools, eigene Scopes, eigene Änderungstypen)
+- Extension Points fuer andere AddOns (MCP-Tools, Agent-Tools, eigene Scopes, eigene Änderungstypen, eigene LLM-Provider)
 - Basiert auf [Symfony AI](https://symfony.com/ai) (v0.6)
 
 ## Unterstuetzte Provider
@@ -24,8 +24,42 @@ Die **KI Platform** ist das zentrale AddOn fuer die Integration von KI-Diensten 
 | **Anthropic** | `claude-sonnet-4-20250514`, `claude-opus-4-20250514`, `claude-3-7-sonnet-latest` | - | - | `claude-sonnet-4-20250514`, `claude-opus-4-20250514` |
 | **Google** | `gemini-2.5-flash`, `gemini-2.5-pro` | `text-embedding-004` | `gemini-2.0-flash-exp` | `gemini-2.5-flash`, `gemini-2.5-pro` |
 | **Ollama** | `llama3.2`, `mistral`, `deepseek-r1` u.a. | `nomic-embed-text`, `mxbai-embed-large` | - | `llava`, `llama3.2-vision` |
+| **OpenAI-kompatibel** | beliebige Modellnamen des Servers | beliebige Modellnamen des Servers | - | beliebige Modellnamen des Servers |
 
 Bei Ollama ist nur die Basis-URL Pflicht (Standard: `http://localhost:11434`). Der API-Key ist dort optional: bleibt er leer, wird kein `Authorization`-Header gesendet -- gesetzt, geht er als Bearer-Token mit, wie es ein per Reverse Proxy abgesicherter Ollama-Server erwartet.
+
+**OpenAI-kompatibel** spricht das klassische Chat-Completions-Protokoll gegen eine frei eingetragene Basis-URL und deckt damit selbstgehostete und fremde Endpunkte ab: Open WebUI, LiteLLM, vLLM, LM Studio, OpenRouter, Groq, DeepSeek und alles andere, was diese API anbietet. Die Basis-URL darf mit oder ohne `/v1` eingetragen werden. Einen gepflegten Modellkatalog gibt es dort naturgemaess nicht -- das Modellfeld bleibt leer und nimmt jeden Namen an, den der Server kennt.
+
+### Eigene Provider ergaenzen
+
+Die Provider stehen in `FriendsOfRedaxo\AiPlatform\ProviderRegistry` -- ein Eintrag pro Provider, und alles zu einem Provider in genau diesem Eintrag: Label fuer die Auswahl, benoetigte Felder, Modellkatalog und die Closure, die die Symfony-AI-Platform baut. Symfony AI liefert dafuer knapp 40 Bridge-Pakete (`symfony/ai-mistral-platform`, `symfony/ai-open-router-platform`, `symfony/ai-bedrock-platform`, `symfony/ai-vertex-ai-platform` und weitere).
+
+Ein anderes AddOn haengt seinen Provider ueber den Extension Point `AI_PLATFORM_PROVIDERS` an -- ohne Fork und ohne Release dieses AddOns:
+
+```php
+use FriendsOfRedaxo\AiPlatform\ProviderRegistry;
+use Symfony\AI\Platform\Bridge\Mistral\ModelCatalog as MistralCatalog;
+use Symfony\AI\Platform\Bridge\Mistral\PlatformFactory as MistralFactory;
+
+rex_extension::register(ProviderRegistry::EXTENSION_POINT, function (rex_extension_point $ep) {
+    $providers = $ep->getSubject();
+
+    $providers['mistral'] = [
+        'label' => 'Mistral',
+        // Felder, die das Profilformular fuer diesen Provider zeigt:
+        // 'api_key', 'base_url', 'image_quality', 'image_style'
+        'fields' => ['api_key'],
+        // Vorbelegung des Modellfelds je Profiltyp
+        'defaults' => ['text' => 'mistral-large-latest'],
+        'catalog' => static fn () => new MistralCatalog(),
+        'factory' => static fn (array $profile) => MistralFactory::create($profile['api_key']),
+    ];
+
+    return $providers;
+});
+```
+
+Die Modellvorschlaege im Profilformular kommen aus `catalog` -- gefiltert nach den Faehigkeiten, die der gewaehlte Typ braucht. Das Modellfeld bleibt trotzdem ein Freitextfeld: die Kataloge sind nicht vollstaendig (bei Ollama fehlt `llama3.2-vision` etwa ganz), und ein geschlossenes Auswahlfeld wuerde funktionierende Modellnamen verbieten.
 
 ## Installation
 
@@ -46,10 +80,10 @@ Unter **KI Platform > Profile** werden Profile fuer jeden Anwendungsfall separat
 |---|---|
 | **Profilname** | Eindeutiger Name, z.B. "Claude Text" oder "DALL-E Bilder" |
 | **Typ** | Text/Code, Embeddings, Bildgenerierung oder Bildverstaendnis |
-| **Provider** | OpenAI, Anthropic, Google, Ollama oder Replicate |
-| **API-Key** | API-Schluessel; bei Ollama optional (Bearer-Token fuer abgesicherte Server) |
-| **Basis-URL** | Nur bei Ollama sichtbar (Standard: `http://localhost:11434`) |
-| **Modell** | Wird automatisch passend zum Provider und Typ vorausgefuellt |
+| **Provider** | OpenAI, Anthropic, Google, Ollama oder OpenAI-kompatibel -- weitere lassen sich per Extension Point ergaenzen |
+| **API-Key** | API-Schluessel; bei Ollama und OpenAI-kompatibel optional (Bearer-Token fuer abgesicherte Server) |
+| **Basis-URL** | Bei Ollama und OpenAI-kompatibel sichtbar (Ollama-Standard: `http://localhost:11434`) |
+| **Modell** | Vorausgefuellt passend zu Provider und Typ; das Feld schlaegt die Modelle des Providers vor und nimmt daneben jeden eigenen Namen an |
 
 #### Typ: Text/Code
 

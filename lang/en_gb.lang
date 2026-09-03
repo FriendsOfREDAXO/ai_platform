@@ -23,9 +23,10 @@ ai_platform_default = Default
 ai_platform_api_key = API Key
 ai_platform_api_key_notice = The provider's API key. Optional for Ollama: leave empty for an unsecured local instance, or use it as a bearer token for a secured Ollama server.
 ai_platform_base_url = Base URL
-ai_platform_base_url_notice = Only required for Ollama (default: http://localhost:11434)
+ai_platform_base_url_notice = Required for Ollama (default: http://localhost:11434) and for OpenAI-compatible endpoints. Enter the server's base URL there, e.g. https://my-server.example/v1 -- with or without /v1, the path to the chat completions API is appended.
+ai_platform_provider_generic = OpenAI-compatible (custom endpoint)
 ai_platform_model = Model
-ai_platform_model_notice = Provider model name, e.g. gpt-4o, claude-sonnet-4-20250514, gemini-2.5-flash, dall-e-3, text-embedding-3-small, nomic-embed-text
+ai_platform_model_notice = Model name at the provider. The field suggests the models the provider is known to offer for this type according to Symfony AI -- a name that is not in the list is still allowed.
 
 # Type-specific settings
 ai_platform_temperature = Temperature

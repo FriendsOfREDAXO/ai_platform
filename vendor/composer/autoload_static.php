@@ -54,6 +54,7 @@ class ComposerStaticInita2468993b9624631610b23a6e08c4641
             'Symfony\\AI\\Platform\\Bridge\\OpenResponses\\' => 41,
             'Symfony\\AI\\Platform\\Bridge\\OpenAi\\' => 34,
             'Symfony\\AI\\Platform\\Bridge\\Ollama\\' => 34,
+            'Symfony\\AI\\Platform\\Bridge\\Generic\\' => 35,
             'Symfony\\AI\\Platform\\Bridge\\Gemini\\' => 34,
             'Symfony\\AI\\Platform\\Bridge\\Anthropic\\' => 37,
             'Symfony\\AI\\Platform\\' => 20,
@@ -183,6 +184,10 @@ class ComposerStaticInita2468993b9624631610b23a6e08c4641
         'Symfony\\AI\\Platform\\Bridge\\Ollama\\' =>
         array (
             0 => __DIR__ . '/..' . '/symfony/ai-ollama-platform',
+        ),
+        'Symfony\\AI\\Platform\\Bridge\\Generic\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/symfony/ai-generic-platform',
         ),
         'Symfony\\AI\\Platform\\Bridge\\Gemini\\' =>
         array (

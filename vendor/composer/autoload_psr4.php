@@ -31,6 +31,7 @@ return array(
     'Symfony\\AI\\Platform\\Bridge\\OpenResponses\\' => array($vendorDir . '/symfony/ai-open-responses-platform'),
     'Symfony\\AI\\Platform\\Bridge\\OpenAi\\' => array($vendorDir . '/symfony/ai-open-ai-platform'),
     'Symfony\\AI\\Platform\\Bridge\\Ollama\\' => array($vendorDir . '/symfony/ai-ollama-platform'),
+    'Symfony\\AI\\Platform\\Bridge\\Generic\\' => array($vendorDir . '/symfony/ai-generic-platform'),
     'Symfony\\AI\\Platform\\Bridge\\Gemini\\' => array($vendorDir . '/symfony/ai-gemini-platform'),
     'Symfony\\AI\\Platform\\Bridge\\Anthropic\\' => array($vendorDir . '/symfony/ai-anthropic-platform'),
     'Symfony\\AI\\Platform\\' => array($vendorDir . '/symfony/ai-platform/src'),

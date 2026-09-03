@@ -60,11 +60,47 @@ The addon ships its full `vendor/` tree to production — it is NOT auto-loaded 
 
 Singleton accessed via `FriendsOfRedaxo\AiPlatform\Service::getInstance()`. It owns two in-request caches: `$profileCache` (DB row by id) and `$platformCache` (built `PlatformInterface` by profile id). All higher-level helpers (`generateText`, `understandImage`, `generateImage`, `createAgent`) resolve a profile, build a `PlatformInterface` via the matching `Symfony\AI\Platform\Bridge\*\PlatformFactory`, and invoke it.
 
-Provider mapping is a `match` on `$profile['provider']` — adding a new provider means:
-1. Adding it to `getProviders()` and `getModelSuggestions()`,
-2. Adding a case in `getPlatform()` to instantiate the right `PlatformFactory`,
-3. Updating the API-key visibility logic in `assets/profiles.js` (Ollama is the special case that hides the API-key field and shows Base-URL),
-4. Possibly the test endpoint in `lib/rex_api_ai_test.php`.
+Providers are not mapped here — `getProviders()`, `getModelSuggestions()` and
+`getPlatform()` all delegate to `ProviderRegistry`. They stay as the public API and hold
+no provider knowledge of their own.
+
+### Providers: `FriendsOfRedaxo\AiPlatform\ProviderRegistry` (`lib/ProviderRegistry.php`)
+
+One entry per provider, and everything about a provider inside that one entry: the label
+for the select, which fields the profile form shows for it (`fields`), the default model
+per type (`defaults`), the Symfony AI model catalog its suggestions come from (`catalog`),
+and the closure that builds the platform (`factory`). Adding a provider is a
+`composer require` for its Symfony AI bridge plus one entry — or, from another addon, one
+entry appended in the `AI_PLATFORM_PROVIDERS` extension point, no fork needed. The
+definitions are rebuilt on every call: caching them would freeze whichever set existed at
+first access, and a provider registered later in the boot order would silently vanish.
+
+**`assets/profiles.js` must stay free of provider names.** Field visibility, the default
+model and the suggestions all arrive as JSON from `ProviderRegistry::formConfig()`, which
+`pages/profiles.php` writes into a `<script type="application/json"
+id="ai-provider-config">`. That is not tidiness: the same knowledge used to live in both
+places, and the JS copy kept the Ollama API-key field hidden long after `getPlatform()`
+supported it. The JSON sits next to the form rather than in `rex_view::setJsProperty()`
+because that renders in the head (`core/layout/top.php`), which is out the door before a
+page script runs.
+
+**Model suggestions are suggestions, never a select.** The catalogs are Symfony AI's own
+and stay current without work here, but they are not exhaustive: for Ollama
+`llama3.2-vision` is missing entirely and `llava` carries no `INPUT_IMAGE` capability, so
+both drop out of the image-understanding list while working perfectly well. A closed list
+would reject model names that work. `TYPE_CAPABILITIES` requires `INPUT_MESSAGES`
+alongside `OUTPUT_TEXT` for text profiles for the same kind of reason — `OUTPUT_TEXT`
+alone also matches `whisper-1`.
+
+**Base URLs are normalised**: a trailing `/v1` is stripped, because the bridges append
+their own versioned path (`/v1/chat/completions` for the generic one) while every provider
+documents its endpoint *with* the `/v1`. Both spellings have to reach the same URL.
+
+The `generic` provider is `symfony/ai-generic-platform`, i.e. plain OpenAI chat
+completions against a free base URL — Open WebUI, LiteLLM, vLLM, LM Studio, OpenRouter
+and the like. Do **not** hand-roll a bridge for one of those: the upstream package covers
+tool calls, streaming, the 401/400/429 mapping and token usage, which a minimal
+`choices[0].message.content` converter does not (that was the flaw in PR #9).
 
 `getProfileOptions()` is the central place that translates a stored profile into provider-specific invoke options. **Important quirk**: OpenAI's Responses API uses the key `max_output_tokens`, every other provider uses `max_tokens`. The method already branches on this — don't "fix" it.
 
