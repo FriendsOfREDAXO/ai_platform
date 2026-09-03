@@ -93,7 +93,7 @@ $completion = ['choices' => [['message' => ['content' => 'OK'], 'finish_reason' 
 $t->section('Registered providers');
 
 $t->assertSame(
-    ['openai', 'anthropic', 'google', 'ollama', 'openrouter', 'replicate', 'generic'],
+    ['openai', 'anthropic', 'google', 'ollama', 'mistral', 'cerebras', 'scaleway', 'openrouter', 'replicate', 'generic'],
     array_keys(ProviderRegistry::all()),
     'the shipped providers are registered, in order',
 );
@@ -178,6 +178,22 @@ $t->assert([] !== ProviderRegistry::models('replicate', 'text'), 'replicate offe
 foreach (['image_generation', 'image_understanding', 'embedding'] as $type) {
     $t->assertSame([], ProviderRegistry::models('replicate', $type), 'replicate offers nothing for ' . $type);
 }
+
+// The three direct providers. Counted as "not empty" rather than exactly, because these
+// catalogs are regenerated with every Symfony AI release.
+foreach (['mistral', 'cerebras', 'scaleway'] as $provider) {
+    $t->assert([] !== ProviderRegistry::models($provider, 'text'), $provider . ' offers text models');
+    $t->assertSame([], ProviderRegistry::models($provider, 'image_generation'), $provider . ' offers no image generation');
+}
+
+// Mistral and Scaleway carry a vision and an embedding model, Cerebras hosts open text
+// models only -- so its empty lists are the catalog's statement, not a filter bug.
+$t->assert([] !== ProviderRegistry::models('mistral', 'image_understanding'), 'mistral offers vision models (pixtral)');
+$t->assert([] !== ProviderRegistry::models('mistral', 'embedding'), 'mistral offers an embedding model');
+$t->assert([] !== ProviderRegistry::models('scaleway', 'image_understanding'), 'scaleway offers a vision model');
+$t->assert([] !== ProviderRegistry::models('scaleway', 'embedding'), 'scaleway offers an embedding model');
+$t->assertSame([], ProviderRegistry::models('cerebras', 'image_understanding'), 'cerebras offers no vision models');
+$t->assertSame([], ProviderRegistry::models('cerebras', 'embedding'), 'cerebras offers no embedding models');
 
 $t->assertSame([], ProviderRegistry::models('openai', 'no-such-type'), 'an unknown type yields no models');
 $t->assertSame([], ProviderRegistry::models('no-such-provider', 'text'), 'an unknown provider yields no models');
@@ -319,6 +335,38 @@ $openRouter = $capture(
 );
 $t->assertSame('https://openrouter.ai/api/v1/chat/completions', $openRouter['url'], 'openrouter posts to its own endpoint');
 $t->assertSame('Bearer or-key', $authHeader($openRouter['headers']), 'openrouter passes the key as a bearer token');
+
+// The three direct providers all speak an OpenAI-shaped completions API, so one capture
+// each is enough to show the platform is wired to the right host and passes the key.
+// Note the key shapes: two bridges validate the prefix before sending anything, so a key
+// pasted from the wrong provider fails at platform construction with a message about the
+// prefix rather than as a 401 from the endpoint.
+foreach ([
+    'mistral' => ['model' => 'mistral-medium-latest', 'host' => 'api.mistral.ai', 'key' => 'mistral-key'],
+    'cerebras' => ['model' => 'llama-3.3-70b', 'host' => 'api.cerebras.ai', 'key' => 'csk-cerebras-key'],
+    'scaleway' => ['model' => 'llama-3.3-70b-instruct', 'host' => 'api.scaleway.ai', 'key' => 'scaleway-key'],
+] as $provider => $expected) {
+    $request = $capture(['provider' => $provider, 'api_key' => $expected['key'], 'model' => $expected['model']], $completion);
+    $t->assert(
+        str_contains($request['url'], $expected['host']),
+        $provider . ' posts to ' . $expected['host'] . ' (' . $request['url'] . ')',
+    );
+    $t->assertSame('Bearer ' . $expected['key'], $authHeader($request['headers']), $provider . ' passes the key as a bearer token');
+}
+
+// The two prefix checks, pinned: they are the reason a wrong key produces
+// "The API key must start with …" instead of a 401, and users need to be told which
+// prefix belongs to which provider.
+$t->assertThrows(
+    static fn () => ProviderRegistry::createPlatform(['provider' => 'cerebras', 'api_key' => 'sk-wrong-provider']),
+    'cerebras rejects a key without its csk- prefix',
+    'csk-',
+);
+$t->assertThrows(
+    static fn () => ProviderRegistry::createPlatform(['provider' => 'openai', 'api_key' => 'csk-wrong-provider']),
+    'openai rejects a key without its sk- prefix',
+    'sk-',
+);
 
 // Replicate is not driven end to end here: its client polls a prediction until it is
 // finished, so a mock would have to fake that state machine and the test would assert the

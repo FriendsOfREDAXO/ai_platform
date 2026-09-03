@@ -118,6 +118,19 @@ and for providers a third addon registers with an open catalog, while for Ollama
 `llama3.2-vision` is refused by Symfony AI, not by us. Extending that provider means
 handing it a different catalog through the extension point, not widening the form.
 
+**`mistral`, `cerebras` and `scaleway` are the straightforward ones**: identical factory
+signature (`create($apiKey, $httpClient, $modelCatalog, …)`), an OpenAI-shaped completions
+API, one `api_key` field each. Their catalogs decide what the form offers — Mistral has
+pixtral for vision and `mistral-embed`, Scaleway the same in miniature, Cerebras text only,
+because it hosts open models for fast inference and none of them are multimodal. None of
+the three does image generation.
+
+**Two bridges validate the shape of the key before sending anything**: OpenAI wants `sk-`,
+Cerebras wants `csk-`, both throwing `InvalidArgumentException` from the model client's
+constructor. So a key pasted from the wrong provider surfaces as "The API key must start
+with …" out of `getPlatform()`, not as a 401 from the endpoint — worth knowing when a
+support question arrives, and pinned by two assertions in the test.
+
 **`openrouter` and `replicate` are worth a word each**, because their bridges are not
 equivalent in reach. OpenRouter's `PlatformFactory` is a thin wrapper around the generic
 one with `baseUrl: 'https://openrouter.ai/api'`, so it is the same protocol and simply
@@ -150,7 +163,7 @@ visibility is toggled on that wrapper (`modelPickerBox()`); toggling the select 
 toggle something already invisible. Both fall back gracefully when the plugin is absent,
 which is what makes the picker testable outside a browser.
 
-Test: `.claude/tests/provider-registry-test.php` (131 asserts) covers the registry against
+Test: `.claude/tests/provider-registry-test.php` (180 asserts) covers the registry against
 the real REDAXO boot — so a label coming out as `[translate:…]` fails — and drives the
 bridges through a `MockHttpClient`, which is how the base-URL normalisation, the bearer
 header and Ollama's native `/api/chat` are asserted without a network. It also pins that a

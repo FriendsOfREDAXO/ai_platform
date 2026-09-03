@@ -10,10 +10,14 @@ use rex_extension_point;
 use rex_i18n;
 use Symfony\AI\Platform\Bridge\Anthropic\ModelCatalog as AnthropicCatalog;
 use Symfony\AI\Platform\Bridge\Anthropic\PlatformFactory as AnthropicFactory;
+use Symfony\AI\Platform\Bridge\Cerebras\ModelCatalog as CerebrasCatalog;
+use Symfony\AI\Platform\Bridge\Cerebras\PlatformFactory as CerebrasFactory;
 use Symfony\AI\Platform\Bridge\Gemini\ModelCatalog as GeminiCatalog;
 use Symfony\AI\Platform\Bridge\Gemini\PlatformFactory as GeminiFactory;
 use Symfony\AI\Platform\Bridge\Generic\FallbackModelCatalog as GenericCatalog;
 use Symfony\AI\Platform\Bridge\Generic\PlatformFactory as GenericFactory;
+use Symfony\AI\Platform\Bridge\Mistral\ModelCatalog as MistralCatalog;
+use Symfony\AI\Platform\Bridge\Mistral\PlatformFactory as MistralFactory;
 use Symfony\AI\Platform\Bridge\Ollama\ModelCatalog as OllamaCatalog;
 use Symfony\AI\Platform\Bridge\Ollama\PlatformFactory as OllamaFactory;
 use Symfony\AI\Platform\Bridge\OpenAi\ModelCatalog as OpenAiCatalog;
@@ -22,6 +26,8 @@ use Symfony\AI\Platform\Bridge\OpenRouter\ModelCatalog as OpenRouterCatalog;
 use Symfony\AI\Platform\Bridge\OpenRouter\PlatformFactory as OpenRouterFactory;
 use Symfony\AI\Platform\Bridge\Replicate\ModelCatalog as ReplicateCatalog;
 use Symfony\AI\Platform\Bridge\Replicate\PlatformFactory as ReplicateFactory;
+use Symfony\AI\Platform\Bridge\Scaleway\ModelCatalog as ScalewayCatalog;
+use Symfony\AI\Platform\Bridge\Scaleway\PlatformFactory as ScalewayFactory;
 use Symfony\AI\Platform\Capability;
 use Symfony\AI\Platform\ModelCatalog\ModelCatalogInterface;
 use Symfony\AI\Platform\PlatformInterface;
@@ -167,6 +173,46 @@ final class ProviderRegistry
                 'factory' => static fn (array $profile, ?HttpClientInterface $httpClient): PlatformInterface => OllamaFactory::create(
                     self::baseUrl($profile) ?? 'http://localhost:11434',
                     self::apiKey($profile),
+                    $httpClient,
+                ),
+            ],
+            'mistral' => [
+                'label' => 'Mistral',
+                'fields' => ['api_key'],
+                'defaults' => [
+                    'text' => 'mistral-medium-latest',
+                    'image_understanding' => 'pixtral-large-latest',
+                    'embedding' => 'mistral-embed',
+                ],
+                'catalog' => static fn (): ModelCatalogInterface => new MistralCatalog(),
+                'factory' => static fn (array $profile, ?HttpClientInterface $httpClient): PlatformInterface => MistralFactory::create(
+                    self::requireApiKey($profile, 'mistral'),
+                    $httpClient,
+                ),
+            ],
+            'cerebras' => [
+                // Text only, and that is the catalog's own doing: Cerebras hosts open
+                // models for fast inference, none of them multimodal.
+                'label' => 'Cerebras',
+                'fields' => ['api_key'],
+                'defaults' => ['text' => 'llama-3.3-70b'],
+                'catalog' => static fn (): ModelCatalogInterface => new CerebrasCatalog(),
+                'factory' => static fn (array $profile, ?HttpClientInterface $httpClient): PlatformInterface => CerebrasFactory::create(
+                    self::requireApiKey($profile, 'cerebras'),
+                    $httpClient,
+                ),
+            ],
+            'scaleway' => [
+                'label' => 'Scaleway',
+                'fields' => ['api_key'],
+                'defaults' => [
+                    'text' => 'llama-3.3-70b-instruct',
+                    'image_understanding' => 'pixtral-12b-2409',
+                    'embedding' => 'bge-multilingual-gemma2',
+                ],
+                'catalog' => static fn (): ModelCatalogInterface => new ScalewayCatalog(),
+                'factory' => static fn (array $profile, ?HttpClientInterface $httpClient): PlatformInterface => ScalewayFactory::create(
+                    self::requireApiKey($profile, 'scaleway'),
                     $httpClient,
                 ),
             ],

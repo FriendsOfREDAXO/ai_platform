@@ -24,11 +24,18 @@ Die **KI Platform** ist das zentrale AddOn fuer die Integration von KI-Diensten 
 | **Anthropic** | `claude-sonnet-4-20250514`, `claude-opus-4-20250514`, `claude-3-7-sonnet-latest` | - | - | `claude-sonnet-4-20250514`, `claude-opus-4-20250514` |
 | **Google** | `gemini-2.5-flash`, `gemini-2.5-pro` | `gemini-embedding-001` | `gemini-2.5-flash-image`, `gemini-3-pro-image-preview` | `gemini-2.5-flash`, `gemini-2.5-pro` |
 | **Ollama** | `llama3.2`, `mistral`, `deepseek-r1` u.a. | `nomic-embed-text`, `mxbai-embed-large` | - | `llava`, `llama3.2-vision` |
+| **Mistral** | `mistral-medium-latest`, `mistral-large-latest`, `codestral-latest` | `mistral-embed` | - | `pixtral-large-latest`, `pixtral-12b-latest` |
+| **Cerebras** | `llama-3.3-70b`, `qwen-3-32b`, `gpt-oss-120b` | - | - | - |
+| **Scaleway** | `llama-3.3-70b-instruct`, `gemma-3-27b-it`, `deepseek-r1-distill-llama-70b` | `bge-multilingual-gemma2` | - | `pixtral-12b-2409` |
 | **OpenRouter** | ueber 300 Modelle vieler Anbieter, z.B. `openai/gpt-4o`, `anthropic/claude-sonnet-4.5` | z.B. `google/gemini-embedding-001` | z.B. `google/gemini-2.5-flash-image` | ueber 100 Modelle, z.B. `openai/gpt-4o` |
 | **Replicate** | nur Llama, z.B. `llama-3.3-70B-Instruct` | - | - | - |
 | **OpenAI-kompatibel** | beliebige Modellnamen des Servers | beliebige Modellnamen des Servers | - | beliebige Modellnamen des Servers |
 
 Bei Ollama ist nur die Basis-URL Pflicht (Standard: `http://localhost:11434`). Der API-Key ist dort optional: bleibt er leer, wird kein `Authorization`-Header gesendet -- gesetzt, geht er als Bearer-Token mit, wie es ein per Reverse Proxy abgesicherter Ollama-Server erwartet.
+
+**Mistral, Cerebras und Scaleway** sind direkte Anbieter und brauchen nur einen API-Key. Mistral deckt Text, Bildverstaendnis (pixtral) und Embeddings ab, Scaleway dasselbe in kleinerem Umfang, Cerebras ausschliesslich Text -- der Anbieter hostet offene Modelle fuer schnelle Inferenz, keine multimodalen. Bildgenerierung gibt es bei keinem der drei.
+
+Zwei Anbieter pruefen ausserdem das Format des Schluessels, bevor ueberhaupt etwas gesendet wird: bei **OpenAI** muss er mit `sk-` beginnen, bei **Cerebras** mit `csk-`. Ein Schluessel vom falschen Anbieter scheitert deshalb nicht mit einem 401, sondern mit der Meldung "The API key must start with ...".
 
 **OpenRouter** bringt ueber 300 Modelle vieler Anbieter hinter einem einzigen Schluessel; die Symfony-AI-Bridge ist dafuer nur ein duenner Aufsatz auf dem generischen Chat-Completions-Client. Die Modellauswahl ist entsprechend lang und hat deshalb ein Suchfeld. Ein Eintrag darin faellt auf: `@preset` ist bei OpenRouter der Platzhalter fuer ein gespeichertes Preset (`@preset/name`) und kein aufrufbares Modell -- der Katalog von Symfony AI fuehrt ihn mit, das AddOn belaesst ihn dort und waehlt ihn nie von selbst aus.
 
