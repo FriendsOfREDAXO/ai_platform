@@ -62,14 +62,24 @@ if ('add' === $func || 'edit' === $func) {
     $field->setAttribute('class', 'form-control');
     $field->setNotice(rex_i18n::msg('ai_platform_base_url_notice'));
 
-    // Model -- free text with the provider's catalog as suggestions (see
-    // ProviderRegistry::models(): the catalogs are not exhaustive, so a select
-    // would reject model names that work).
+    // Model. The select in front of the input is filled by assets/profiles.js from the
+    // provider's catalog; picking an entry writes it into the input, which stays the
+    // single field bound to the column. The input only shows itself for a name the
+    // catalog does not have -- necessary, not a nicety: the catalogs have gaps
+    // (llama3.2-vision is missing entirely) and the generic provider has no catalog at
+    // all, so a closed select would lock out model names that work. The select renders
+    // as the field's prefix, which the core places inside the same <dd>
+    // (core/fragments/core/form/form.php).
     $field = $form->addTextField('model');
     $field->setLabel(rex_i18n::msg('ai_platform_model'));
     $field->setAttribute('class', 'form-control');
-    $field->setAttribute('list', 'ai-model-suggestions');
     $field->setAttribute('autocomplete', 'off');
+    $field->setAttribute('placeholder', rex_i18n::msg('ai_platform_model_placeholder'));
+    $field->setPrefix(
+        '<select id="ai-model-select" class="form-control ai-model-select" data-custom-label="'
+        . rex_escape(rex_i18n::msg('ai_platform_model_custom_option'), 'html_attr')
+        . '"></select>',
+    );
     $field->setNotice(rex_i18n::msg('ai_platform_model_notice'));
 
     // --- Type-specific fields ---
@@ -176,8 +186,7 @@ if ('add' === $func || 'edit' === $func) {
     $content = $form->get()
         . '<script type="application/json" id="ai-provider-config">'
         . json_encode(ProviderRegistry::formConfig(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG)
-        . '</script>'
-        . '<datalist id="ai-model-suggestions"></datalist>';
+        . '</script>';
 
     $fragment = new rex_fragment();
     $fragment->setVar('class', 'edit', false);

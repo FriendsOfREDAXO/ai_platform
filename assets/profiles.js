@@ -59,6 +59,13 @@ $(document).on("rex:ready", function () {
         return document.querySelector("[name$='[" + suffix + "]']");
     }
 
+    // The model picker is two controls over one column: the select offers the
+    // provider's catalog, the input takes a name the catalog does not have. The input
+    // is the field bound to `model` and stays the single source of truth -- the select
+    // only writes into it.
+    var modelSelect = document.getElementById("ai-model-select");
+    var CUSTOM_MODEL = "__custom__";
+
     // Track whether user has manually edited the model field
     var modelInput = getFieldInput("model");
     var modelManuallyEdited = false;
@@ -98,20 +105,68 @@ $(document).on("rex:ready", function () {
         }
     }
 
-    // Fill the datalist behind the model field with what the provider's catalog offers
-    // for this type. Suggestions only -- the field stays free text, because the
-    // catalogs miss working model names (see ProviderRegistry::models()).
-    function updateSuggestions() {
-        var list = document.getElementById("ai-model-suggestions");
-        if (!list) return;
+    function catalogModels() {
+        return (configFor(providerSelect.value).models || {})[typeSelect.value] || [];
+    }
 
-        var models = (configFor(providerSelect.value).models || {})[typeSelect.value] || [];
-        list.innerHTML = "";
-        for (var i = 0; i < models.length; i++) {
-            var option = document.createElement("option");
-            option.value = models[i];
-            list.appendChild(option);
+    // Show the free-text input only while the name cannot come from the select.
+    function setCustomModel(on) {
+        if (modelInput) modelInput.style.display = on ? "" : "none";
+    }
+
+    // Rebuild the select for the current provider and type. An empty catalog -- the
+    // OpenAI-compatible provider, or a type the provider has no models for -- hides the
+    // select entirely instead of offering a list of one entry.
+    function updateModelSelect() {
+        if (!modelSelect) return;
+
+        var models = catalogModels();
+        modelSelect.innerHTML = "";
+
+        if (models.length === 0) {
+            modelSelect.style.display = "none";
+            setCustomModel(true);
+            return;
         }
+
+        modelSelect.style.display = "";
+        for (var i = 0; i < models.length; i++) {
+            modelSelect.appendChild(new Option(models[i], models[i]));
+        }
+        modelSelect.appendChild(new Option(
+            modelSelect.getAttribute("data-custom-label") || "custom",
+            CUSTOM_MODEL,
+        ));
+
+        syncModelSelect();
+    }
+
+    // Take the select's state from the input, never the other way round: a stored model
+    // the catalog does not list (llama3.2-vision, anything on a self-hosted server) has
+    // to survive opening and saving the profile, so it switches the picker to the custom
+    // entry rather than being silently replaced by the first option.
+    function syncModelSelect() {
+        if (!modelSelect || !modelInput) return;
+
+        var known = catalogModels().indexOf(modelInput.value) >= 0;
+        modelSelect.value = known ? modelInput.value : CUSTOM_MODEL;
+        setCustomModel(!known);
+    }
+
+    if (modelSelect) {
+        modelSelect.addEventListener("change", function () {
+            if (modelSelect.value === CUSTOM_MODEL) {
+                setCustomModel(true);
+                if (modelInput) modelInput.focus();
+                return;
+            }
+
+            if (modelInput) modelInput.value = modelSelect.value;
+            // A deliberate pick counts as editing, same as typing: it must not be
+            // overwritten by the default model on the next type change.
+            modelManuallyEdited = true;
+            setCustomModel(false);
+        });
     }
 
     function updateModel() {
@@ -128,8 +183,8 @@ $(document).on("rex:ready", function () {
             modelManuallyEdited = false;
         }
         updateVisibility();
-        updateSuggestions();
         updateModel();
+        updateModelSelect();
     }
 
     typeSelect.addEventListener("change", onSelectionChange);
@@ -137,10 +192,11 @@ $(document).on("rex:ready", function () {
 
     // Initial update (visibility only, don't overwrite existing model in edit mode)
     updateVisibility();
-    updateSuggestions();
 
     // Only auto-fill model if the field is empty (add mode)
     if (modelInput && modelInput.value === "") {
         updateModel();
     }
+
+    updateModelSelect();
 });

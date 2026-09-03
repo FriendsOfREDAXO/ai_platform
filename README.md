@@ -28,7 +28,7 @@ Die **KI Platform** ist das zentrale AddOn fuer die Integration von KI-Diensten 
 
 Bei Ollama ist nur die Basis-URL Pflicht (Standard: `http://localhost:11434`). Der API-Key ist dort optional: bleibt er leer, wird kein `Authorization`-Header gesendet -- gesetzt, geht er als Bearer-Token mit, wie es ein per Reverse Proxy abgesicherter Ollama-Server erwartet.
 
-**OpenAI-kompatibel** spricht das klassische Chat-Completions-Protokoll gegen eine frei eingetragene Basis-URL und deckt damit selbstgehostete und fremde Endpunkte ab: Open WebUI, LiteLLM, vLLM, LM Studio, OpenRouter, Groq, DeepSeek und alles andere, was diese API anbietet. Die Basis-URL darf mit oder ohne `/v1` eingetragen werden. Einen gepflegten Modellkatalog gibt es dort naturgemaess nicht -- das Modellfeld bleibt leer und nimmt jeden Namen an, den der Server kennt.
+**OpenAI-kompatibel** spricht das klassische Chat-Completions-Protokoll gegen eine frei eingetragene Basis-URL und deckt damit selbstgehostete und fremde Endpunkte ab: Open WebUI, LiteLLM, vLLM, LM Studio, OpenRouter, Groq, DeepSeek und alles andere, was diese API anbietet. Die Basis-URL darf mit oder ohne `/v1` eingetragen werden. Einen gepflegten Modellkatalog gibt es dort naturgemaess nicht -- statt einer Auswahl erscheint das Textfeld, das jeden Namen annimmt, den der Server kennt.
 
 ### Eigene Provider ergaenzen
 
@@ -59,7 +59,7 @@ rex_extension::register(ProviderRegistry::EXTENSION_POINT, function (rex_extensi
 });
 ```
 
-Die Modellvorschlaege im Profilformular kommen aus `catalog` -- gefiltert nach den Faehigkeiten, die der gewaehlte Typ braucht. Das Modellfeld bleibt trotzdem ein Freitextfeld: die Kataloge sind nicht vollstaendig (bei Ollama fehlt `llama3.2-vision` etwa ganz), und ein geschlossenes Auswahlfeld wuerde funktionierende Modellnamen verbieten.
+Die Modellauswahl im Profilformular kommt aus `catalog` -- gefiltert nach den Faehigkeiten, die der gewaehlte Typ braucht. Die Auswahl hat immer den Eintrag "eigener Modellname", der ein Textfeld freischaltet: die Kataloge sind nicht vollstaendig (bei Ollama fehlt `llama3.2-vision` etwa ganz), und eine geschlossene Liste wuerde funktionierende Modellnamen verbieten. Kennt ein Provider fuer den Typ keine Modelle, entfaellt die Auswahl und es bleibt das Textfeld.
 
 ## Installation
 
@@ -83,7 +83,7 @@ Unter **KI Platform > Profile** werden Profile fuer jeden Anwendungsfall separat
 | **Provider** | OpenAI, Anthropic, Google, Ollama oder OpenAI-kompatibel -- weitere lassen sich per Extension Point ergaenzen |
 | **API-Key** | API-Schluessel; bei Ollama und OpenAI-kompatibel optional (Bearer-Token fuer abgesicherte Server) |
 | **Basis-URL** | Bei Ollama und OpenAI-kompatibel sichtbar (Ollama-Standard: `http://localhost:11434`) |
-| **Modell** | Vorausgefuellt passend zu Provider und Typ; das Feld schlaegt die Modelle des Providers vor und nimmt daneben jeden eigenen Namen an |
+| **Modell** | Auswahl der Modelle, die der Provider fuer diesen Typ kennt, passend vorausgewaehlt; "eigener Modellname" schaltet ein Textfeld fuer jeden anderen Namen frei |
 
 #### Typ: Text/Code
 

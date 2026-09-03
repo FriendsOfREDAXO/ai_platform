@@ -205,3 +205,11 @@
     text-align: center;
     vertical-align: text-top;
 }
+
+/*
+ * Model picker on the profile form: the select sits inside the same <dd> as the model
+ * input (it is the field's prefix), so it needs the gap between them itself.
+ */
+.ai-model-select {
+    margin-bottom: 8px;
+}

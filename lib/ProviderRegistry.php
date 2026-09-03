@@ -200,11 +200,13 @@ final class ProviderRegistry
      * Model names the provider's catalog offers for a profile type.
      *
      * These come from the bridge's own catalog, which Symfony AI keeps current — the
-     * addon does not maintain model lists. The catalog is not exhaustive though: for
-     * Ollama `llama3.2-vision` is missing entirely and `llava` carries no INPUT_IMAGE
-     * capability, so both drop out of the image-understanding suggestions while working
-     * perfectly well. That is why the model field stays free text with these as
-     * suggestions, never a select.
+     * addon does not maintain model lists. They fill the select on the profile form.
+     *
+     * The catalog is not exhaustive though: for Ollama `llama3.2-vision` is missing
+     * entirely and `llava` carries no INPUT_IMAGE capability, so both drop out of the
+     * image-understanding list while working perfectly well. That is why the select
+     * always carries a "custom model name" entry that reveals the free-text input, and
+     * why an empty list here hides the select rather than replacing the input.
      *
      * @return list<string>
      */
@@ -238,10 +240,10 @@ final class ProviderRegistry
 
     /**
      * Everything the profile form's JavaScript needs, in one JSON payload: which fields
-     * to show per provider, the default model per provider and type, and the suggestions
-     * that fill the datalist. Keeping it here means the JS holds no provider knowledge
-     * of its own — that duplication is what let the Ollama API-key field stay hidden
-     * after the PHP side already supported it.
+     * to show per provider, the default model per provider and type, and the model names
+     * that fill the select. Keeping it here means the JS holds no provider knowledge of
+     * its own — that duplication is what let the Ollama API-key field stay hidden after
+     * the PHP side already supported it.
      *
      * @return array<string, array{fields: list<string>, defaults: array<string, string>, models: array<string, list<string>>}>
      */

@@ -84,13 +84,20 @@ supported it. The JSON sits next to the form rather than in `rex_view::setJsProp
 because that renders in the head (`core/layout/top.php`), which is out the door before a
 page script runs.
 
-**Model suggestions are suggestions, never a select.** The catalogs are Symfony AI's own
-and stay current without work here, but they are not exhaustive: for Ollama
-`llama3.2-vision` is missing entirely and `llava` carries no `INPUT_IMAGE` capability, so
-both drop out of the image-understanding list while working perfectly well. A closed list
-would reject model names that work. `TYPE_CAPABILITIES` requires `INPUT_MESSAGES`
-alongside `OUTPUT_TEXT` for text profiles for the same kind of reason — `OUTPUT_TEXT`
-alone also matches `whisper-1`.
+**The model picker is a select plus an escape hatch, and the escape hatch is not
+optional.** The catalogs are Symfony AI's own and stay current without work here, but they
+are not exhaustive: for Ollama `llama3.2-vision` is missing entirely and `llava` carries no
+`INPUT_IMAGE` capability, so both drop out of the image-understanding list while working
+perfectly well — and the generic provider has no catalog at all. A closed select would
+lock out model names that work. Hence: the select is the field's *prefix* and only writes
+into the `model` input, which stays the single control bound to the column; the last option
+reveals that input for a name of one's own; an empty catalog hides the select entirely
+rather than offering a list of one; and `syncModelSelect()` derives the select from the
+input and never the other way round, so a stored name the catalog does not list survives
+opening and saving the profile instead of being silently replaced by the first option.
+
+`TYPE_CAPABILITIES` requires `INPUT_MESSAGES` alongside `OUTPUT_TEXT` for text profiles for
+a related reason — `OUTPUT_TEXT` alone also matches `whisper-1`.
 
 **Base URLs are normalised**: a trailing `/v1` is stripped, because the bridges append
 their own versioned path (`/v1/chat/completions` for the generic one) while every provider

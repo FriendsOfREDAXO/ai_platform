@@ -26,7 +26,9 @@ ai_platform_base_url = Base URL
 ai_platform_base_url_notice = Required for Ollama (default: http://localhost:11434) and for OpenAI-compatible endpoints. Enter the server's base URL there, e.g. https://my-server.example/v1 -- with or without /v1, the path to the chat completions API is appended.
 ai_platform_provider_generic = OpenAI-compatible (custom endpoint)
 ai_platform_model = Model
-ai_platform_model_notice = Model name at the provider. The field suggests the models the provider is known to offer for this type according to Symfony AI -- a name that is not in the list is still allowed.
+ai_platform_model_notice = The models the provider is known to offer for this type according to Symfony AI. For a model the list does not contain, choose "custom model name" and type it in.
+ai_platform_model_custom_option = --- custom model name ---
+ai_platform_model_placeholder = Model name at the provider, e.g. llama3.2-vision
 
 # Type-specific settings
 ai_platform_temperature = Temperature
