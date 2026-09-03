@@ -96,8 +96,15 @@ rather than offering a list of one; and `syncModelSelect()` derives the select f
 input and never the other way round, so a stored name the catalog does not list survives
 opening and saving the profile instead of being silently replaced by the first option.
 
-`TYPE_CAPABILITIES` requires `INPUT_MESSAGES` alongside `OUTPUT_TEXT` for text profiles for
-a related reason — `OUTPUT_TEXT` alone also matches `whisper-1`.
+**`TYPE_CAPABILITIES` asks for all of `all` and at least one of `any`, and both halves are
+load-bearing.** `OUTPUT_TEXT` on its own also matches speech-to-text, so `whisper-1` would
+appear under a text profile — hence the demand for a text-ish input. But demanding
+`INPUT_MESSAGES` specifically is too narrow: OpenRouter's catalog describes its entries
+with `INPUT_TEXT`, and that stricter rule left **2 of its 362 models** standing. Accepting
+either keeps whisper out and OpenRouter in, and changes nothing for the four original
+providers (19/14/9/19 text models before and after — the test asserts the whisper half,
+the counts were measured). Note `array_intersect()` is not an option for this check: it
+compares by string cast and throws on `Capability` instances.
 
 **Base URLs are normalised**: a trailing `/v1` is stripped, because the bridges append
 their own versioned path (`/v1/chat/completions` for the generic one) while every provider
@@ -110,6 +117,22 @@ free-text input is load-bearing for `generic` (its `FallbackModelCatalog` accept
 and for providers a third addon registers with an open catalog, while for Ollama a typed
 `llama3.2-vision` is refused by Symfony AI, not by us. Extending that provider means
 handing it a different catalog through the extension point, not widening the form.
+
+**`openrouter` and `replicate` are worth a word each**, because their bridges are not
+equivalent in reach. OpenRouter's `PlatformFactory` is a thin wrapper around the generic
+one with `baseUrl: 'https://openrouter.ai/api'`, so it is the same protocol and simply
+works; its catalog carries ~360 models, which is why the model select gets
+`data-live-search="true"` and why the form payload grew from 3 KB to about 17 KB. Its
+`@preset` entry is OpenRouter's placeholder for a saved preset, not a callable model — it
+is left in the list (filtering it would be provider-specific logic in the registry, which
+is what this refactoring removed) and the defaults make sure a new profile never lands on
+it. Replicate, in contrast, is a **Llama text client** upstream: `LlamaModelClient`,
+`LlamaResultConverter`, `LlamaMessageBagNormalizer` and 15 `llama-*` catalog entries. None
+of the image models Replicate is known for are reachable, so its label says "nur
+Llama-Modelle, nur Text" — otherwise the empty select for the other three types reads as a
+bug. There is also a `ModelApiCatalog` in the OpenRouter bridge that fetches the live list;
+deliberately unused, because `formConfig()` runs on every render of the profile form and
+must not become an HTTP request.
 
 The `generic` provider is `symfony/ai-generic-platform`, i.e. plain OpenAI chat
 completions against a free base URL — Open WebUI, LiteLLM, vLLM, LM Studio, OpenRouter
@@ -127,7 +150,7 @@ visibility is toggled on that wrapper (`modelPickerBox()`); toggling the select 
 toggle something already invisible. Both fall back gracefully when the plugin is absent,
 which is what makes the picker testable outside a browser.
 
-Test: `.claude/tests/provider-registry-test.php` (100 asserts) covers the registry against
+Test: `.claude/tests/provider-registry-test.php` (131 asserts) covers the registry against
 the real REDAXO boot — so a label coming out as `[translate:…]` fails — and drives the
 bridges through a `MockHttpClient`, which is how the base-URL normalisation, the bearer
 header and Ollama's native `/api/chat` are asserted without a network. It also pins that a

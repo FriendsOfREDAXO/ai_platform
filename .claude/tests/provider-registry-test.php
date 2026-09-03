@@ -21,6 +21,7 @@ use Symfony\AI\Platform\Bridge\Generic\FallbackModelCatalog;
 use Symfony\AI\Platform\Bridge\Generic\PlatformFactory as GenericFactory;
 use Symfony\AI\Platform\Message\Message;
 use Symfony\AI\Platform\Message\MessageBag;
+use Symfony\AI\Platform\PlatformInterface;
 use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Response\MockResponse;
 
@@ -92,9 +93,9 @@ $completion = ['choices' => [['message' => ['content' => 'OK'], 'finish_reason' 
 $t->section('Registered providers');
 
 $t->assertSame(
-    ['openai', 'anthropic', 'google', 'ollama', 'generic'],
+    ['openai', 'anthropic', 'google', 'ollama', 'openrouter', 'replicate', 'generic'],
     array_keys(ProviderRegistry::all()),
-    'the five shipped providers are registered, in order',
+    'the shipped providers are registered, in order',
 );
 
 foreach (ProviderRegistry::labels() as $key => $label) {
@@ -159,6 +160,24 @@ $sorted = $text;
 sort($sorted);
 $t->assertSame($sorted, $text, 'model lists are sorted');
 $t->assertSame(array_values(array_unique($text)), $text, 'model lists have no duplicates');
+
+// OpenRouter's catalog describes its entries with INPUT_TEXT rather than INPUT_MESSAGES.
+// Demanding INPUT_MESSAGES left 2 of 362 models standing, which is why TYPE_CAPABILITIES
+// accepts either -- a plain count assertion here would break with every catalog update, so
+// this asserts the order of magnitude and one known name instead.
+$openRouterText = ProviderRegistry::models('openrouter', 'text');
+$t->assert(count($openRouterText) > 100, 'openrouter offers its catalog for text (' . count($openRouterText) . ' models)');
+$t->assert(in_array('openai/gpt-4o', $openRouterText, true), 'openrouter/text offers openai/gpt-4o');
+$t->assert([] !== ProviderRegistry::models('openrouter', 'image_understanding'), 'openrouter offers vision models');
+$t->assert([] !== ProviderRegistry::models('openrouter', 'embedding'), 'openrouter offers embedding models');
+
+// Symfony AI's Replicate bridge is a Llama text client -- LlamaModelClient,
+// LlamaResultConverter, a catalog of llama-* entries. None of the image models Replicate
+// is otherwise known for are reachable through it, and the label says so.
+$t->assert([] !== ProviderRegistry::models('replicate', 'text'), 'replicate offers llama text models');
+foreach (['image_generation', 'image_understanding', 'embedding'] as $type) {
+    $t->assertSame([], ProviderRegistry::models('replicate', $type), 'replicate offers nothing for ' . $type);
+}
 
 $t->assertSame([], ProviderRegistry::models('openai', 'no-such-type'), 'an unknown type yields no models');
 $t->assertSame([], ProviderRegistry::models('no-such-provider', 'text'), 'an unknown provider yields no models');
@@ -291,6 +310,24 @@ $anyName = $capture(
     $completion,
 );
 $t->assertSame('https://ai.example/v1/chat/completions', $anyName['url'], 'generic accepts any model name');
+
+// OpenRouter is the generic bridge with a fixed base URL, so the same path applies -- and
+// the profile needs no base_url field for it.
+$openRouter = $capture(
+    ['provider' => 'openrouter', 'api_key' => 'or-key', 'model' => 'openai/gpt-4o'],
+    $completion,
+);
+$t->assertSame('https://openrouter.ai/api/v1/chat/completions', $openRouter['url'], 'openrouter posts to its own endpoint');
+$t->assertSame('Bearer or-key', $authHeader($openRouter['headers']), 'openrouter passes the key as a bearer token');
+
+// Replicate is not driven end to end here: its client polls a prediction until it is
+// finished, so a mock would have to fake that state machine and the test would assert the
+// mock rather than the bridge. What matters at this level is that the platform builds and
+// takes its api key -- the model call is covered by the connection test in the backend.
+$t->assert(
+    ProviderRegistry::createPlatform(['provider' => 'replicate', 'api_key' => 'r8-key']) instanceof PlatformInterface,
+    'replicate builds a platform from an api key',
+);
 
 $t->assertThrows(
     static fn () => ProviderRegistry::createPlatform(['provider' => 'generic', 'api_key' => 'x']),

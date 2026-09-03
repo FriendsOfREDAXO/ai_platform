@@ -24,9 +24,15 @@ Die **KI Platform** ist das zentrale AddOn fuer die Integration von KI-Diensten 
 | **Anthropic** | `claude-sonnet-4-20250514`, `claude-opus-4-20250514`, `claude-3-7-sonnet-latest` | - | - | `claude-sonnet-4-20250514`, `claude-opus-4-20250514` |
 | **Google** | `gemini-2.5-flash`, `gemini-2.5-pro` | `gemini-embedding-001` | `gemini-2.5-flash-image`, `gemini-3-pro-image-preview` | `gemini-2.5-flash`, `gemini-2.5-pro` |
 | **Ollama** | `llama3.2`, `mistral`, `deepseek-r1` u.a. | `nomic-embed-text`, `mxbai-embed-large` | - | `llava`, `llama3.2-vision` |
+| **OpenRouter** | ueber 300 Modelle vieler Anbieter, z.B. `openai/gpt-4o`, `anthropic/claude-sonnet-4.5` | z.B. `google/gemini-embedding-001` | z.B. `google/gemini-2.5-flash-image` | ueber 100 Modelle, z.B. `openai/gpt-4o` |
+| **Replicate** | nur Llama, z.B. `llama-3.3-70B-Instruct` | - | - | - |
 | **OpenAI-kompatibel** | beliebige Modellnamen des Servers | beliebige Modellnamen des Servers | - | beliebige Modellnamen des Servers |
 
 Bei Ollama ist nur die Basis-URL Pflicht (Standard: `http://localhost:11434`). Der API-Key ist dort optional: bleibt er leer, wird kein `Authorization`-Header gesendet -- gesetzt, geht er als Bearer-Token mit, wie es ein per Reverse Proxy abgesicherter Ollama-Server erwartet.
+
+**OpenRouter** bringt ueber 300 Modelle vieler Anbieter hinter einem einzigen Schluessel; die Symfony-AI-Bridge ist dafuer nur ein duenner Aufsatz auf dem generischen Chat-Completions-Client. Die Modellauswahl ist entsprechend lang und hat deshalb ein Suchfeld. Ein Eintrag darin faellt auf: `@preset` ist bei OpenRouter der Platzhalter fuer ein gespeichertes Preset (`@preset/name`) und kein aufrufbares Modell -- der Katalog von Symfony AI fuehrt ihn mit, das AddOn belaesst ihn dort und waehlt ihn nie von selbst aus.
+
+**Replicate** ist bei Symfony AI bewusst eng gefasst: die Bridge ist ein Llama-Client (`LlamaModelClient`, `LlamaResultConverter`) mit einem Katalog aus 15 `llama-*`-Modellen. **Text also ja, Bildgenerierung nein** -- die Modelle, fuer die Replicate ansonsten bekannt ist (SDXL, Flux), sind darueber nicht erreichbar. Das steht so im Label, damit die leere Modellauswahl bei den anderen Typen nicht wie ein Fehler aussieht.
 
 **OpenAI-kompatibel** spricht das klassische Chat-Completions-Protokoll gegen eine frei eingetragene Basis-URL und deckt damit selbstgehostete und fremde Endpunkte ab: Open WebUI, LiteLLM, vLLM, LM Studio, OpenRouter, Groq, DeepSeek und alles andere, was diese API anbietet. Die Basis-URL darf mit oder ohne `/v1` eingetragen werden. Einen gepflegten Modellkatalog gibt es dort naturgemaess nicht -- statt einer Auswahl erscheint das Textfeld, das jeden Namen annimmt, den der Server kennt.
 

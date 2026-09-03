@@ -51,9 +51,12 @@ class ComposerStaticInita2468993b9624631610b23a6e08c4641
             'Symfony\\Component\\HttpClient\\' => 29,
             'Symfony\\Component\\EventDispatcher\\' => 34,
             'Symfony\\Component\\Clock\\' => 24,
+            'Symfony\\AI\\Platform\\Bridge\\Replicate\\' => 37,
+            'Symfony\\AI\\Platform\\Bridge\\OpenRouter\\' => 38,
             'Symfony\\AI\\Platform\\Bridge\\OpenResponses\\' => 41,
             'Symfony\\AI\\Platform\\Bridge\\OpenAi\\' => 34,
             'Symfony\\AI\\Platform\\Bridge\\Ollama\\' => 34,
+            'Symfony\\AI\\Platform\\Bridge\\Meta\\' => 32,
             'Symfony\\AI\\Platform\\Bridge\\Generic\\' => 35,
             'Symfony\\AI\\Platform\\Bridge\\Gemini\\' => 34,
             'Symfony\\AI\\Platform\\Bridge\\Anthropic\\' => 37,
@@ -173,6 +176,14 @@ class ComposerStaticInita2468993b9624631610b23a6e08c4641
         array (
             0 => __DIR__ . '/..' . '/symfony/clock',
         ),
+        'Symfony\\AI\\Platform\\Bridge\\Replicate\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/symfony/ai-replicate-platform',
+        ),
+        'Symfony\\AI\\Platform\\Bridge\\OpenRouter\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/symfony/ai-open-router-platform',
+        ),
         'Symfony\\AI\\Platform\\Bridge\\OpenResponses\\' =>
         array (
             0 => __DIR__ . '/..' . '/symfony/ai-open-responses-platform',
@@ -184,6 +195,10 @@ class ComposerStaticInita2468993b9624631610b23a6e08c4641
         'Symfony\\AI\\Platform\\Bridge\\Ollama\\' =>
         array (
             0 => __DIR__ . '/..' . '/symfony/ai-ollama-platform',
+        ),
+        'Symfony\\AI\\Platform\\Bridge\\Meta\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/symfony/ai-meta-platform',
         ),
         'Symfony\\AI\\Platform\\Bridge\\Generic\\' =>
         array (

@@ -18,6 +18,10 @@ use Symfony\AI\Platform\Bridge\Ollama\ModelCatalog as OllamaCatalog;
 use Symfony\AI\Platform\Bridge\Ollama\PlatformFactory as OllamaFactory;
 use Symfony\AI\Platform\Bridge\OpenAi\ModelCatalog as OpenAiCatalog;
 use Symfony\AI\Platform\Bridge\OpenAi\PlatformFactory as OpenAiFactory;
+use Symfony\AI\Platform\Bridge\OpenRouter\ModelCatalog as OpenRouterCatalog;
+use Symfony\AI\Platform\Bridge\OpenRouter\PlatformFactory as OpenRouterFactory;
+use Symfony\AI\Platform\Bridge\Replicate\ModelCatalog as ReplicateCatalog;
+use Symfony\AI\Platform\Bridge\Replicate\PlatformFactory as ReplicateFactory;
 use Symfony\AI\Platform\Capability;
 use Symfony\AI\Platform\ModelCatalog\ModelCatalogInterface;
 use Symfony\AI\Platform\PlatformInterface;
@@ -65,19 +69,36 @@ final class ProviderRegistry
     public const OPTION_FIELDS = ['image_quality', 'image_style'];
 
     /**
-     * Profile type => capabilities a model must have to be suggested for that type.
+     * Profile type => the capabilities a model needs to be offered for that type: all of
+     * 'all', and at least one of 'any' when that list is not empty.
      *
-     * INPUT_MESSAGES is required alongside OUTPUT_TEXT because OUTPUT_TEXT alone also
-     * matches speech-to-text models — without it, `whisper-1` shows up as a suggestion
-     * for a text profile.
+     * Both halves earn their keep. OUTPUT_TEXT on its own also matches speech-to-text, so
+     * `whisper-1` would show up under a text profile — hence the demand for a text-ish
+     * input. But demanding INPUT_MESSAGES specifically is too narrow: the OpenRouter
+     * catalog describes its entries with INPUT_TEXT, and requiring INPUT_MESSAGES left 2
+     * of its 362 models standing. Accepting either keeps whisper out and OpenRouter in,
+     * and changes nothing for OpenAI, Anthropic, Gemini and Ollama (19/14/9/19 models
+     * before and after).
      *
-     * @var array<string, list<Capability>>
+     * @var array<string, array{all: list<Capability>, any: list<Capability>}>
      */
     private const TYPE_CAPABILITIES = [
-        'text' => [Capability::INPUT_MESSAGES, Capability::OUTPUT_TEXT],
-        'image_understanding' => [Capability::INPUT_MESSAGES, Capability::INPUT_IMAGE, Capability::OUTPUT_TEXT],
-        'image_generation' => [Capability::OUTPUT_IMAGE],
-        'embedding' => [Capability::EMBEDDINGS],
+        'text' => [
+            'all' => [Capability::OUTPUT_TEXT],
+            'any' => [Capability::INPUT_MESSAGES, Capability::INPUT_TEXT],
+        ],
+        'image_understanding' => [
+            'all' => [Capability::OUTPUT_TEXT, Capability::INPUT_IMAGE],
+            'any' => [Capability::INPUT_MESSAGES, Capability::INPUT_TEXT],
+        ],
+        'image_generation' => [
+            'all' => [Capability::OUTPUT_IMAGE],
+            'any' => [],
+        ],
+        'embedding' => [
+            'all' => [Capability::EMBEDDINGS],
+            'any' => [],
+        ],
     ];
 
     /**
@@ -146,6 +167,45 @@ final class ProviderRegistry
                 'factory' => static fn (array $profile, ?HttpClientInterface $httpClient): PlatformInterface => OllamaFactory::create(
                     self::baseUrl($profile) ?? 'http://localhost:11434',
                     self::apiKey($profile),
+                    $httpClient,
+                ),
+            ],
+            'openrouter' => [
+                // Upstream is a thin wrapper around the generic bridge with OpenRouter's
+                // base URL, so it speaks the same chat-completions protocol.
+                'label' => rex_i18n::msg('ai_platform_provider_openrouter'),
+                'fields' => ['api_key'],
+                // Defaults matter more here than elsewhere: the catalog's first entry
+                // alphabetically is "@preset", OpenRouter's placeholder for a saved
+                // preset rather than a model, and it must not be what a new profile lands
+                // on.
+                'defaults' => [
+                    'text' => 'openai/gpt-4o',
+                    'image_generation' => 'google/gemini-2.5-flash-image',
+                    'image_understanding' => 'openai/gpt-4o',
+                    'embedding' => 'google/gemini-embedding-001',
+                ],
+                // The bridge also ships a ModelApiCatalog that fetches the current list
+                // from OpenRouter. Not used here: formConfig() runs on every render of the
+                // profile form, and that must not turn into an HTTP request.
+                'catalog' => static fn (): ModelCatalogInterface => new OpenRouterCatalog(),
+                'factory' => static fn (array $profile, ?HttpClientInterface $httpClient): PlatformInterface => OpenRouterFactory::create(
+                    self::requireApiKey($profile, 'openrouter'),
+                    $httpClient,
+                ),
+            ],
+            'replicate' => [
+                // Symfony AI's Replicate bridge is a Llama client, not general Replicate
+                // access: LlamaModelClient, LlamaResultConverter, LlamaMessageBagNormalizer,
+                // and a catalog of 15 llama-* entries. Text only — none of the image models
+                // Replicate is otherwise known for. The label says so, because the empty
+                // model list for the other three types would otherwise look like a bug.
+                'label' => rex_i18n::msg('ai_platform_provider_replicate'),
+                'fields' => ['api_key'],
+                'defaults' => ['text' => 'llama-3.3-70B-Instruct'],
+                'catalog' => static fn (): ModelCatalogInterface => new ReplicateCatalog(),
+                'factory' => static fn (array $profile, ?HttpClientInterface $httpClient): PlatformInterface => ReplicateFactory::create(
+                    self::requireApiKey($profile, 'replicate'),
                     $httpClient,
                 ),
             ],
@@ -239,11 +299,28 @@ final class ProviderRegistry
 
         $models = [];
         foreach ($catalog->getModels() as $name => $definition) {
-            foreach ($required as $capability) {
-                if (!in_array($capability, $definition['capabilities'], true)) {
+            $capabilities = $definition['capabilities'];
+
+            foreach ($required['all'] as $capability) {
+                if (!in_array($capability, $capabilities, true)) {
                     continue 2;
                 }
             }
+
+            if ([] !== $required['any']) {
+                $matched = false;
+                foreach ($required['any'] as $capability) {
+                    if (in_array($capability, $capabilities, true)) {
+                        $matched = true;
+                        break;
+                    }
+                }
+
+                if (!$matched) {
+                    continue;
+                }
+            }
+
             $models[] = $name;
         }
 
