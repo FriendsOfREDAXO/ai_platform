@@ -497,7 +497,7 @@ php .claude/tests/change-storage-test.php      # Payload-Guards, Persistenz, Sup
 php .claude/tests/change-handlers-test.php     # ein echter Durchlauf je Handler
 php .claude/tests/change-situations-test.php   # gelöschte Ziele, kaputte Verweise, Nebenläufigkeit
 php .claude/tests/change-pages-test.php        # Seitenbaum, Rechte, Rendering, XSS, Links, Datei-Vorschau
-bash .claude/tests/api-changes-test.sh         # alle acht REST-Routen über HTTP
+bash .claude/tests/api-changes-test.sh         # alle sieben REST-Routen über HTTP
 ```
 
 Alle laufen gegen die echte Datenbank und räumen hinter sich auf.

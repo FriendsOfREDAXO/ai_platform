@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-`ai_platform` is a REDAXO 5.18+ addon that gives the CMS a unified LLM layer. It wraps **Symfony AI 0.6** (`symfony/ai-platform`, `symfony/ai-agent`, plus the OpenAI / Anthropic / Gemini / Ollama bridges) and exposes:
+`ai_platform` is a REDAXO 5.18+ addon that gives the CMS a unified LLM layer. It wraps **Symfony AI 0.6** (`symfony/ai-platform`, `symfony/ai-agent`, plus ten provider bridges: OpenAI, Anthropic, Gemini, Ollama, Mistral, Cerebras, Scaleway, OpenRouter, Replicate and the generic OpenAI-compatible one) and exposes:
 
 1. A backend UI for managing **profiles** (one profile = one use case = one type + provider + model + per-type options).
 2. A PHP service API (`FriendsOfRedaxo\AiPlatform\Service`) for text generation, image generation, image understanding, and tool-using agents.
@@ -60,11 +60,124 @@ The addon ships its full `vendor/` tree to production — it is NOT auto-loaded 
 
 Singleton accessed via `FriendsOfRedaxo\AiPlatform\Service::getInstance()`. It owns two in-request caches: `$profileCache` (DB row by id) and `$platformCache` (built `PlatformInterface` by profile id). All higher-level helpers (`generateText`, `understandImage`, `generateImage`, `createAgent`) resolve a profile, build a `PlatformInterface` via the matching `Symfony\AI\Platform\Bridge\*\PlatformFactory`, and invoke it.
 
-Provider mapping is a `match` on `$profile['provider']` — adding a new provider means:
-1. Adding it to `getProviders()` and `getModelSuggestions()`,
-2. Adding a case in `getPlatform()` to instantiate the right `PlatformFactory`,
-3. Updating the API-key visibility logic in `assets/profiles.js` (Ollama is the special case that hides the API-key field and shows Base-URL),
-4. Possibly the test endpoint in `lib/rex_api_ai_test.php`.
+Providers are not mapped here — `getProviders()`, `getModelSuggestions()` and
+`getPlatform()` all delegate to `ProviderRegistry`. They stay as the public API and hold
+no provider knowledge of their own.
+
+### Providers: `FriendsOfRedaxo\AiPlatform\ProviderRegistry` (`lib/ProviderRegistry.php`)
+
+One entry per provider, and everything about a provider inside that one entry: the label
+for the select, which fields the profile form shows for it (`fields`), the default model
+per type (`defaults`), the Symfony AI model catalog its suggestions come from (`catalog`),
+and the closure that builds the platform (`factory`). Adding a provider is a
+`composer require` for its Symfony AI bridge plus one entry — or, from another addon, one
+entry appended in the `AI_PLATFORM_PROVIDERS` extension point, no fork needed. The
+definitions are rebuilt on every call: caching them would freeze whichever set existed at
+first access, and a provider registered later in the boot order would silently vanish.
+
+**`assets/profiles.js` must stay free of provider names.** Field visibility, the default
+model and the suggestions all arrive as JSON from `ProviderRegistry::formConfig()`, which
+`pages/profiles.php` writes into a `<script type="application/json"
+id="ai-provider-config">`. That is not tidiness: the same knowledge used to live in both
+places, and the JS copy kept the Ollama API-key field hidden long after `getPlatform()`
+supported it. The JSON sits next to the form rather than in `rex_view::setJsProperty()`
+because that renders in the head (`core/layout/top.php`), which is out the door before a
+page script runs.
+
+**The model picker is a select plus an escape hatch, and the escape hatch is not
+optional.** The catalogs are Symfony AI's own and stay current without work here, but they
+are not exhaustive: for Ollama `llama3.2-vision` is missing entirely and `llava` carries no
+`INPUT_IMAGE` capability, so both drop out of the image-understanding list — and the
+generic provider has no catalog at all, because a self-hosted server can call its models
+anything. A closed select would lock those out. Hence: the select is the field's *prefix* and only writes
+into the `model` input, which stays the single control bound to the column; the last option
+reveals that input for a name of one's own; an empty catalog hides the select entirely
+rather than offering a list of one; and `syncModelSelect()` derives the select from the
+input and never the other way round, so a stored name the catalog does not list survives
+opening and saving the profile instead of being silently replaced by the first option.
+
+**`TYPE_CAPABILITIES` asks for all of `all` and at least one of `any`, and both halves are
+load-bearing.** `OUTPUT_TEXT` on its own also matches speech-to-text, so `whisper-1` would
+appear under a text profile — hence the demand for a text-ish input. But demanding
+`INPUT_MESSAGES` specifically is too narrow: OpenRouter's catalog describes its entries
+with `INPUT_TEXT`, and that stricter rule left **2 of its 362 models** standing. Accepting
+either keeps whisper out and OpenRouter in, and changes nothing for the four original
+providers (19/14/9/19 text models before and after — the test asserts the whisper half,
+the counts were measured). Note `array_intersect()` is not an option for this check: it
+compares by string cast and throws on `Capability` instances.
+
+**Base URLs are normalised**: a trailing `/v1` is stripped, because the bridges append
+their own versioned path (`/v1/chat/completions` for the generic one) while every provider
+documents its endpoint *with* the `/v1`. Both spellings have to reach the same URL.
+
+**What a name outside the catalog actually does, though, depends on the provider** — and
+it is not "it just works". `AbstractModelCatalog::getModel()` throws
+`ModelNotFoundException` for a name it does not know, before any request is built. So the
+free-text input is load-bearing for `generic` (its `FallbackModelCatalog` accepts anything)
+and for providers a third addon registers with an open catalog, while for Ollama a typed
+`llama3.2-vision` is refused by Symfony AI, not by us. Extending that provider means
+handing it a different catalog through the extension point, not widening the form.
+
+**`mistral`, `cerebras` and `scaleway` are the straightforward ones**: identical factory
+signature (`create($apiKey, $httpClient, $modelCatalog, …)`), an OpenAI-shaped completions
+API, one `api_key` field each. Their catalogs decide what the form offers — Mistral has
+pixtral for vision and `mistral-embed`, Scaleway the same in miniature, Cerebras text only,
+because it hosts open models for fast inference and none of them are multimodal. None of
+the three does image generation.
+
+**Two bridges validate the shape of the key before sending anything**: OpenAI wants `sk-`,
+Cerebras wants `csk-`, both throwing `InvalidArgumentException` from the model client's
+constructor. So a key pasted from the wrong provider surfaces as "The API key must start
+with …" out of `getPlatform()`, not as a 401 from the endpoint — worth knowing when a
+support question arrives, and pinned by two assertions in the test.
+
+**`openrouter` and `replicate` are worth a word each**, because their bridges are not
+equivalent in reach. OpenRouter's `PlatformFactory` is a thin wrapper around the generic
+one with `baseUrl: 'https://openrouter.ai/api'`, so it is the same protocol and simply
+works; its catalog carries ~360 models, which is why the model select carries
+`data-live-search="true"` at all — unconditionally, in `pages/profiles.php`, since a
+search box costs nothing on a short list — and why the form payload grew from 3 KB to
+about 17 KB. Its
+`@preset` entry is OpenRouter's placeholder for a saved preset, not a callable model — it
+is left in the list (filtering it would be provider-specific logic in the registry, which
+is what this refactoring removed) and the defaults make sure a new profile never lands on
+it. Replicate, in contrast, is a **Llama text client** upstream: `LlamaModelClient`,
+`LlamaResultConverter`, `LlamaMessageBagNormalizer` and 15 `llama-*` catalog entries. None
+of the image models Replicate is known for are reachable, so its label says "nur
+Llama-Modelle, nur Text" — otherwise the empty select for the other three types reads as a
+bug. There is also a `ModelApiCatalog` in the OpenRouter bridge that fetches the live list;
+deliberately unused, because `formConfig()` runs on every render of the profile form and
+must not become an HTTP request.
+
+The `generic` provider is `symfony/ai-generic-platform`, i.e. plain OpenAI chat
+completions against a free base URL — Open WebUI, LiteLLM, vLLM, LM Studio, OpenRouter
+and the like. Do **not** hand-roll a bridge for one of those: the upstream package covers
+tool calls, streaming, the 401/400/429 mapping and token usage, which a minimal
+`choices[0].message.content` converter does not (that was the flaw in PR #9).
+
+**bootstrap-select is the reason the picker needs two courtesies.** be_style initialises
+every `.selectpicker` on `rex:ready` and the plugin then renders its own markup once: it
+does not watch the option list, so `updateModelSelect()` and `syncModelSelect()` have to
+call `selectpicker('refresh')` after touching options or the value — without it the box
+stays empty and looks nothing like the type and provider boxes next to it. And the plugin
+hides the original `<select>` itself and wraps it in a `div.bootstrap-select`, so
+visibility is toggled on that wrapper (`modelPickerBox()`); toggling the select would
+toggle something already invisible. Both fall back gracefully when the plugin is absent,
+which is what makes the picker testable outside a browser.
+
+Test: `.claude/tests/provider-registry-test.php` (180 asserts) covers the registry against
+the real REDAXO boot — so a label coming out as `[translate:…]` fails — and drives the
+bridges through a `MockHttpClient`, which is how the base-URL normalisation, the bearer
+header and Ollama's native `/api/chat` are asserted without a network. It also pins that a
+default model is offered by its catalog; that assertion is what surfaced the stale
+`gemini-2.0-flash-exp` and `text-embedding-004` defaults.
+
+Test: `.claude/tests/model-picker-test.mjs` (19 asserts, plain `node`, no npm) runs
+`assets/profiles.js` against a hand-rolled minimal DOM: the custom entry, the visibility
+of the credential fields, the refresh calls, the wrapper-not-select toggle, and the two
+cases where a stored model name has to survive being opened. Its provider payload is a
+fixture on purpose — the picker's behaviour must not start failing because Symfony AI
+added a model. That the real payload has that shape is asserted in the PHP test.
 
 `getProfileOptions()` is the central place that translates a stored profile into provider-specific invoke options. **Important quirk**: OpenAI's Responses API uses the key `max_output_tokens`, every other provider uses `max_tokens`. The method already branches on this — don't "fix" it.
 
@@ -335,7 +448,7 @@ that — so what is genuinely needed is stated in the description text instead.
 | POST | `/approvals` | `approve` — approve own requests unattended |
 | POST | `/withdrawals` | `withdraw` — take back own pending requests |
 
-#### Why the count is what it is — and why it went from eight to six
+#### Why the count is what it is — and why it went from eight to six, then seven
 
 `BearerAuth::isAuthorized()` checks `in_array($parameters['_route'],
 $token->getScopes())`. **One route is one scope**, the finest granularity
@@ -352,11 +465,13 @@ Two pairs were one permission each and were merged:
 | `/types` + `/current` | `/describe` | Both answer "what is there" — one in general, one for a target. Both read-only, neither changes anything. |
 | `/` (list) + `/{id}` | `/` with optional `{id}` | Both read-only and both filter hard on the calling token's `source_key`, so there is no situation in which you grant one and refuse the other. The `null` default on `id` is what makes the segment optional. |
 
-That leaves **four privilege levels** — look, propose, offer bytes, decide. **No aliases were
-kept for the old paths**; `api-changes-test.sh` asserts `/types` and `/current`
+That left **four privilege levels** — look, propose, offer bytes, decide — and
+`/withdrawals` later added a fifth, take back, for the case an agent notices its own
+misfire. Seven routes, seven scopes. **No aliases were kept for the old paths**;
+`api-changes-test.sh` asserts `/types` and `/current`
 answer 404. A route that still answers is a route somebody keeps using.
 
-An agent rarely needs all six. `propose` alone works: `ChangeService::propose()`
+An agent rarely needs all seven. `propose` alone works: `ChangeService::propose()`
 reads the target's current state itself and derives `base_hash` from it, so
 nothing has to be fetched first. `read` + `propose` is the practical minimum;
 `requests` matters once an agent should follow up on a rejection, `approve` only
@@ -901,13 +1016,15 @@ das liest, sucht am falschen Ende.
 ## Things to know before changing code
 
 - `composer.lock` and `vendor/` are committed. Bump deps with `composer update`, run a manual test (profile create + connection test + MCP `tools/list` call), then commit the refreshed `composer.lock` + `vendor/` together — never split them across commits.
-- Symfony AI 0.6 is **alpha-ish**; pinning is `^0.6`. Breaking changes between minor 0.x bumps are likely — update with care and re-test all four `getPlatform()` branches.
+- Symfony AI 0.6 is **alpha-ish**; pinning is `^0.6`. Breaking changes between minor 0.x bumps are likely — update with care and re-run `.claude/tests/provider-registry-test.php`, which drives every provider in `ProviderRegistry` through its bridge.
 - When code `exit`s mid-flow (the `FriendsOfRedaxo\AiPlatform\Mcp\Router` routes and the `rex_api_ai_test` endpoint do this), it bypasses REDAXO's normal response pipeline. Always `rex_response::cleanOutputBuffers()` first and never rely on `rex_api_result` for the response body.
 - `FriendsOfRedaxo\AiPlatform\Service::getProfile()` filters by `status = 1`; inactive profiles are invisible to all callers. That's intentional — keep it that way unless adding an explicit "include inactive" parameter.
 - The MCP router runs on `PACKAGES_INCLUDED` and `exit`s on match. That bypasses REDAXO's normal request lifecycle. If you add a new route, always `rex_response::cleanOutputBuffers()` before sending anything, never call `rex_response::sendContent()`, and remember the router fires on every frontend request — keep the path table minimal.
 - The OAuth tables (`rex_ai_oauth_*`, `rex_ai_scope_mapping`) are created in `install.php` via `rex_sql_table::ensure*`. Adding a column → add an `ensureColumn()` line and reinstall the addon (`bin/console package:install ai_platform`, choose reinstall).
 - `FriendsOfRedaxo\AiPlatform\OAuth\TokenStore` rotates refresh tokens with joint revocation: when `rotateRefreshToken()` succeeds, **both** the old refresh and its parent access token are revoked. Don't change that — it's the replay protection.
 - Reproducible test harness in `.claude/tests/` (committed; DB creds derived from `data/core/config.yml`, `BASE` overridable via env):
+  - `provider-registry-test.php` — 180 asserts: every provider in `ProviderRegistry` against the real REDAXO boot (so a label coming out as `[translate:…]` fails) and through a `MockHttpClient` (base-URL normalisation, bearer header, Ollama's native `/api/chat`, the two key-prefix validators), plus the assertion that every default model is offered by its catalog
+  - `model-picker-test.mjs` — 19 asserts, plain `node` against a hand-rolled minimal DOM: the custom entry, credential-field visibility, the `selectpicker('refresh')` calls, the wrapper-not-select toggle, and a stored model name surviving being opened. Its provider payload is a fixture on purpose — the picker must not start failing because Symfony AI added a model
   - `oauth-storage-test.php` — 44 storage asserts, runs via REDAXO bootstrap + addon init
   - `oauth-token-endpoint-test.sh` — 20 token-endpoint asserts, seeds via mysql client, drives via curl
   - `oauth-authorize-test.sh` — 29 end-to-end asserts incl. browser-style login + consent + token exchange, uses `oauth-authorize-test-seed.php` for YCom user/group setup
@@ -925,6 +1042,7 @@ das liest, sucht am falschen Ende.
     nothing was applied without a recorded decision.
     Seeds and removes its own api token.
   - `change-pages-test.php` — 104 asserts: page tree, the two permissions and every combination of them, the absence of the removed entry form and of the removed settings split, the master switch removing the menu entry, the conditional detail settings from both sides (present-but-hidden while off, and a save in that state leaving the stored values alone), the staged-file preview going through the permission-checked endpoint, every remaining backend page rendered (including an XSS fixture, since payloads come from an LLM and are shown to a full-rights user), the double-escaping regression, and a sweep resolving every `page=` link on every rendered page against the real page tree
+  - `backend-page-tree-check.php` — not a test: prints the addon's page tree as REDAXO resolves it, for eyeballing `package.yml` changes
   - `bootstrap.php` — shared CLI bootstrap. Three things a naive bootstrap gets wrong and this one handles: it deletes `packages.cache` (or a newly declared page stays invisible), calls `enlist()` per package (or `rex_i18n::msg()` returns `[translate:key]` for every addon string), and forces `rex_autoload::reload()` (or classes added since the last cache write are unloadable). It also injects a synthetic `Request`, because backend pages call `rex::getRequest()`, which throws in CLI.
   - Run all of them before touching anything in `lib/Mcp/`, `lib/OAuth/` or `lib/Change/` to lock down baseline.
 - Profile IDs are referenced by the three `default_*_profile` config keys, but **there is no FK or cleanup** when a profile is deleted. After delete, the config still points at the gone id and the next API call throws `rex_exception('No default AI profile configured for: …')`. If you touch the delete handler in `pages/profiles.php`, consider clearing matching config keys.

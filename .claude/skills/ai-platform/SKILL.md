@@ -27,8 +27,24 @@ Datenbank.** `assets/profiles.js` blendet ein und aus; serverseitig wird nichts
 verworfen. Ein Wert, der früher zu einem anderen Typ gesetzt wurde, bleibt also
 gespeichert — beim Debuggen lohnt der Blick in die Zeile, nicht nur ins Formular.
 
-Provider: OpenAI, Anthropic, Gemini, Ollama. Ollama ist der Sonderfall — kein
-API-Key, dafür eine Base-URL.
+**Zehn Provider**, alle in `ProviderRegistry` (`lib/ProviderRegistry.php`):
+OpenAI, Anthropic, Google, Ollama, Mistral, Cerebras, Scaleway, OpenRouter,
+Replicate und „OpenAI-kompatibel" (freie Basis-URL). Welche Felder ein Profil
+zeigt, steht im Eintrag des Providers — eine Base-URL haben nur Ollama und
+OpenAI-kompatibel, und bei beiden ist der API-Key optional: leer heißt kein
+`Authorization`-Header, gesetzt heißt Bearer-Token für einen abgesicherten
+Server.
+
+**Das Modellfeld ist eine Auswahl plus Textfeld.** Die Auswahl kommt aus dem
+Modellkatalog von Symfony AI, gefiltert nach den Fähigkeiten, die der Typ
+braucht — das AddOn pflegt keine Modelllisten. Der letzte Eintrag „eigener
+Modellname" schaltet das Textfeld frei, und das ist keine Zierde: die Kataloge
+haben Lücken. Bei Ollama fehlt `llama3.2-vision` ganz und `llava` trägt keine
+`INPUT_IMAGE`-Fähigkeit, die Bildverständnis-Auswahl ist dort also leer. Ob ein
+selbst eingetragener Name dann funktioniert, entscheidet der Katalog des
+Providers: `FallbackModelCatalog` (OpenAI-kompatibel) nimmt jeden Namen, die
+gepflegten Kataloge weisen einen unbekannten mit `ModelNotFoundException` ab —
+noch vor dem ersten Request.
 
 **`getProfile()` filtert auf `status = 1`.** Ein inaktives Profil ist für jeden
 Aufrufer unsichtbar, nicht nur im Backend. Wer „Profil nicht gefunden" bekommt
@@ -48,7 +64,7 @@ $service = Service::getInstance();
 $text = $service->generateText('Fasse diesen Artikel in drei Sätzen zusammen: …');
 $text = $service->generateText($prompt, profileId: 4);           // bestimmtes Profil
 
-$beschreibung = $service->understandImage('/pfad/bild.jpg', 'Was ist zu sehen?');
+$beschreibung = $service->understandImage('Was ist zu sehen?', '/pfad/bild.jpg');
 $url          = $service->generateImage('Ein Bulli am Strand, Abendlicht');
 $vektor       = $service->generateEmbedding('Suchbegriff');
 ```
@@ -187,17 +203,53 @@ Composer brauchen. Deps ändern heißt: `composer update`, manuell testen
 zusammen** committen.
 
 Symfony AI ist auf `^0.6` gepinnt und alpha-nah: Brüche zwischen 0.x-Minors sind
-wahrscheinlich, und alle vier `getPlatform()`-Zweige gehören nach einem Update
-erneut getestet.
+wahrscheinlich. Nach einem Update `php .claude/tests/provider-registry-test.php`
+laufen lassen — der Test treibt jeden Provider der Registry durch seine Bridge
+(gegen einen `MockHttpClient`, ohne Netz und ohne Schlüssel) und prüft, dass
+jedes Default-Modell noch im Katalog steht.
 
 ### Einen Provider hinzufügen
 
-Vier Stellen, alle nötig:
+**Ein Eintrag in `ProviderRegistry::all()`, sonst nichts** — plus das
+`composer require` für die Bridge. Der Eintrag trägt alles zu diesem Provider:
+`label`, `fields` (welche Felder das Formular zeigt), `defaults` (Vorbelegung des
+Modells pro Typ), `catalog` (woher die Modellauswahl kommt) und `factory` (baut
+die Symfony-AI-Platform).
 
-1. `Service::getProviders()` und `getModelSuggestions()`
-2. Ein `case` in `Service::getPlatform()` mit der passenden `PlatformFactory`
-3. `assets/profiles.js` — Sichtbarkeit von API-Key und Base-URL
-4. Ggf. `rex_api_ai_test` für den Verbindungstest
+**Von außerhalb des AddOns geht es ohne Fork** — ein Eintrag im Extension Point
+`AI_PLATFORM_PROVIDERS`:
+
+```php
+use FriendsOfRedaxo\AiPlatform\ProviderRegistry;
+use Symfony\AI\Platform\Bridge\Perplexity\ModelCatalog as PerplexityCatalog;
+use Symfony\AI\Platform\Bridge\Perplexity\PlatformFactory as PerplexityFactory;
+
+rex_extension::register(ProviderRegistry::EXTENSION_POINT, function (rex_extension_point $ep) {
+    $providers = $ep->getSubject();
+    $providers['perplexity'] = [
+        'label' => 'Perplexity',
+        'fields' => ['api_key'],                       // 'base_url', 'image_quality', 'image_style'
+        'defaults' => ['text' => 'sonar-pro'],
+        'catalog' => static fn () => new PerplexityCatalog(),
+        'factory' => static fn (array $profile, $httpClient) => PerplexityFactory::create($profile['api_key'], $httpClient),
+    ];
+    return $providers;
+});
+```
+
+**`assets/profiles.js` bleibt frei von Providernamen.** Feldsichtbarkeit,
+Default-Modell und Modellliste kommen als JSON aus
+`ProviderRegistry::formConfig()`, das `pages/profiles.php` in ein
+`<script type="application/json" id="ai-provider-config">` schreibt. Dieselbe
+Kenntnis lag einmal an beiden Stellen — und die JS-Kopie hielt das
+API-Key-Feld bei Ollama noch lange verborgen, nachdem PHP es schon
+unterstützte.
+
+Die Definitionen werden bei **jedem** Aufruf neu gebaut. Sie statisch zu cachen
+würde die Menge einfrieren, die beim ersten Zugriff existierte — ein später in
+der Boot-Reihenfolge registrierter Provider wäre dann still verschwunden.
+
+Bleibt: ggf. `rex_api_ai_test` für den Verbindungstest anpassen.
 
 **Nicht „aufräumen":** `getProfileOptions()` verzweigt bewusst zwischen
 `max_output_tokens` (OpenAIs Responses-API) und `max_tokens` (alle anderen). Das
@@ -222,12 +274,20 @@ Reproduzierbarer Harness in `.claude/tests/`, DB-Zugang aus
 `data/core/config.yml` abgeleitet:
 
 ```bash
+php  .claude/tests/provider-registry-test.php      # Provider, Kataloge, Bridges (180)
+node .claude/tests/model-picker-test.mjs           # Modellauswahl im Formular (19)
 php  .claude/tests/oauth-storage-test.php          # OAuth-Speicherschicht
 bash .claude/tests/oauth-token-endpoint-test.sh    # Token-Endpunkt über curl
 bash .claude/tests/oauth-authorize-test.sh         # Login + Consent + Tausch
 php  .claude/tests/change-*-test.php               # Änderungswünsche
+php  .claude/tests/change-pages-test.php           # Backend-Seiten und Rechte
 bash .claude/tests/api-changes-test.sh             # REST-Routen über HTTP
 ```
+
+`model-picker-test.mjs` läuft mit blankem `node` gegen ein handgeschriebenes
+Minimal-DOM, ohne npm. Sein Provider-Payload ist absichtlich eine Fixture: das
+Verhalten der Auswahl darf nicht deshalb fehlschlagen, weil Symfony AI ein
+Modell ergänzt hat. Dass der echte Payload diese Form hat, prüft der PHP-Test.
 
 `bootstrap.php` erledigt drei Dinge, die ein naiver CLI-Bootstrap falsch macht:
 `packages.cache` löschen (sonst bleibt eine neu deklarierte Seite unsichtbar),

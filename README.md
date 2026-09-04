@@ -5,7 +5,7 @@ Die **KI Platform** ist das zentrale AddOn fuer die Integration von KI-Diensten 
 ## Features
 
 - Verwaltung mehrerer AI-Provider und API-Keys ueber Profile
-- Pro Profil ein Typ (Text/Code, Embeddings, Bildgenerierung, Bildverstaendnis) mit typspezifischen Einstellungen
+- Pro Profil ein Typ (Text/Code/Completion, Embeddings, Bildgenerierung, Bildverstaendnis) mit typspezifischen Einstellungen
 - Automatische Modell-Vorauswahl je nach Provider und Typ
 - API-Verbindungstest direkt im Backend
 - MCP-Server (Model Context Protocol) als HTTP-Endpoint auf `/mcp` mit OAuth-2.1-Discovery
@@ -13,19 +13,72 @@ Die **KI Platform** ist das zentrale AddOn fuer die Integration von KI-Diensten 
 - Scope-System mit Mapping `YCom-Gruppe → Scopes` ueber das Backend
 - Eingebautes `redaxo_status` MCP-Tool (Systeminfos der REDAXO-Instanz, public)
 - Änderungswuensche: Agenten und AddOns reichen Inhaltsaenderungen ein, ein Redakteur gibt sie frei — fuer Slices, Artikel, Kategorien, Metainfo, Medien und YForm-Datensaetze
-- Extension Points fuer andere AddOns (MCP-Tools, Agent-Tools, eigene Scopes, eigene Änderungstypen)
+- Extension Points fuer andere AddOns (MCP-Tools, Agent-Tools, eigene Scopes, eigene Änderungstypen, eigene LLM-Provider)
 - Basiert auf [Symfony AI](https://symfony.com/ai) (v0.6)
 
 ## Unterstuetzte Provider
 
 | Provider | Text | Embeddings | Bildgenerierung | Bildverstaendnis |
 |---|---|---|---|---|
-| **OpenAI** | `gpt-4o`, `gpt-4o-mini`, `o1`, `o3-mini` | `text-embedding-3-small`, `text-embedding-3-large`, `text-embedding-ada-002` | `dall-e-3`, `gpt-image-1` | `gpt-4o`, `gpt-4o-mini` |
+| **OpenAI** | `gpt-4o`, `gpt-4o-mini`, `gpt-5`, `o3`, `o3-mini` | `text-embedding-3-small`, `text-embedding-3-large`, `text-embedding-ada-002` | `dall-e-3`, `dall-e-2` | `gpt-4o`, `gpt-4o-mini`, `gpt-5` |
 | **Anthropic** | `claude-sonnet-4-20250514`, `claude-opus-4-20250514`, `claude-3-7-sonnet-latest` | - | - | `claude-sonnet-4-20250514`, `claude-opus-4-20250514` |
-| **Google** | `gemini-2.5-flash`, `gemini-2.5-pro` | `text-embedding-004` | `gemini-2.0-flash-exp` | `gemini-2.5-flash`, `gemini-2.5-pro` |
-| **Ollama** | `llama3.2`, `mistral`, `deepseek-r1` u.a. | `nomic-embed-text`, `mxbai-embed-large` | - | `llava`, `llama3.2-vision` |
+| **Google** | `gemini-2.5-flash`, `gemini-2.5-pro` | `gemini-embedding-001` | `gemini-2.5-flash-image`, `gemini-3-pro-image-preview` | `gemini-2.5-flash`, `gemini-2.5-pro` |
+| **Ollama** | `llama3.2`, `mistral`, `deepseek-r1` u.a. | `nomic-embed-text`, `bge-m3`, `all-minilm` | - | `llava`, `llama3.2-vision` -- nur ueber „eigener Modellname" (s.u.) |
+| **Mistral** | `mistral-medium-latest`, `mistral-large-latest`, `codestral-latest` | `mistral-embed` | - | `pixtral-large-latest`, `pixtral-12b-latest` |
+| **Cerebras** | `llama-3.3-70b`, `qwen-3-32b`, `gpt-oss-120b` | - | - | - |
+| **Scaleway** | `llama-3.3-70b-instruct`, `gemma-3-27b-it`, `deepseek-r1-distill-llama-70b` | `bge-multilingual-gemma2` | - | `pixtral-12b-2409` |
+| **OpenRouter** | ueber 300 Modelle vieler Anbieter, z.B. `openai/gpt-4o`, `anthropic/claude-sonnet-4.5` | z.B. `google/gemini-embedding-001` | z.B. `google/gemini-2.5-flash-image` | ueber 100 Modelle, z.B. `openai/gpt-4o` |
+| **Replicate** | nur Llama, z.B. `llama-3.3-70B-Instruct` | - | - | - |
+| **OpenAI-kompatibel** | beliebige Modellnamen des Servers | beliebige Modellnamen des Servers | - | beliebige Modellnamen des Servers |
 
 Bei Ollama ist nur die Basis-URL Pflicht (Standard: `http://localhost:11434`). Der API-Key ist dort optional: bleibt er leer, wird kein `Authorization`-Header gesendet -- gesetzt, geht er als Bearer-Token mit, wie es ein per Reverse Proxy abgesicherter Ollama-Server erwartet.
+
+Fuer **Bildverstaendnis** ist die Modellauswahl bei Ollama leer, und das ist kein Fehler: `llama3.2-vision` fehlt im Katalog von Symfony AI ganz, `llava` und `qwen2.5vl` stehen dort ohne die Faehigkeit `INPUT_IMAGE`. Der Weg dorthin ist der Eintrag „eigener Modellname" -- fuer `llava` und `qwen2.5vl` funktioniert er, `llama3.2-vision` weist Symfony AI dagegen mit `ModelNotFoundException` ab, bevor ein Request gebaut wird. Wer es braucht, ergaenzt den Provider per Extension Point mit einem eigenen Katalog.
+
+**Mistral, Cerebras und Scaleway** sind direkte Anbieter und brauchen nur einen API-Key. Mistral deckt Text, Bildverstaendnis (pixtral) und Embeddings ab, Scaleway dasselbe in kleinerem Umfang, Cerebras ausschliesslich Text -- der Anbieter hostet offene Modelle fuer schnelle Inferenz, keine multimodalen. Bildgenerierung gibt es bei keinem der drei.
+
+Zwei Anbieter pruefen ausserdem das Format des Schluessels, bevor ueberhaupt etwas gesendet wird: bei **OpenAI** muss er mit `sk-` beginnen, bei **Cerebras** mit `csk-`. Ein Schluessel vom falschen Anbieter scheitert deshalb nicht mit einem 401, sondern mit der Meldung "The API key must start with ...".
+
+**OpenRouter** bringt ueber 300 Modelle vieler Anbieter hinter einem einzigen Schluessel; die Symfony-AI-Bridge ist dafuer nur ein duenner Aufsatz auf dem generischen Chat-Completions-Client. Die Modellauswahl ist entsprechend lang und hat deshalb ein Suchfeld. Ein Eintrag darin faellt auf: `@preset` ist bei OpenRouter der Platzhalter fuer ein gespeichertes Preset (`@preset/name`) und kein aufrufbares Modell -- der Katalog von Symfony AI fuehrt ihn mit, das AddOn belaesst ihn dort und waehlt ihn nie von selbst aus.
+
+**Replicate** ist bei Symfony AI bewusst eng gefasst: die Bridge ist ein Llama-Client (`LlamaModelClient`, `LlamaResultConverter`) mit einem Katalog aus 15 `llama-*`-Modellen. **Text also ja, Bildgenerierung nein** -- die Modelle, fuer die Replicate ansonsten bekannt ist (SDXL, Flux), sind darueber nicht erreichbar. Das steht so im Label, damit die leere Modellauswahl bei den anderen Typen nicht wie ein Fehler aussieht.
+
+**OpenAI-kompatibel** spricht das klassische Chat-Completions-Protokoll gegen eine frei eingetragene Basis-URL und deckt damit selbstgehostete und fremde Endpunkte ab: Open WebUI, LiteLLM, vLLM, LM Studio, OpenRouter, Groq, DeepSeek und alles andere, was diese API anbietet. Die Basis-URL darf mit oder ohne `/v1` eingetragen werden. Einen gepflegten Modellkatalog gibt es dort naturgemaess nicht -- statt einer Auswahl erscheint das Textfeld, das jeden Namen annimmt, den der Server kennt.
+
+### Eigene Provider ergaenzen
+
+Die Provider stehen in `FriendsOfRedaxo\AiPlatform\ProviderRegistry` -- ein Eintrag pro Provider, und alles zu einem Provider in genau diesem Eintrag: Label fuer die Auswahl, benoetigte Felder, Modellkatalog und die Closure, die die Symfony-AI-Platform baut. Symfony AI liefert dafuer knapp 40 Bridge-Pakete (`symfony/ai-mistral-platform`, `symfony/ai-open-router-platform`, `symfony/ai-bedrock-platform`, `symfony/ai-vertex-ai-platform` und weitere).
+
+Ein anderes AddOn haengt seinen Provider ueber den Extension Point `AI_PLATFORM_PROVIDERS` an -- ohne Fork und ohne Release dieses AddOns:
+
+```php
+use FriendsOfRedaxo\AiPlatform\ProviderRegistry;
+use Symfony\AI\Platform\Bridge\Perplexity\ModelCatalog as PerplexityCatalog;
+use Symfony\AI\Platform\Bridge\Perplexity\PlatformFactory as PerplexityFactory;
+
+rex_extension::register(ProviderRegistry::EXTENSION_POINT, function (rex_extension_point $ep) {
+    $providers = $ep->getSubject();
+
+    $providers['perplexity'] = [
+        'label' => 'Perplexity',
+        // Felder, die das Profilformular fuer diesen Provider zeigt:
+        // 'api_key', 'base_url', 'image_quality', 'image_style'
+        'fields' => ['api_key'],
+        // Vorbelegung des Modellfelds je Profiltyp
+        'defaults' => ['text' => 'sonar-pro'],
+        'catalog' => static fn () => new PerplexityCatalog(),
+        'factory' => static fn (array $profile, $httpClient) => PerplexityFactory::create($profile['api_key'], $httpClient),
+    ];
+
+    return $providers;
+});
+```
+
+Ein Schluessel, der schon vergeben ist, **ersetzt** den eingebauten Provider -- das ist der Weg, einem der mitgelieferten einen anderen Katalog oder eine andere Factory zu geben, und der Grund, einen neuen Provider nicht versehentlich `mistral` zu nennen.
+
+Die Modellauswahl im Profilformular kommt aus `catalog` -- gefiltert nach den Faehigkeiten, die der gewaehlte Typ braucht. Kennt ein Provider fuer den Typ keine Modelle, entfaellt die Auswahl und es bleibt ein Textfeld; ausserdem hat die Auswahl immer den Eintrag "eigener Modellname", der dieses Textfeld freischaltet.
+
+Ob ein selbst eingetragener Name funktioniert, entscheidet der Katalog des Providers: `FallbackModelCatalog` (OpenAI-kompatibel, und was ein Fremd-AddOn mitbringt) akzeptiert jeden Namen, alle anderen -- OpenAI, Anthropic, Google, Ollama, Mistral, Cerebras, Scaleway, OpenRouter und Replicate -- weisen einen unbekannten Namen mit `ModelNotFoundException` ab, noch bevor ein Request gebaut wird; bei Ollama betrifft das etwa `llama3.2-vision`, das im Katalog fehlt. Wer dort ein Modell braucht, das Symfony AI noch nicht kennt, ergaenzt den Provider per Extension Point mit einem eigenen Katalog.
 
 ## Installation
 
@@ -45,11 +98,11 @@ Unter **KI Platform > Profile** werden Profile fuer jeden Anwendungsfall separat
 | Feld | Beschreibung |
 |---|---|
 | **Profilname** | Eindeutiger Name, z.B. "Claude Text" oder "DALL-E Bilder" |
-| **Typ** | Text/Code, Embeddings, Bildgenerierung oder Bildverstaendnis |
-| **Provider** | OpenAI, Anthropic, Google, Ollama oder Replicate |
-| **API-Key** | API-Schluessel; bei Ollama optional (Bearer-Token fuer abgesicherte Server) |
-| **Basis-URL** | Nur bei Ollama sichtbar (Standard: `http://localhost:11434`) |
-| **Modell** | Wird automatisch passend zum Provider und Typ vorausgefuellt |
+| **Typ** | Text/Code/Completion, Embeddings, Bildgenerierung oder Bildverstaendnis |
+| **Provider** | OpenAI, Anthropic, Google, Ollama, Mistral, Cerebras, Scaleway, OpenRouter, Replicate oder OpenAI-kompatibel -- weitere lassen sich per Extension Point ergaenzen |
+| **API-Key** | API-Schluessel; bei Ollama und OpenAI-kompatibel optional (Bearer-Token fuer abgesicherte Server) |
+| **Basis-URL** | Bei Ollama und OpenAI-kompatibel sichtbar (Ollama-Standard: `http://localhost:11434`) |
+| **Modell** | Auswahl der Modelle, die der Provider fuer diesen Typ kennt, passend vorausgewaehlt; "eigener Modellname" schaltet ein Textfeld fuer jeden anderen Namen frei |
 
 #### Typ: Text/Code
 
@@ -65,7 +118,7 @@ Der System-Prompt wird automatisch bei jedem Aufruf verwendet, kann aber per API
 
 Embeddings erzeugen numerische Vektoren fuer semantische Suche, Aehnlichkeitsvergleiche und RAG-Workflows.
 
-Typische Modelle sind z.B. `text-embedding-3-small` (OpenAI), `text-embedding-004` (Google) oder `nomic-embed-text` (Ollama).
+Typische Modelle sind z.B. `text-embedding-3-small` (OpenAI), `gemini-embedding-001` (Google) oder `nomic-embed-text` (Ollama).
 
 #### Typ: Bildgenerierung
 
@@ -168,7 +221,7 @@ $service = FriendsOfRedaxo\AiPlatform\Service::getInstance();
 // Alle Einstellungen eines Profils als Options-Array
 $options = $service->getProfileOptions($profileId);
 // Liefert z.B.: ['temperature' => 0.7, 'max_output_tokens' => 8192] (OpenAI)
-// Oder:         ['temperature' => 0.7, 'max_tokens' => 8192] (Anthropic, Google, Ollama)
+// Oder:         ['temperature' => 0.7, 'max_tokens' => 8192] (alle anderen Provider)
 
 // Profil-Daten lesen
 $profile = $service->getDefaultProfile('text');
@@ -811,6 +864,7 @@ rex_extension::register('AI_PLATFORM_CHANGE_HANDLERS', function (rex_extension_p
 
 | Extension Point | Beschreibung | Subject |
 |---|---|---|
+| `AI_PLATFORM_PROVIDERS` | Eigene LLM-Provider ergaenzen, ersetzen oder entfernen | `array<string, array{label, fields, defaults, catalog, factory}>` |
 | `AI_PLATFORM_MCP_TOOLS` | Tools fuer den MCP-Server registrieren | `array<string, FriendsOfRedaxo\AiPlatform\Mcp\Tool>` |
 | `AI_PLATFORM_AGENT_TOOLS` | Tools fuer den Agent registrieren | `array<object>` (Symfony AI Tool-Objekte) |
 | `AI_PLATFORM_OAUTH_SCOPES` | Eigene Scopes fuer das Scope-Mapping ankuendigen | `array<string, string>` (scope → description) |
@@ -819,6 +873,7 @@ rex_extension::register('AI_PLATFORM_CHANGE_HANDLERS', function (rex_extension_p
 | `AI_PLATFORM_CHANGE_PROPOSED` | Nach dem Einreichen eines Änderungswunsches | `null`, Params: `request_id`, `type`, `operation`, `source_key` |
 | `AI_PLATFORM_CHANGE_BEFORE_APPLY` | Vor dem Anwenden; ein zurueckgegebener String verhindert die Freigabe | `null`, Params: `request`, `user` |
 | `AI_PLATFORM_CHANGE_APPLIED` | Nach erfolgreichem Anwenden | `null`, Params: `request_id`, `type`, `result`, `user` |
+| `AI_PLATFORM_CHANGE_WITHDRAWN` | Nach dem Zurueckziehen eines Wunsches durch den Einreicher | `null`, Params: `request_id`, `type`, `source_key`, `reason` |
 
 ### Beispiel: Eigene Scopes registrieren
 

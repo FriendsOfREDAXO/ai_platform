@@ -7,7 +7,7 @@ ai_platform_docs = Documentation
 
 # Types
 ai_platform_type = Type
-ai_platform_type_text = Text / Code
+ai_platform_type_text = Text / Code / Completion
 ai_platform_type_image_generation = Image Generation
 ai_platform_type_image_understanding = Image Understanding
 ai_platform_type_embedding = Embeddings (Vector Arrays)
@@ -23,9 +23,14 @@ ai_platform_default = Default
 ai_platform_api_key = API Key
 ai_platform_api_key_notice = The provider's API key. Optional for Ollama: leave empty for an unsecured local instance, or use it as a bearer token for a secured Ollama server.
 ai_platform_base_url = Base URL
-ai_platform_base_url_notice = Only required for Ollama (default: http://localhost:11434)
+ai_platform_base_url_notice = Required for Ollama (default: http://localhost:11434) and for OpenAI-compatible endpoints. Enter the server's base URL there, e.g. https://my-server.example/v1 -- with or without /v1, the path to the chat completions API is appended.
+ai_platform_provider_openrouter = OpenRouter (many providers, one key)
+ai_platform_provider_replicate = Replicate (Llama models only, text only)
+ai_platform_provider_generic = OpenAI-compatible (custom endpoint)
 ai_platform_model = Model
-ai_platform_model_notice = Provider model name, e.g. gpt-4o, claude-sonnet-4-20250514, gemini-2.5-flash, dall-e-3, text-embedding-3-small, nomic-embed-text
+ai_platform_model_notice = The models the provider is known to offer for this type according to Symfony AI. For a model the list does not contain, choose "custom model name" and type it in.
+ai_platform_model_custom_option = --- custom model name ---
+ai_platform_model_placeholder = Model name at the provider, e.g. llama3.2-vision
 
 # Type-specific settings
 ai_platform_temperature = Temperature
