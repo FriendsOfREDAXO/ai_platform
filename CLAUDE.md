@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-`ai_platform` is a REDAXO 5.18+ addon that gives the CMS a unified LLM layer. It wraps **Symfony AI 0.6** (`symfony/ai-platform`, `symfony/ai-agent`, plus the OpenAI / Anthropic / Gemini / Ollama bridges) and exposes:
+`ai_platform` is a REDAXO 5.18+ addon that gives the CMS a unified LLM layer. It wraps **Symfony AI 0.6** (`symfony/ai-platform`, `symfony/ai-agent`, plus ten provider bridges: OpenAI, Anthropic, Gemini, Ollama, Mistral, Cerebras, Scaleway, OpenRouter, Replicate and the generic OpenAI-compatible one) and exposes:
 
 1. A backend UI for managing **profiles** (one profile = one use case = one type + provider + model + per-type options).
 2. A PHP service API (`FriendsOfRedaxo\AiPlatform\Service`) for text generation, image generation, image understanding, and tool-using agents.
@@ -134,8 +134,10 @@ support question arrives, and pinned by two assertions in the test.
 **`openrouter` and `replicate` are worth a word each**, because their bridges are not
 equivalent in reach. OpenRouter's `PlatformFactory` is a thin wrapper around the generic
 one with `baseUrl: 'https://openrouter.ai/api'`, so it is the same protocol and simply
-works; its catalog carries ~360 models, which is why the model select gets
-`data-live-search="true"` and why the form payload grew from 3 KB to about 17 KB. Its
+works; its catalog carries ~360 models, which is why the model select carries
+`data-live-search="true"` at all — unconditionally, in `pages/profiles.php`, since a
+search box costs nothing on a short list — and why the form payload grew from 3 KB to
+about 17 KB. Its
 `@preset` entry is OpenRouter's placeholder for a saved preset, not a callable model — it
 is left in the list (filtering it would be provider-specific logic in the registry, which
 is what this refactoring removed) and the defaults make sure a new profile never lands on
@@ -446,7 +448,7 @@ that — so what is genuinely needed is stated in the description text instead.
 | POST | `/approvals` | `approve` — approve own requests unattended |
 | POST | `/withdrawals` | `withdraw` — take back own pending requests |
 
-#### Why the count is what it is — and why it went from eight to six
+#### Why the count is what it is — and why it went from eight to six, then seven
 
 `BearerAuth::isAuthorized()` checks `in_array($parameters['_route'],
 $token->getScopes())`. **One route is one scope**, the finest granularity
@@ -463,11 +465,13 @@ Two pairs were one permission each and were merged:
 | `/types` + `/current` | `/describe` | Both answer "what is there" — one in general, one for a target. Both read-only, neither changes anything. |
 | `/` (list) + `/{id}` | `/` with optional `{id}` | Both read-only and both filter hard on the calling token's `source_key`, so there is no situation in which you grant one and refuse the other. The `null` default on `id` is what makes the segment optional. |
 
-That leaves **four privilege levels** — look, propose, offer bytes, decide. **No aliases were
-kept for the old paths**; `api-changes-test.sh` asserts `/types` and `/current`
+That left **four privilege levels** — look, propose, offer bytes, decide — and
+`/withdrawals` later added a fifth, take back, for the case an agent notices its own
+misfire. Seven routes, seven scopes. **No aliases were kept for the old paths**;
+`api-changes-test.sh` asserts `/types` and `/current`
 answer 404. A route that still answers is a route somebody keeps using.
 
-An agent rarely needs all six. `propose` alone works: `ChangeService::propose()`
+An agent rarely needs all seven. `propose` alone works: `ChangeService::propose()`
 reads the target's current state itself and derives `base_hash` from it, so
 nothing has to be fetched first. `read` + `propose` is the practical minimum;
 `requests` matters once an agent should follow up on a rejection, `approve` only
@@ -1019,6 +1023,8 @@ das liest, sucht am falschen Ende.
 - The OAuth tables (`rex_ai_oauth_*`, `rex_ai_scope_mapping`) are created in `install.php` via `rex_sql_table::ensure*`. Adding a column → add an `ensureColumn()` line and reinstall the addon (`bin/console package:install ai_platform`, choose reinstall).
 - `FriendsOfRedaxo\AiPlatform\OAuth\TokenStore` rotates refresh tokens with joint revocation: when `rotateRefreshToken()` succeeds, **both** the old refresh and its parent access token are revoked. Don't change that — it's the replay protection.
 - Reproducible test harness in `.claude/tests/` (committed; DB creds derived from `data/core/config.yml`, `BASE` overridable via env):
+  - `provider-registry-test.php` — 180 asserts: every provider in `ProviderRegistry` against the real REDAXO boot (so a label coming out as `[translate:…]` fails) and through a `MockHttpClient` (base-URL normalisation, bearer header, Ollama's native `/api/chat`, the two key-prefix validators), plus the assertion that every default model is offered by its catalog
+  - `model-picker-test.mjs` — 19 asserts, plain `node` against a hand-rolled minimal DOM: the custom entry, credential-field visibility, the `selectpicker('refresh')` calls, the wrapper-not-select toggle, and a stored model name surviving being opened. Its provider payload is a fixture on purpose — the picker must not start failing because Symfony AI added a model
   - `oauth-storage-test.php` — 44 storage asserts, runs via REDAXO bootstrap + addon init
   - `oauth-token-endpoint-test.sh` — 20 token-endpoint asserts, seeds via mysql client, drives via curl
   - `oauth-authorize-test.sh` — 29 end-to-end asserts incl. browser-style login + consent + token exchange, uses `oauth-authorize-test-seed.php` for YCom user/group setup
@@ -1036,6 +1042,7 @@ das liest, sucht am falschen Ende.
     nothing was applied without a recorded decision.
     Seeds and removes its own api token.
   - `change-pages-test.php` — 104 asserts: page tree, the two permissions and every combination of them, the absence of the removed entry form and of the removed settings split, the master switch removing the menu entry, the conditional detail settings from both sides (present-but-hidden while off, and a save in that state leaving the stored values alone), the staged-file preview going through the permission-checked endpoint, every remaining backend page rendered (including an XSS fixture, since payloads come from an LLM and are shown to a full-rights user), the double-escaping regression, and a sweep resolving every `page=` link on every rendered page against the real page tree
+  - `backend-page-tree-check.php` — not a test: prints the addon's page tree as REDAXO resolves it, for eyeballing `package.yml` changes
   - `bootstrap.php` — shared CLI bootstrap. Three things a naive bootstrap gets wrong and this one handles: it deletes `packages.cache` (or a newly declared page stays invisible), calls `enlist()` per package (or `rex_i18n::msg()` returns `[translate:key]` for every addon string), and forces `rex_autoload::reload()` (or classes added since the last cache write are unloadable). It also injects a synthetic `Request`, because backend pages call `rex::getRequest()`, which throws in CLI.
   - Run all of them before touching anything in `lib/Mcp/`, `lib/OAuth/` or `lib/Change/` to lock down baseline.
 - Profile IDs are referenced by the three `default_*_profile` config keys, but **there is no FK or cleanup** when a profile is deleted. After delete, the config still points at the gone id and the next API call throws `rex_exception('No default AI profile configured for: …')`. If you touch the delete handler in `pages/profiles.php`, consider clearing matching config keys.

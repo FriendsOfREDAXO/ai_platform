@@ -5,7 +5,7 @@ Die **KI Platform** ist das zentrale AddOn fuer die Integration von KI-Diensten 
 ## Features
 
 - Verwaltung mehrerer AI-Provider und API-Keys ueber Profile
-- Pro Profil ein Typ (Text/Code, Embeddings, Bildgenerierung, Bildverstaendnis) mit typspezifischen Einstellungen
+- Pro Profil ein Typ (Text/Code/Completion, Embeddings, Bildgenerierung, Bildverstaendnis) mit typspezifischen Einstellungen
 - Automatische Modell-Vorauswahl je nach Provider und Typ
 - API-Verbindungstest direkt im Backend
 - MCP-Server (Model Context Protocol) als HTTP-Endpoint auf `/mcp` mit OAuth-2.1-Discovery
@@ -20,10 +20,10 @@ Die **KI Platform** ist das zentrale AddOn fuer die Integration von KI-Diensten 
 
 | Provider | Text | Embeddings | Bildgenerierung | Bildverstaendnis |
 |---|---|---|---|---|
-| **OpenAI** | `gpt-4o`, `gpt-4o-mini`, `o1`, `o3-mini` | `text-embedding-3-small`, `text-embedding-3-large`, `text-embedding-ada-002` | `dall-e-3`, `gpt-image-1` | `gpt-4o`, `gpt-4o-mini` |
+| **OpenAI** | `gpt-4o`, `gpt-4o-mini`, `gpt-5`, `o3`, `o3-mini` | `text-embedding-3-small`, `text-embedding-3-large`, `text-embedding-ada-002` | `dall-e-3`, `dall-e-2` | `gpt-4o`, `gpt-4o-mini`, `gpt-5` |
 | **Anthropic** | `claude-sonnet-4-20250514`, `claude-opus-4-20250514`, `claude-3-7-sonnet-latest` | - | - | `claude-sonnet-4-20250514`, `claude-opus-4-20250514` |
 | **Google** | `gemini-2.5-flash`, `gemini-2.5-pro` | `gemini-embedding-001` | `gemini-2.5-flash-image`, `gemini-3-pro-image-preview` | `gemini-2.5-flash`, `gemini-2.5-pro` |
-| **Ollama** | `llama3.2`, `mistral`, `deepseek-r1` u.a. | `nomic-embed-text`, `mxbai-embed-large` | - | `llava`, `llama3.2-vision` |
+| **Ollama** | `llama3.2`, `mistral`, `deepseek-r1` u.a. | `nomic-embed-text`, `bge-m3`, `all-minilm` | - | `llava`, `llama3.2-vision` -- nur ueber „eigener Modellname" (s.u.) |
 | **Mistral** | `mistral-medium-latest`, `mistral-large-latest`, `codestral-latest` | `mistral-embed` | - | `pixtral-large-latest`, `pixtral-12b-latest` |
 | **Cerebras** | `llama-3.3-70b`, `qwen-3-32b`, `gpt-oss-120b` | - | - | - |
 | **Scaleway** | `llama-3.3-70b-instruct`, `gemma-3-27b-it`, `deepseek-r1-distill-llama-70b` | `bge-multilingual-gemma2` | - | `pixtral-12b-2409` |
@@ -32,6 +32,8 @@ Die **KI Platform** ist das zentrale AddOn fuer die Integration von KI-Diensten 
 | **OpenAI-kompatibel** | beliebige Modellnamen des Servers | beliebige Modellnamen des Servers | - | beliebige Modellnamen des Servers |
 
 Bei Ollama ist nur die Basis-URL Pflicht (Standard: `http://localhost:11434`). Der API-Key ist dort optional: bleibt er leer, wird kein `Authorization`-Header gesendet -- gesetzt, geht er als Bearer-Token mit, wie es ein per Reverse Proxy abgesicherter Ollama-Server erwartet.
+
+Fuer **Bildverstaendnis** ist die Modellauswahl bei Ollama leer, und das ist kein Fehler: `llama3.2-vision` fehlt im Katalog von Symfony AI ganz, `llava` und `qwen2.5vl` stehen dort ohne die Faehigkeit `INPUT_IMAGE`. Der Weg dorthin ist der Eintrag „eigener Modellname" -- fuer `llava` und `qwen2.5vl` funktioniert er, `llama3.2-vision` weist Symfony AI dagegen mit `ModelNotFoundException` ab, bevor ein Request gebaut wird. Wer es braucht, ergaenzt den Provider per Extension Point mit einem eigenen Katalog.
 
 **Mistral, Cerebras und Scaleway** sind direkte Anbieter und brauchen nur einen API-Key. Mistral deckt Text, Bildverstaendnis (pixtral) und Embeddings ab, Scaleway dasselbe in kleinerem Umfang, Cerebras ausschliesslich Text -- der Anbieter hostet offene Modelle fuer schnelle Inferenz, keine multimodalen. Bildgenerierung gibt es bei keinem der drei.
 
@@ -51,30 +53,32 @@ Ein anderes AddOn haengt seinen Provider ueber den Extension Point `AI_PLATFORM_
 
 ```php
 use FriendsOfRedaxo\AiPlatform\ProviderRegistry;
-use Symfony\AI\Platform\Bridge\Mistral\ModelCatalog as MistralCatalog;
-use Symfony\AI\Platform\Bridge\Mistral\PlatformFactory as MistralFactory;
+use Symfony\AI\Platform\Bridge\Perplexity\ModelCatalog as PerplexityCatalog;
+use Symfony\AI\Platform\Bridge\Perplexity\PlatformFactory as PerplexityFactory;
 
 rex_extension::register(ProviderRegistry::EXTENSION_POINT, function (rex_extension_point $ep) {
     $providers = $ep->getSubject();
 
-    $providers['mistral'] = [
-        'label' => 'Mistral',
+    $providers['perplexity'] = [
+        'label' => 'Perplexity',
         // Felder, die das Profilformular fuer diesen Provider zeigt:
         // 'api_key', 'base_url', 'image_quality', 'image_style'
         'fields' => ['api_key'],
         // Vorbelegung des Modellfelds je Profiltyp
-        'defaults' => ['text' => 'mistral-large-latest'],
-        'catalog' => static fn () => new MistralCatalog(),
-        'factory' => static fn (array $profile) => MistralFactory::create($profile['api_key']),
+        'defaults' => ['text' => 'sonar-pro'],
+        'catalog' => static fn () => new PerplexityCatalog(),
+        'factory' => static fn (array $profile, $httpClient) => PerplexityFactory::create($profile['api_key'], $httpClient),
     ];
 
     return $providers;
 });
 ```
 
+Ein Schluessel, der schon vergeben ist, **ersetzt** den eingebauten Provider -- das ist der Weg, einem der mitgelieferten einen anderen Katalog oder eine andere Factory zu geben, und der Grund, einen neuen Provider nicht versehentlich `mistral` zu nennen.
+
 Die Modellauswahl im Profilformular kommt aus `catalog` -- gefiltert nach den Faehigkeiten, die der gewaehlte Typ braucht. Kennt ein Provider fuer den Typ keine Modelle, entfaellt die Auswahl und es bleibt ein Textfeld; ausserdem hat die Auswahl immer den Eintrag "eigener Modellname", der dieses Textfeld freischaltet.
 
-Ob ein selbst eingetragener Name funktioniert, entscheidet der Katalog des Providers: `FallbackModelCatalog` (OpenAI-kompatibel, und was ein Fremd-AddOn mitbringt) akzeptiert jeden Namen, die gepflegten Kataloge von OpenAI, Anthropic, Google und Ollama weisen einen unbekannten Namen mit `ModelNotFoundException` ab -- bei Ollama betrifft das etwa `llama3.2-vision`, das im Katalog fehlt. Wer dort ein Modell braucht, das Symfony AI noch nicht kennt, ergaenzt den Provider per Extension Point mit einem eigenen Katalog.
+Ob ein selbst eingetragener Name funktioniert, entscheidet der Katalog des Providers: `FallbackModelCatalog` (OpenAI-kompatibel, und was ein Fremd-AddOn mitbringt) akzeptiert jeden Namen, alle anderen -- OpenAI, Anthropic, Google, Ollama, Mistral, Cerebras, Scaleway, OpenRouter und Replicate -- weisen einen unbekannten Namen mit `ModelNotFoundException` ab, noch bevor ein Request gebaut wird; bei Ollama betrifft das etwa `llama3.2-vision`, das im Katalog fehlt. Wer dort ein Modell braucht, das Symfony AI noch nicht kennt, ergaenzt den Provider per Extension Point mit einem eigenen Katalog.
 
 ## Installation
 
@@ -94,8 +98,8 @@ Unter **KI Platform > Profile** werden Profile fuer jeden Anwendungsfall separat
 | Feld | Beschreibung |
 |---|---|
 | **Profilname** | Eindeutiger Name, z.B. "Claude Text" oder "DALL-E Bilder" |
-| **Typ** | Text/Code, Embeddings, Bildgenerierung oder Bildverstaendnis |
-| **Provider** | OpenAI, Anthropic, Google, Ollama oder OpenAI-kompatibel -- weitere lassen sich per Extension Point ergaenzen |
+| **Typ** | Text/Code/Completion, Embeddings, Bildgenerierung oder Bildverstaendnis |
+| **Provider** | OpenAI, Anthropic, Google, Ollama, Mistral, Cerebras, Scaleway, OpenRouter, Replicate oder OpenAI-kompatibel -- weitere lassen sich per Extension Point ergaenzen |
 | **API-Key** | API-Schluessel; bei Ollama und OpenAI-kompatibel optional (Bearer-Token fuer abgesicherte Server) |
 | **Basis-URL** | Bei Ollama und OpenAI-kompatibel sichtbar (Ollama-Standard: `http://localhost:11434`) |
 | **Modell** | Auswahl der Modelle, die der Provider fuer diesen Typ kennt, passend vorausgewaehlt; "eigener Modellname" schaltet ein Textfeld fuer jeden anderen Namen frei |
@@ -217,7 +221,7 @@ $service = FriendsOfRedaxo\AiPlatform\Service::getInstance();
 // Alle Einstellungen eines Profils als Options-Array
 $options = $service->getProfileOptions($profileId);
 // Liefert z.B.: ['temperature' => 0.7, 'max_output_tokens' => 8192] (OpenAI)
-// Oder:         ['temperature' => 0.7, 'max_tokens' => 8192] (Anthropic, Google, Ollama)
+// Oder:         ['temperature' => 0.7, 'max_tokens' => 8192] (alle anderen Provider)
 
 // Profil-Daten lesen
 $profile = $service->getDefaultProfile('text');
@@ -860,6 +864,7 @@ rex_extension::register('AI_PLATFORM_CHANGE_HANDLERS', function (rex_extension_p
 
 | Extension Point | Beschreibung | Subject |
 |---|---|---|
+| `AI_PLATFORM_PROVIDERS` | Eigene LLM-Provider ergaenzen, ersetzen oder entfernen | `array<string, array{label, fields, defaults, catalog, factory}>` |
 | `AI_PLATFORM_MCP_TOOLS` | Tools fuer den MCP-Server registrieren | `array<string, FriendsOfRedaxo\AiPlatform\Mcp\Tool>` |
 | `AI_PLATFORM_AGENT_TOOLS` | Tools fuer den Agent registrieren | `array<object>` (Symfony AI Tool-Objekte) |
 | `AI_PLATFORM_OAUTH_SCOPES` | Eigene Scopes fuer das Scope-Mapping ankuendigen | `array<string, string>` (scope → description) |
@@ -868,6 +873,7 @@ rex_extension::register('AI_PLATFORM_CHANGE_HANDLERS', function (rex_extension_p
 | `AI_PLATFORM_CHANGE_PROPOSED` | Nach dem Einreichen eines Änderungswunsches | `null`, Params: `request_id`, `type`, `operation`, `source_key` |
 | `AI_PLATFORM_CHANGE_BEFORE_APPLY` | Vor dem Anwenden; ein zurueckgegebener String verhindert die Freigabe | `null`, Params: `request`, `user` |
 | `AI_PLATFORM_CHANGE_APPLIED` | Nach erfolgreichem Anwenden | `null`, Params: `request_id`, `type`, `result`, `user` |
+| `AI_PLATFORM_CHANGE_WITHDRAWN` | Nach dem Zurueckziehen eines Wunsches durch den Einreicher | `null`, Params: `request_id`, `type`, `source_key`, `reason` |
 
 ### Beispiel: Eigene Scopes registrieren
 

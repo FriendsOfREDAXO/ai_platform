@@ -11,7 +11,7 @@ laufen), **`ai-platform-release`** für den Veröffentlichungsweg.
 
 Lokaler Spickzettel zum MCP-Stack dieses Addons. Quelle der Wahrheit bleibt der Code unter `lib/Mcp/` und `lib/OAuth/` (PSR-4, Namespace `FriendsOfRedaxo\AiPlatform\…`).
 
-> **Hinweis:** Die „Phase 1/Phase 2"-Abschnitte weiter unten sind ein historisches Bau-Log. Aktueller, verbindlicher Stand steht hier oben. OAuth ist vollständig live, der Legacy-Endpoint `?rex-api-call=ai_mcp` ist entfernt.
+> **Hinweis:** OAuth ist vollständig live — Authorization Code + PKCE, Refresh mit Rotation, DCR. Der Legacy-Endpoint `?rex-api-call=ai_mcp` ist entfernt, `/mcp` ist der einzige MCP-Einstieg. Das frühere „Phase 1/Phase 2"-Bau-Log steht nicht mehr in diesem Skill; wer es braucht, findet es in der Git-Historie.
 
 ## Aktueller Stand
 
@@ -110,7 +110,7 @@ $tools['my_tool'] = new FriendsOfRedaxo\AiPlatform\Mcp\Tool(
     inputSchema: [...],
     handler: fn (array $args, FriendsOfRedaxo\AiPlatform\Mcp\Context $ctx): string => '...',
     public: false,                         // default false
-    requiredScopes: ['mcp:tools:call'],    // greift erst mit Phase 2
+    requiredScopes: ['produkte/lesen'],    // eigener Scope des AddOns, via AI_PLATFORM_OAUTH_SCOPES
 );
 ```
 

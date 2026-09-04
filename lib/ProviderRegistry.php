@@ -45,15 +45,19 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
  *
  *     rex_extension::register(ProviderRegistry::EXTENSION_POINT, function ($ep) {
  *         $providers = $ep->getSubject();
- *         $providers['mistral'] = [
- *             'label'    => 'Mistral',
+ *         $providers['perplexity'] = [
+ *             'label'    => 'Perplexity',
  *             'fields'   => ['api_key'],
- *             'defaults' => ['text' => 'mistral-large-latest'],
- *             'catalog'  => static fn () => new MistralCatalog(),
- *             'factory'  => static fn (array $p) => MistralFactory::create($p['api_key']),
+ *             'defaults' => ['text' => 'sonar-pro'],
+ *             'catalog'  => static fn () => new PerplexityCatalog(),
+ *             'factory'  => static fn (array $p, $client) => PerplexityFactory::create($p['api_key'], $client),
  *         ];
  *         return $providers;
  *     });
+ *
+ * A key that is already taken *replaces* the built-in provider — that is how one of
+ * the shipped providers is given a different catalog or factory, and the reason not
+ * to name a new provider after one of them by accident.
  *
  * The definitions are rebuilt on every call on purpose: caching them statically
  * would freeze whichever set existed at the first access, and a provider
