@@ -13,6 +13,7 @@ namespace Symfony\AI\Platform\Bridge\Scaleway\Llm;
 
 use Symfony\AI\Platform\Bridge\Scaleway\Scaleway;
 use Symfony\AI\Platform\Exception\InvalidArgumentException;
+use Symfony\AI\Platform\JsonBodyEncodingTrait;
 use Symfony\AI\Platform\Model;
 use Symfony\AI\Platform\ModelClientInterface;
 use Symfony\AI\Platform\Result\RawHttpResult;
@@ -24,13 +25,21 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
  */
 final class ModelClient implements ModelClientInterface
 {
-    private readonly EventSourceHttpClient $httpClient;
+    use JsonBodyEncodingTrait;
 
+    private readonly EventSourceHttpClient $httpClient;
+    private readonly string $baseUrl;
+
+    /**
+     * @param string $baseUrl Base URL of a Scaleway-compatible endpoint, with or without a trailing slash
+     */
     public function __construct(
         HttpClientInterface $httpClient,
         #[\SensitiveParameter] private readonly string $apiKey,
+        string $baseUrl = 'https://api.scaleway.ai',
     ) {
         $this->httpClient = $httpClient instanceof EventSourceHttpClient ? $httpClient : new EventSourceHttpClient($httpClient);
+        $this->baseUrl = rtrim($baseUrl, '/');
     }
 
     public function supports(Model $model): bool
@@ -44,9 +53,10 @@ final class ModelClient implements ModelClientInterface
             throw new InvalidArgumentException(\sprintf('Payload must be an array, but a string was given to "%s".', self::class));
         }
 
-        return new RawHttpResult($this->httpClient->request('POST', 'https://api.scaleway.ai/v1/chat/completions', [
+        return new RawHttpResult($this->httpClient->request('POST', $this->baseUrl.'/v1/chat/completions', [
             'auth_bearer' => $this->apiKey,
-            'json' => array_merge($options, $payload),
+            'headers' => ['Content-Type' => 'application/json'],
+            'body' => $this->encodeJsonBody(array_merge($options, $payload)),
         ]));
     }
 }

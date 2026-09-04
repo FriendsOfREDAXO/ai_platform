@@ -12,25 +12,55 @@
 namespace Symfony\AI\Platform\Bridge\Gemini\Gemini;
 
 use Symfony\AI\Platform\Bridge\Gemini\Gemini;
-use Symfony\AI\Platform\Exception\RateLimitExceededException;
+use Symfony\AI\Platform\Exception\ExceedContextSizeException;
 use Symfony\AI\Platform\Exception\RuntimeException;
+use Symfony\AI\Platform\FinishReason\FinishReasonAwareTrait;
 use Symfony\AI\Platform\Model;
 use Symfony\AI\Platform\Result\BinaryResult;
 use Symfony\AI\Platform\Result\ChoiceResult;
+use Symfony\AI\Platform\Result\CodeExecutionResult;
+use Symfony\AI\Platform\Result\ExecutableCodeResult;
+use Symfony\AI\Platform\Result\HttpStatusErrorHandlingTrait;
+use Symfony\AI\Platform\Result\MultiPartResult;
 use Symfony\AI\Platform\Result\RawHttpResult;
 use Symfony\AI\Platform\Result\RawResultInterface;
 use Symfony\AI\Platform\Result\ResultInterface;
+use Symfony\AI\Platform\Result\Stream\Delta\BinaryDelta;
+use Symfony\AI\Platform\Result\Stream\Delta\ChoiceDelta;
+use Symfony\AI\Platform\Result\Stream\Delta\DeltaInterface;
+use Symfony\AI\Platform\Result\Stream\Delta\MetadataDelta;
+use Symfony\AI\Platform\Result\Stream\Delta\TextDelta;
+use Symfony\AI\Platform\Result\Stream\Delta\ThinkingComplete;
+use Symfony\AI\Platform\Result\Stream\Delta\ThinkingDelta;
+use Symfony\AI\Platform\Result\Stream\Delta\ThinkingStart;
+use Symfony\AI\Platform\Result\Stream\Delta\ToolCallComplete;
+use Symfony\AI\Platform\Result\Stream\Delta\ToolCallStart;
 use Symfony\AI\Platform\Result\StreamResult;
 use Symfony\AI\Platform\Result\TextResult;
+use Symfony\AI\Platform\Result\ThinkingResult;
 use Symfony\AI\Platform\Result\ToolCall;
 use Symfony\AI\Platform\Result\ToolCallResult;
 use Symfony\AI\Platform\ResultConverterInterface;
 
 /**
+ * @phpstan-type Part array{
+ *     functionCall?: array{id?: string, name: string, args: mixed[]},
+ *     text?: string,
+ *     thought?: bool,
+ *     thoughtSignature?: string,
+ *     inlineData?: array{data: string, mimeType: string},
+ *     executableCode?: array{language: string, code: string},
+ *     codeExecutionResult?: array{id?: string, outcome: self::OUTCOME_*, output: string},
+ * }
+ *
  * @author Roy Garrido
  */
 final class ResultConverter implements ResultConverterInterface
 {
+    use FinishReasonAwareTrait;
+
+    use HttpStatusErrorHandlingTrait;
+
     public const OUTCOME_OK = 'OUTCOME_OK';
     public const OUTCOME_FAILED = 'OUTCOME_FAILED';
     public const OUTCOME_DEADLINE_EXCEEDED = 'OUTCOME_DEADLINE_EXCEEDED';
@@ -44,11 +74,21 @@ final class ResultConverter implements ResultConverterInterface
     {
         $response = $result->getObject();
 
-        if (429 === $response->getStatusCode()) {
-            throw new RateLimitExceededException();
+        if (400 === $response->getStatusCode()) {
+            $message = json_decode($response->getContent(false), true)['error']['message'] ?? '';
+
+            if (str_contains($message, 'maximum number of tokens') || str_contains($message, 'input token count')) {
+                throw new ExceedContextSizeException($message);
+            }
         }
 
+        $this->throwOnHttpError($response);
+
         if ($options['stream'] ?? false) {
+            if (($code = $response->getStatusCode()) >= 400) {
+                throw new RuntimeException(\sprintf('Unexpected response code %d: "%s"', $code, $response->getContent(false)));
+            }
+
             return new StreamResult($this->convertStream($result));
         }
 
@@ -59,12 +99,25 @@ final class ResultConverter implements ResultConverterInterface
                 throw new RuntimeException(\sprintf('Error "%s" - "%s": "%s".', $data['error']['code'], $data['error']['status'], $data['error']['message']));
             }
 
+            // Gemini can return a well-formed completion with a terminal finish reason but no
+            // content parts (e.g. an empty message after a tool result). Treat it as empty text
+            // instead of crashing on an otherwise valid response.
+            if (isset($data['candidates'][0]['finishReason'])) {
+                return $this->withFinishReason(
+                    new TextResult(''),
+                    FinishReasonMapper::map($data['candidates'][0]['finishReason']),
+                );
+            }
+
             throw new RuntimeException('Response does not contain any content.');
         }
 
         $choices = array_map($this->convertChoice(...), $data['candidates']);
 
-        return 1 === \count($choices) ? $choices[0] : new ChoiceResult($choices);
+        return $this->withFinishReason(
+            1 === \count($choices) ? $choices[0] : new ChoiceResult($choices),
+            FinishReasonMapper::map($data['candidates'][0]['finishReason'] ?? null),
+        );
     }
 
     public function getTokenUsageExtractor(): TokenUsageExtractor
@@ -74,19 +127,163 @@ final class ResultConverter implements ResultConverterInterface
 
     private function convertStream(RawResultInterface $result): \Generator
     {
+        $finishReason = null;
+        // Thinking boundary state, carried across chunks: Gemini streams thought parts (often split
+        // over several chunks) before the answer, so a thinking block may span multiple iterations.
+        $thinking = null;
+        $thinkingSignature = null;
+        // Tool calls are collected across the whole stream and completed once at its end, so that
+        // calls split over several parts or chunks arrive as a single batch.
+        $toolCalls = [];
+
         foreach ($result->getDataStream() as $data) {
+            // Gemini repeats the reason on every candidate of the terminal chunk; the leading one wins,
+            // matching the buffered path.
+            if (null !== ($data['candidates'][0]['finishReason'] ?? null)) {
+                $finishReason ??= FinishReasonMapper::map($data['candidates'][0]['finishReason']);
+            }
+
             $choices = array_values(array_filter(array_map($this->convertChoice(...), $data['candidates'] ?? [])));
 
             if (!$choices) {
                 continue;
             }
 
+            // The multi-candidate path is exotic for Gemini; preserve its bare-delta behavior.
             if (1 !== \count($choices)) {
-                yield new ChoiceResult($choices);
+                $deltas = [];
+                foreach ($choices as $choice) {
+                    $deltas = array_merge($deltas, iterator_to_array($this->resultToDeltas($choice), false));
+                }
+
+                if ([] !== $deltas) {
+                    yield new ChoiceDelta($deltas);
+                }
+
                 continue;
             }
 
-            yield $choices[0]->getContent();
+            // A single candidate may carry multiple parts (e.g. a thought part plus text, or a tool
+            // call plus text) that convertChoice() returns as a MultiPartResult; flatten to leaves so
+            // thought and non-thought parts are framed identically whether combined in one chunk or
+            // split across chunks.
+            foreach ($this->flattenResult($choices[0]) as $leaf) {
+                if ($leaf instanceof ThinkingResult) {
+                    if (null === $thinking) {
+                        yield new ThinkingStart();
+                        $thinking = '';
+                    }
+
+                    $content = $leaf->getContent() ?? '';
+                    $thinking .= $content;
+
+                    if (null !== $leaf->getSignature()) {
+                        $thinkingSignature = $leaf->getSignature();
+                    }
+
+                    yield new ThinkingDelta($content);
+
+                    continue;
+                }
+
+                // The first non-thinking part closes an open thinking block.
+                if (null !== $thinking) {
+                    yield new ThinkingComplete($thinking, $thinkingSignature);
+                    $thinking = null;
+                    $thinkingSignature = null;
+                }
+
+                // Gemini delivers each function call as a complete part, so a call is announced at the
+                // position its part appears in and batched into the terminal ToolCallComplete.
+                if ($leaf instanceof ToolCallResult) {
+                    foreach ($leaf->getContent() as $toolCall) {
+                        $toolCalls[] = $toolCall;
+
+                        // Gemini < 3.0 leaves the function call id empty; without one there is nothing
+                        // to correlate the announcement with, so the call is only batched.
+                        if ('' !== $toolCall->getId()) {
+                            yield new ToolCallStart($toolCall->getId(), $toolCall->getName());
+                        }
+                    }
+
+                    continue;
+                }
+
+                yield from $this->resultToDeltas($leaf);
+            }
+        }
+
+        // A thinking block still open at the end of the stream is completed before the terminal metadata.
+        if (null !== $thinking) {
+            yield new ThinkingComplete($thinking, $thinkingSignature);
+        }
+
+        if ([] !== $toolCalls) {
+            yield new ToolCallComplete($toolCalls);
+        }
+
+        // Emitted last: the terminal chunk carries both the finish reason and its content parts.
+        if (null !== $finishReason) {
+            yield new MetadataDelta('finish_reason', $finishReason);
+        }
+    }
+
+    /**
+     * Flattens a single choice into its leaf results so the streaming thinking-boundary logic can walk
+     * thought and non-thought parts uniformly, whether they arrive combined in one MultiPartResult
+     * chunk or split across chunks.
+     *
+     * @return list<ResultInterface>
+     */
+    private function flattenResult(ResultInterface $result): array
+    {
+        if (!$result instanceof MultiPartResult) {
+            return [$result];
+        }
+
+        $leaves = [];
+        foreach ($result->getContent() as $part) {
+            foreach ($this->flattenResult($part) as $leaf) {
+                $leaves[] = $leaf;
+            }
+        }
+
+        return $leaves;
+    }
+
+    /**
+     * ExecutableCodeResult and CodeExecutionResult have no streaming delta representation and are
+     * only exposed through the buffered result; they are skipped here instead of crashing.
+     *
+     * @return \Generator<DeltaInterface>
+     */
+    private function resultToDeltas(ResultInterface $result): \Generator
+    {
+        switch (true) {
+            case $result instanceof MultiPartResult:
+                foreach ($result->getContent() as $part) {
+                    yield from $this->resultToDeltas($part);
+                }
+
+                return;
+            case $result instanceof ThinkingResult:
+                yield new ThinkingDelta($result->getContent() ?? '');
+
+                return;
+            case $result instanceof TextResult:
+                yield new TextDelta($result->getContent());
+
+                return;
+            case $result instanceof BinaryResult:
+                yield new BinaryDelta($result->getContent(), $result->getMimeType());
+
+                return;
+            case $result instanceof ToolCallResult:
+                // Only reached through the multi-candidate path: the single-candidate stream batches
+                // tool calls into one terminal ToolCallComplete instead.
+                yield new ToolCallComplete($result->getContent());
+
+                return;
         }
     }
 
@@ -94,26 +291,11 @@ final class ResultConverter implements ResultConverterInterface
      * @param array{
      *     finishReason?: string,
      *     content?: array{
-     *         parts: array{
-     *             functionCall?: array{
-     *                 id: string,
-     *                 name: string,
-     *                 args: mixed[]
-     *             },
-     *             text?: string,
-     *             executableCode?: array{
-     *                 language?: string,
-     *                 code?: string
-     *             },
-     *             codeExecutionResult?: array{
-     *                 outcome: self::OUTCOME_*,
-     *                 output: string
-     *             }
-     *         }[]
+     *         parts: list<Part>
      *     }
      * } $choice
      */
-    private function convertChoice(array $choice): ToolCallResult|TextResult|BinaryResult|null
+    private function convertChoice(array $choice): ToolCallResult|TextResult|ThinkingResult|BinaryResult|ExecutableCodeResult|CodeExecutionResult|MultiPartResult|null
     {
         if (!isset($choice['content']['parts'])) {
             return null;
@@ -121,46 +303,36 @@ final class ResultConverter implements ResultConverterInterface
 
         $contentParts = $choice['content']['parts'];
 
-        // If any part is a function call, return it immediately and ignore all other parts.
-        foreach ($contentParts as $contentPart) {
-            if (isset($contentPart['functionCall'])) {
-                return new ToolCallResult($this->convertToolCall($contentPart['functionCall']));
-            }
-        }
+        return match (\count($contentParts)) {
+            1 => $this->convertPart($contentParts[0]),
+            default => new MultiPartResult(array_values(array_filter(array_map($this->convertPart(...), $contentParts)))),
+        };
+    }
 
-        if (1 === \count($contentParts)) {
-            $contentPart = $contentParts[0];
+    /**
+     * @param Part $contentPart
+     */
+    private function convertPart(array $contentPart): ToolCallResult|TextResult|ThinkingResult|BinaryResult|ExecutableCodeResult|CodeExecutionResult|null
+    {
+        $signature = $contentPart['thoughtSignature'] ?? null;
 
-            if (isset($contentPart['text'])) {
-                return new TextResult($contentPart['text']);
-            }
-
-            if (isset($contentPart['inlineData'])) {
-                return BinaryResult::fromBase64($contentPart['inlineData']['data'], $contentPart['inlineData']['mimeType'] ?? null);
-            }
-
-            throw new RuntimeException(\sprintf('Unsupported finish reason "%s".', $choice['finishReason']));
-        }
-
-        $content = '';
-        $successfulCodeExecutionDetected = false;
-        foreach ($contentParts as $contentPart) {
-            if ($this->isSuccessfulCodeExecution($contentPart)) {
-                $successfulCodeExecutionDetected = true;
-                continue;
-            }
-
-            if ($successfulCodeExecutionDetected) {
-                $content .= $contentPart['text'];
-            }
-        }
-
-        if ('' !== $content) {
-            return new TextResult($content);
-        }
-
-        // TODO: see https://github.com/symfony/ai/issues/1053
-        throw new RuntimeException('Choice conversion failed. Potentially due to multiple content parts.');
+        return match (true) {
+            isset($contentPart['functionCall']) => new ToolCallResult([$this->convertToolCall($contentPart['functionCall'], $signature)]),
+            true === ($contentPart['thought'] ?? false) => new ThinkingResult($contentPart['text'] ?? '', $signature),
+            isset($contentPart['text']) => new TextResult($contentPart['text'], $signature),
+            isset($contentPart['inlineData']) => BinaryResult::fromBase64($contentPart['inlineData']['data'], $contentPart['inlineData']['mimeType'] ?? null),
+            isset($contentPart['executableCode']) => new ExecutableCodeResult(
+                $contentPart['executableCode']['code'],
+                $contentPart['executableCode']['language'],
+                $contentPart['executableCode']['id'] ?? null,
+            ),
+            isset($contentPart['codeExecutionResult']) => new CodeExecutionResult(
+                self::OUTCOME_OK === $contentPart['codeExecutionResult']['outcome'],
+                $contentPart['codeExecutionResult']['output'],
+                $contentPart['codeExecutionResult']['id'] ?? null,
+            ),
+            default => null,
+        };
     }
 
     /**
@@ -170,27 +342,32 @@ final class ResultConverter implements ResultConverterInterface
      *     args: mixed[]
      * } $toolCall
      */
-    private function convertToolCall(array $toolCall): ToolCall
+    private function convertToolCall(array $toolCall, ?string $signature = null): ToolCall
     {
-        return new ToolCall($toolCall['id'] ?? '', $toolCall['name'], $toolCall['args']);
+        return new ToolCall($toolCall['id'] ?? '', $toolCall['name'], $this->normalizeArguments($toolCall['args']), $signature);
     }
 
     /**
-     * @param array{
-     *     codeExecutionResult?: array{
-     *         outcome: self::OUTCOME_*,
-     *         output: string
-     *     }
-     * } $contentPart
+     * Gemini emits empty strings for optional object properties it has no value for, whereas other
+     * providers omit them or send null. Coerce those empty strings to null (recursing into nested
+     * structures) so downstream denormalization — e.g. of nullable DateTime properties — behaves
+     * consistently across bridges. List elements (integer-keyed) are left untouched, as an empty
+     * string can be a legitimate value inside a list argument.
+     *
+     * @param mixed[] $arguments
+     *
+     * @return mixed[]
      */
-    private function isSuccessfulCodeExecution(array $contentPart): bool
+    private function normalizeArguments(array $arguments): array
     {
-        if (!isset($contentPart['codeExecutionResult'])) {
-            return false;
+        foreach ($arguments as $key => $value) {
+            if (\is_array($value)) {
+                $arguments[$key] = $this->normalizeArguments($value);
+            } elseif ('' === $value && !\is_int($key)) {
+                $arguments[$key] = null;
+            }
         }
 
-        $result = $contentPart['codeExecutionResult'];
-
-        return self::OUTCOME_OK === $result['outcome'];
+        return $arguments;
     }
 }

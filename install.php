@@ -268,3 +268,10 @@ foreach ($changeDefaults as $key => $value) {
         rex_config::set('ai_platform', $key, $value);
     }
 }
+
+// Gespeicherte Bildeinstellungen an Symfony AI 0.13 angleichen -- dieselbe Datei,
+// die `update.php` beim Weg ueber den AddOn-Installer einbindet. Hier steht sie
+// fuer den anderen Weg: wer das Repo klont und neu installiert, laeuft nicht
+// durch update.php und haette sonst weiter ein Profil auf dall-e-3.
+// Wiederholbar: jedes Statement trifft nur Zeilen mit dem alten Wert.
+require __DIR__ . '/update-image-models.php';

@@ -18,6 +18,7 @@ use Symfony\AI\Platform\Result\RawHttpResult;
 use Symfony\AI\Platform\Result\RawResultInterface;
 use Symfony\AI\Platform\Result\VectorResult;
 use Symfony\AI\Platform\ResultConverterInterface;
+use Symfony\AI\Platform\TokenUsage\TokenUsageExtractorInterface;
 use Symfony\AI\Platform\Vector\Vector;
 
 /**
@@ -43,15 +44,15 @@ final class ResultConverter implements ResultConverterInterface
         }
 
         return new VectorResult(
-            ...array_map(
+            array_map(
                 static fn (array $item): Vector => new Vector($item['embedding']),
                 $data['data'],
             ),
         );
     }
 
-    public function getTokenUsageExtractor(): null
+    public function getTokenUsageExtractor(): TokenUsageExtractorInterface
     {
-        return null;
+        return new TokenUsageExtractor();
     }
 }

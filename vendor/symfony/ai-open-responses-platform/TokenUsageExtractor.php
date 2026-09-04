@@ -18,7 +18,7 @@ use Symfony\AI\Platform\TokenUsage\TokenUsageExtractorInterface;
 /**
  * @author Christopher Hertel <mail@christopher-hertel.de>
  */
-final class TokenUsageExtractor implements TokenUsageExtractorInterface
+class TokenUsageExtractor implements TokenUsageExtractorInterface
 {
     public function extract(RawResultInterface $rawResult, array $options = []): ?TokenUsage
     {
@@ -32,7 +32,7 @@ final class TokenUsageExtractor implements TokenUsageExtractorInterface
             return null;
         }
 
-        return $this->fromDataArray($content);
+        return $this->fromDataArray($content, $this->extractRemainingTokens($rawResult));
     }
 
     /**
@@ -48,14 +48,26 @@ final class TokenUsageExtractor implements TokenUsageExtractorInterface
      *     total_tokens?: int,
      * }} $data
      */
-    public function fromDataArray(array $data): TokenUsage
+    public function fromDataArray(array $data, ?int $remainingTokens = null): TokenUsage
     {
         return new TokenUsage(
             promptTokens: $data['usage']['input_tokens'] ?? null,
             completionTokens: $data['usage']['output_tokens'] ?? null,
             thinkingTokens: $data['usage']['output_tokens_details']['reasoning_tokens'] ?? null,
             cachedTokens: $data['usage']['input_tokens_details']['cached_tokens'] ?? null,
+            remainingTokens: $remainingTokens,
             totalTokens: $data['usage']['total_tokens'] ?? null,
         );
+    }
+
+    /**
+     * Resolves the remaining token quota from the raw response.
+     *
+     * The generic Responses API does not expose this; provider-specific bridges
+     * can override this to read their own rate-limit headers.
+     */
+    protected function extractRemainingTokens(RawResultInterface $rawResult): ?int
+    {
+        return null;
     }
 }

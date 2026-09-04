@@ -35,7 +35,7 @@ Lokaler Spickzettel zum MCP-Stack dieses Addons. Quelle der Wahrheit bleibt der 
 | `mcp_disabled_tools` | JSON-Liste deaktivierter Tool-Namen (Opt-out; via `FriendsOfRedaxo\AiPlatform\Mcp\Server::isToolEnabled()` in list+call) |
 | `oauth_client_lifetime_days` | Tage bis ein OAuth-Client ablaeuft (Basis `createdate`). 0 = nie. Enforced in authorize+token → `invalid_client` → DCR-Re-Registrierung |
 
-### Scopes (Stand beta3)
+### Scopes
 - **Keine built-in Scopes mehr.** `builtInScopes()` gibt `[]`. Die Konstanten `SCOPE_TOOLS_READ/CALL` sind `@deprecated`, unbenutzt.
 - Tool-Sichtbarkeit/-Aufruf: `public:true` ODER (authentifiziert UND hat alle eigenen `requiredScopes` des Tools). Es gibt KEIN globales tools-Scope-Gate (würde mit public Tools kollidieren).
 - Scopes kommen ausschliesslich aus AddOns via `AI_PLATFORM_OAUTH_SCOPES`, werden YCom-Gruppen zugeordnet (`rex_ai_scope_mapping`), pro User via `resolveScopesForYcomUser()` aggregiert.

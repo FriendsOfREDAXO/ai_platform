@@ -52,8 +52,9 @@ class ResultConverter implements ResultConverterInterface
         }
 
         if (429 === $response->getStatusCode()) {
-            $errorMessage = json_decode($response->getContent(false), true)['error']['message'] ?? 'Bad Request';
-            throw new RateLimitExceededException($errorMessage);
+            $retryAfter = $response->getHeaders(false)['retry-after'][0] ?? null;
+            $errorMessage = json_decode($response->getContent(false), true)['error']['message'] ?? null;
+            throw new RateLimitExceededException(null !== $retryAfter ? (int) $retryAfter : null, $errorMessage);
         }
 
         if (!isset($data['data'][0]['embedding'])) {
@@ -61,15 +62,15 @@ class ResultConverter implements ResultConverterInterface
         }
 
         return new VectorResult(
-            ...array_map(
+            array_map(
                 static fn (array $item): Vector => new Vector($item['embedding']),
                 $data['data'],
             ),
         );
     }
 
-    public function getTokenUsageExtractor(): ?TokenUsageExtractorInterface
+    public function getTokenUsageExtractor(): TokenUsageExtractorInterface
     {
-        return null;
+        return new TokenUsageExtractor();
     }
 }

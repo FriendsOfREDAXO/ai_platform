@@ -11,15 +11,16 @@
 
 namespace Symfony\AI\Platform\Bridge\Cerebras;
 
+use Symfony\AI\Platform\Bridge\Generic\Completions\CompletionsConversionTrait;
+use Symfony\AI\Platform\Exception\ExceedContextSizeException;
 use Symfony\AI\Platform\Exception\RuntimeException;
 use Symfony\AI\Platform\Model as BaseModel;
 use Symfony\AI\Platform\Result\ChoiceResult;
+use Symfony\AI\Platform\Result\HttpStatusErrorHandlingTrait;
+use Symfony\AI\Platform\Result\RawHttpResult;
 use Symfony\AI\Platform\Result\RawResultInterface;
 use Symfony\AI\Platform\Result\ResultInterface;
 use Symfony\AI\Platform\Result\StreamResult;
-use Symfony\AI\Platform\Result\TextResult;
-use Symfony\AI\Platform\Result\ToolCall;
-use Symfony\AI\Platform\Result\ToolCallResult;
 use Symfony\AI\Platform\ResultConverterInterface;
 use Symfony\AI\Platform\TokenUsage\TokenUsageExtractorInterface;
 
@@ -28,14 +29,37 @@ use Symfony\AI\Platform\TokenUsage\TokenUsageExtractorInterface;
  */
 final class ResultConverter implements ResultConverterInterface
 {
+    use CompletionsConversionTrait;
+    use HttpStatusErrorHandlingTrait;
+
     public function supports(BaseModel $model): bool
     {
         return $model instanceof Model;
     }
 
-    public function convert(RawResultInterface $result, array $options = []): ResultInterface
+    public function convert(RawResultInterface|RawHttpResult $result, array $options = []): ResultInterface
     {
+        if ($result instanceof RawHttpResult) {
+            $response = $result->getObject();
+
+            if (400 === $response->getStatusCode()) {
+                $body = json_decode($response->getContent(false), true) ?? [];
+                $code = $body['error']['code'] ?? $body['code'] ?? null;
+                $message = $body['error']['message'] ?? $body['message'] ?? '';
+
+                if ('context_length_exceeded' === $code || str_contains($message, 'context length')) {
+                    throw new ExceedContextSizeException('' !== $message ? $message : 'Context size exceeded');
+                }
+            }
+
+            $this->throwOnHttpError($response);
+        }
+
         if ($options['stream'] ?? false) {
+            if ($result instanceof RawHttpResult && ($status = $result->getObject()->getStatusCode()) >= 400) {
+                throw new RuntimeException(\sprintf('Unexpected response code %d: "%s"', $status, $result->getObject()->getContent(false)));
+            }
+
             return new StreamResult($this->convertStream($result));
         }
 
@@ -57,116 +81,5 @@ final class ResultConverter implements ResultConverterInterface
     public function getTokenUsageExtractor(): ?TokenUsageExtractorInterface
     {
         return null;
-    }
-
-    /**
-     * @param array{
-     *     index: int,
-     *     message: array{
-     *         role: 'assistant',
-     *         content: ?string,
-     *         tool_calls?: list<array{
-     *             id: string,
-     *             type: 'function',
-     *             function: array{
-     *                 name: string,
-     *                 arguments: string
-     *             },
-     *         }>,
-     *     },
-     *     finish_reason: 'stop'|'length'|'tool_calls',
-     * } $choice
-     */
-    private function convertChoice(array $choice): ToolCallResult|TextResult
-    {
-        if ('tool_calls' === $choice['finish_reason']) {
-            return new ToolCallResult(...array_map($this->convertToolCall(...), $choice['message']['tool_calls']));
-        }
-
-        if (\in_array($choice['finish_reason'], ['stop', 'length'], true)) {
-            return new TextResult($choice['message']['content']);
-        }
-
-        throw new RuntimeException(\sprintf('Unsupported finish reason "%s".', $choice['finish_reason']));
-    }
-
-    /**
-     * @param array{
-     *     id: string,
-     *     type: 'function',
-     *     function: array{
-     *         name: string,
-     *         arguments: string
-     *     }
-     * } $toolCall
-     */
-    private function convertToolCall(array $toolCall): ToolCall
-    {
-        $arguments = json_decode($toolCall['function']['arguments'], true, flags: \JSON_THROW_ON_ERROR);
-
-        return new ToolCall($toolCall['id'], $toolCall['function']['name'], $arguments);
-    }
-
-    private function convertStream(RawResultInterface $result): \Generator
-    {
-        $toolCalls = [];
-        foreach ($result->getDataStream() as $data) {
-            if ($this->streamIsToolCall($data)) {
-                $toolCalls = $this->convertStreamToToolCalls($toolCalls, $data);
-            }
-
-            if ([] !== $toolCalls && $this->isToolCallsStreamFinished($data)) {
-                yield new ToolCallResult(...array_map($this->convertToolCall(...), $toolCalls));
-            }
-
-            if (!isset($data['choices'][0]['delta']['content'])) {
-                continue;
-            }
-
-            yield $data['choices'][0]['delta']['content'];
-        }
-    }
-
-    /**
-     * @param array<string, mixed> $toolCalls
-     * @param array<string, mixed> $data
-     *
-     * @return array<string, mixed>
-     */
-    private function convertStreamToToolCalls(array $toolCalls, array $data): array
-    {
-        if (!isset($data['choices'][0]['delta']['tool_calls'])) {
-            return $toolCalls;
-        }
-
-        foreach ($data['choices'][0]['delta']['tool_calls'] as $i => $toolCall) {
-            if (isset($toolCall['id'])) {
-                $toolCalls[$i] = [
-                    'id' => $toolCall['id'],
-                    'function' => $toolCall['function'],
-                ];
-                continue;
-            }
-
-            $toolCalls[$i]['function']['arguments'] .= $toolCall['function']['arguments'];
-        }
-
-        return $toolCalls;
-    }
-
-    /**
-     * @param array<string, mixed> $data
-     */
-    private function streamIsToolCall(array $data): bool
-    {
-        return isset($data['choices'][0]['delta']['tool_calls']);
-    }
-
-    /**
-     * @param array<string, mixed> $data
-     */
-    private function isToolCallsStreamFinished(array $data): bool
-    {
-        return isset($data['choices'][0]['finish_reason']) && 'tool_calls' === $data['choices'][0]['finish_reason'];
     }
 }

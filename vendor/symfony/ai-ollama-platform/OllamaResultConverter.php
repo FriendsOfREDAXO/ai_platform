@@ -11,16 +11,24 @@
 
 namespace Symfony\AI\Platform\Bridge\Ollama;
 
+use Symfony\AI\Platform\Exception\IncompleteStreamException;
 use Symfony\AI\Platform\Exception\RuntimeException;
+use Symfony\AI\Platform\FinishReason\FinishReasonAwareTrait;
 use Symfony\AI\Platform\Model;
 use Symfony\AI\Platform\Result\RawResultInterface;
 use Symfony\AI\Platform\Result\ResultInterface;
+use Symfony\AI\Platform\Result\Stream\Delta\MetadataDelta;
+use Symfony\AI\Platform\Result\Stream\Delta\TextDelta;
+use Symfony\AI\Platform\Result\Stream\Delta\ThinkingDelta;
+use Symfony\AI\Platform\Result\Stream\Delta\ToolCallComplete;
+use Symfony\AI\Platform\Result\Stream\Delta\ToolCallStart;
 use Symfony\AI\Platform\Result\StreamResult;
 use Symfony\AI\Platform\Result\TextResult;
 use Symfony\AI\Platform\Result\ToolCall;
 use Symfony\AI\Platform\Result\ToolCallResult;
 use Symfony\AI\Platform\Result\VectorResult;
 use Symfony\AI\Platform\ResultConverterInterface;
+use Symfony\AI\Platform\TokenUsage\TokenUsage;
 use Symfony\AI\Platform\TokenUsage\TokenUsageExtractorInterface;
 use Symfony\AI\Platform\Vector\Vector;
 
@@ -29,6 +37,8 @@ use Symfony\AI\Platform\Vector\Vector;
  */
 final class OllamaResultConverter implements ResultConverterInterface
 {
+    use FinishReasonAwareTrait;
+
     public function supports(Model $model): bool
     {
         return $model instanceof Ollama;
@@ -72,10 +82,10 @@ final class OllamaResultConverter implements ResultConverterInterface
         }
 
         if ([] !== $toolCalls) {
-            return new ToolCallResult(...$toolCalls);
+            return $this->withFinishReason(new ToolCallResult($toolCalls), FinishReasonMapper::map($data['done_reason'] ?? null));
         }
 
-        return new TextResult($data['message']['content']);
+        return $this->withFinishReason(new TextResult($data['message']['content']), FinishReasonMapper::map($data['done_reason'] ?? null));
     }
 
     /**
@@ -88,7 +98,7 @@ final class OllamaResultConverter implements ResultConverterInterface
         }
 
         return new VectorResult(
-            ...array_map(
+            array_map(
                 static fn (array $embedding): Vector => new Vector($embedding),
                 $data['embeddings'],
             ),
@@ -98,42 +108,66 @@ final class OllamaResultConverter implements ResultConverterInterface
     private function convertStream(RawResultInterface $result): \Generator
     {
         $toolCalls = [];
+        $sawChunk = false;
+        $sawDone = false;
+        $finishReason = null;
         foreach ($result->getDataStream() as $data) {
+            // Ollama emits {"error": "..."} on HTTP 200 in practice; not part of the
+            // documented schema, so this guard is defensive.
+            if (isset($data['error'])) {
+                throw new RuntimeException(\sprintf('Ollama stream error: "%s".', \is_string($data['error']) ? $data['error'] : 'Unknown error'));
+            }
+
+            $sawChunk = true;
+
+            if (isset($data['done']) && true === $data['done']) {
+                $sawDone = true;
+
+                if (null !== ($data['done_reason'] ?? null)) {
+                    $finishReason = FinishReasonMapper::map($data['done_reason']);
+                }
+            }
+
+            if ($this->hasThinkingDelta($data)) {
+                yield new ThinkingDelta($data['message']['thinking']);
+            }
+
+            if ($this->hasTextDelta($data)) {
+                yield new TextDelta($data['message']['content']);
+            }
+
+            // Ollama streams tool calls as complete objects in intermediate chunks; announcing them
+            // here keeps their position relative to the surrounding thinking and content
             if ($this->streamIsToolCall($data)) {
-                $toolCalls = $this->convertStreamToToolCalls($toolCalls, $data);
+                foreach ($data['message']['tool_calls'] as $toolCall) {
+                    // Ollama does not identify its tool calls, and the ids are never sent back to it,
+                    // so the position in the stream serves as a stream-wide unique handle
+                    $id = (string) \count($toolCalls);
+                    $toolCalls[] = new ToolCall($id, $toolCall['function']['name'], $toolCall['function']['arguments']);
+
+                    yield new ToolCallStart($id, $toolCall['function']['name']);
+                }
             }
 
             if ([] !== $toolCalls && $this->isToolCallsStreamFinished($data)) {
-                yield new ToolCallResult(...$toolCalls);
+                yield new ToolCallComplete($toolCalls);
             }
 
-            yield new OllamaMessageChunk(
-                $data['model'],
-                new \DateTimeImmutable($data['created_at']),
-                $data['message'],
-                $data['done'],
-                $data,
-            );
-        }
-    }
-
-    /**
-     * @param array<string, mixed> $toolCalls
-     * @param array<string, mixed> $data
-     *
-     * @return array<ToolCall>
-     */
-    private function convertStreamToToolCalls(array $toolCalls, array $data): array
-    {
-        if (!isset($data['message']['tool_calls'])) {
-            return $toolCalls;
+            if ($this->hasStreamTokenUsage($data)) {
+                yield new TokenUsage(
+                    promptTokens: $data['prompt_eval_count'],
+                    completionTokens: $data['eval_count'],
+                );
+            }
         }
 
-        foreach ($data['message']['tool_calls'] ?? [] as $id => $toolCall) {
-            $toolCalls[] = new ToolCall($id, $toolCall['function']['name'], $toolCall['function']['arguments']);
+        if ($sawChunk && !$sawDone) {
+            throw new IncompleteStreamException('Ollama stream ended before a "done" message.');
         }
 
-        return $toolCalls;
+        if (null !== $finishReason) {
+            yield new MetadataDelta('finish_reason', $finishReason);
+        }
     }
 
     /**
@@ -150,5 +184,29 @@ final class OllamaResultConverter implements ResultConverterInterface
     private function isToolCallsStreamFinished(array $data): bool
     {
         return isset($data['done']) && true === $data['done'];
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function hasStreamTokenUsage(array $data): bool
+    {
+        return isset($data['prompt_eval_count'], $data['eval_count']);
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function hasTextDelta(array $data): bool
+    {
+        return isset($data['message']['content']) && '' !== $data['message']['content'];
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function hasThinkingDelta(array $data): bool
+    {
+        return isset($data['message']['thinking']) && '' !== $data['message']['thinking'];
     }
 }

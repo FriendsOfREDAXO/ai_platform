@@ -1,6 +1,49 @@
 CHANGELOG
 =========
 
+0.12
+----
+
+ * Throw a clear exception for malformed tool call arguments
+
+0.11
+----
+
+ * Throw `MaxOutputTokensException` when a stream stops at the output token limit
+ * Add a `baseUrl` argument to `ModelClient` and the factory to target Anthropic-compatible endpoints
+ * Extract prompt-caching injection into a reusable `PromptCachingTrait` so alternative model clients can share it
+ * Throw `ServerException` on server errors (HTTP 5xx) and on `overloaded_error` / `api_error` events, including mid-stream, instead of a generic `RuntimeException`
+ * Throw `RateLimitExceededException` on rate limit error events
+ * Raise a `RuntimeException` on unhandled HTTP error statuses before streaming, instead of returning an empty stream
+
+0.10
+----
+
+ * Throw `ExceedContextSizeException` instead of `BadRequestException` when a 400 response reports a context overflow
+ * Throw `IncompleteStreamException` when a stream ends before `message_stop`
+ * Replace malformed UTF-8 sequences in request bodies instead of aborting the request
+ * Allow overriding `tool_choice` via caller options instead of always forcing `['type' => 'auto']`
+
+0.9
+---
+
+ * [BC BREAK] `ResultConverter` now emits `ThinkingResult` for `thinking` content blocks. A thinking-only response previously raised `RuntimeException`; it now returns a `ThinkingResult` (or `MultiPartResult` combined with text/tool calls).
+ * `AssistantMessageNormalizer` emits `thinking`, `text`, `tool_use`, `server_tool_use`, and `*_code_execution_tool_result` blocks in their original order so multi-turn replays of thinking and code-execution conversations round-trip end-to-end.
+
+0.8
+---
+
+ * [BC BREAK] `AnthropicContract::create()` no longer accepts variadic `NormalizerInterface` arguments; pass an array instead
+ * [BC BREAK] Rename `PlatformFactory` to `Factory` with explicit `createProvider()` and `createPlatform()` methods
+ * [BC BREAK] `ResultConverter` now returns `MultiPartResult` for responses with multiple results
+ * Add support for code execution results
+
+0.7
+---
+
+ * Extend prompt caching support for tool definitions
+ * [BC BREAK] Stream responses now yield `TextDelta`, `ThinkingDelta`, `ThinkingSignature`, `ThinkingComplete`, `ToolCallStart`, `ToolInputDelta`, `ToolCallComplete`, and streamed `TokenUsage` deltas
+
 0.6
 ---
 

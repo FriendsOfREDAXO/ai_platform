@@ -5,7 +5,7 @@ description: Das REDAXO-AddOn ai_platform — LLM-Profile, die PHP-Service-API f
 
 # ai_platform: LLM-Schicht für REDAXO
 
-Das AddOn kapselt **Symfony AI 0.6** und stellt vier Dinge bereit: Profile,
+Das AddOn kapselt **Symfony AI 0.13** und stellt vier Dinge bereit: Profile,
 eine PHP-API, Agenten mit Tools, und einen MCP-Server. Änderungswünsche sind ein
 eigener Bereich mit eigenem Skill (`ai-platform-changes`).
 
@@ -18,7 +18,7 @@ kurz", „Alt-Texte", „Bildbeschreibung ausführlich".
 | Typ | Relevante Felder |
 |---|---|
 | `text` | `temperature`, `max_tokens`, `system_prompt` |
-| `image_generation` | `image_size`, `image_quality`, `image_style` (die letzten zwei nur DALL·E) |
+| `image_generation` | `image_size`, `image_quality` (nur OpenAI, Werte `auto/low/medium/high`), `image_style` (derzeit kein Provider — war DALL·E) |
 | `image_understanding` | `temperature`, `max_tokens`, `detail_level` |
 | `embedding` | Modell |
 
@@ -38,13 +38,20 @@ Server.
 **Das Modellfeld ist eine Auswahl plus Textfeld.** Die Auswahl kommt aus dem
 Modellkatalog von Symfony AI, gefiltert nach den Fähigkeiten, die der Typ
 braucht — das AddOn pflegt keine Modelllisten. Der letzte Eintrag „eigener
-Modellname" schaltet das Textfeld frei, und das ist keine Zierde: die Kataloge
-haben Lücken. Bei Ollama fehlt `llama3.2-vision` ganz und `llava` trägt keine
-`INPUT_IMAGE`-Fähigkeit, die Bildverständnis-Auswahl ist dort also leer. Ob ein
-selbst eingetragener Name dann funktioniert, entscheidet der Katalog des
-Providers: `FallbackModelCatalog` (OpenAI-kompatibel) nimmt jeden Namen, die
-gepflegten Kataloge weisen einen unbekannten mit `ModelNotFoundException` ab —
-noch vor dem ersten Request.
+Modellname" schaltet das Textfeld frei. Was ein selbst eingetragener Name dort
+bewirkt, hängt vom Katalog des Providers ab, und es gibt drei Sorten:
+
+| Katalog | Provider | Unbekannter Name |
+|---|---|---|
+| gepflegt (im Bridge-Paket) | OpenAI, Anthropic, Google, Mistral, Cerebras, Scaleway, OpenRouter, Replicate | `ModelNotFoundException`, noch vor dem ersten Request |
+| live (Server wird gefragt) | Ollama | gilt, wenn der Server das Modell geladen hat |
+| frei | OpenAI-kompatibel, Fremd-Provider mit `FallbackModelCatalog` | wird angenommen, der Server entscheidet |
+
+Bei **Ollama** entfällt die Auswahl deshalb ganz: der Katalog ist seit 0.13 live
+(`POST api/show`), und eine HTTP-Abfrage darf nicht in `formConfig()` landen, das
+bei jedem Rendern des Formulars läuft. Dafür gilt dort jeder installierte Name,
+auch `llama3.2-vision` — das war bis 0.12 mit der fest eingebauten Liste
+unerreichbar.
 
 **`getProfile()` filtert auf `status = 1`.** Ein inaktives Profil ist für jeden
 Aufrufer unsichtbar, nicht nur im Backend. Wer „Profil nicht gefunden" bekommt
@@ -65,13 +72,19 @@ $text = $service->generateText('Fasse diesen Artikel in drei Sätzen zusammen: �
 $text = $service->generateText($prompt, profileId: 4);           // bestimmtes Profil
 
 $beschreibung = $service->understandImage('Was ist zu sehen?', '/pfad/bild.jpg');
-$url          = $service->generateImage('Ein Bulli am Strand, Abendlicht');
+$bildSrc      = $service->generateImage('Ein Bulli am Strand, Abendlicht');
 $vektor       = $service->generateEmbedding('Suchbegriff');
 ```
 
 Ohne `profileId` greift das Standardprofil des jeweiligen Typs. Fehlt das, fliegt
 `rex_exception('No default AI profile configured for: …')` — der häufigste
 Einstiegsfehler.
+
+**`generateImage()` liefert URL *oder* Data-URI.** Die `gpt-image`-Modelle von
+OpenAI geben die Bytes base64-kodiert zurück und nie eine URL; andere Provider
+liefern eine URL. Die Methode fragt deshalb den konvertierten Ergebnistyp: ein
+`TextResult` geht als URL durch, alles andere wird zur Data-URI. Beides passt in
+ein `src`-Attribut, mehr verspricht die Methode nicht.
 
 **Es gibt keine Fremdschlüssel auf Profile.** Wird ein Profil gelöscht, auf das
 ein `default_*_profile` zeigt, bleibt die Konfiguration auf die verschwundene ID
@@ -202,11 +215,27 @@ Composer brauchen. Deps ändern heißt: `composer update`, manuell testen
 (Profil anlegen, Verbindungstest, ein MCP-`tools/list`), dann **Lock und vendor
 zusammen** committen.
 
-Symfony AI ist auf `^0.6` gepinnt und alpha-nah: Brüche zwischen 0.x-Minors sind
-wahrscheinlich. Nach einem Update `php .claude/tests/provider-registry-test.php`
-laufen lassen — der Test treibt jeden Provider der Registry durch seine Bridge
+Symfony AI ist auf `^0.13` gepinnt und alpha-nah: Brüche zwischen 0.x-Minors sind
+nicht das Risiko, sondern die Regel. Der Sprung 0.6 → 0.13 hat in jeder Bridge
+`PlatformFactory` zu `Factory` und `create()` zu `createPlatform()` gemacht,
+`Toolbox\AgentProcessor` entfernt (das Tool-Calling steckt jetzt im `Agent`
+selbst, `createAgent()` übergibt `toolbox:`), Ollamas Katalog auf live umgestellt
+und OpenAIs `dall-e-*`-Einträge zurückgezogen.
+
+Nach einem Update also `provider-registry-test.php` **und** `agent-test.php`
+laufen lassen. Der erste treibt jeden Provider der Registry durch seine Bridge
 (gegen einen `MockHttpClient`, ohne Netz und ohne Schlüssel) und prüft, dass
-jedes Default-Modell noch im Katalog steht.
+jedes Default-Modell noch im Katalog steht; den zweiten gibt es, weil der
+entfernte `AgentProcessor` `createAgent()` zerlegt hat, während alle anderen
+Tests grün blieben.
+
+**Und: ein Versionssprung kann gespeicherte Profilwerte ungültig machen.** Dann
+gehört eine Migration dazu — `update-image-models.php` ist das Muster. Sie wird
+von `update.php` (Weg über den AddOn-Installer) und von `install.php` (Weg über
+Reinstallation) eingebunden und ist **reines SQL**: bei einem Installer-Update
+läuft `update.php` aus dem neuen Paket, während noch die alten Dateien
+installiert sind — neue Klassen und der neue `vendor/`-Baum sind da nicht
+geladen.
 
 ### Einen Provider hinzufügen
 
@@ -222,7 +251,7 @@ die Symfony-AI-Platform).
 ```php
 use FriendsOfRedaxo\AiPlatform\ProviderRegistry;
 use Symfony\AI\Platform\Bridge\Perplexity\ModelCatalog as PerplexityCatalog;
-use Symfony\AI\Platform\Bridge\Perplexity\PlatformFactory as PerplexityFactory;
+use Symfony\AI\Platform\Bridge\Perplexity\Factory as PerplexityFactory;
 
 rex_extension::register(ProviderRegistry::EXTENSION_POINT, function (rex_extension_point $ep) {
     $providers = $ep->getSubject();
@@ -231,7 +260,7 @@ rex_extension::register(ProviderRegistry::EXTENSION_POINT, function (rex_extensi
         'fields' => ['api_key'],                       // 'base_url', 'image_quality', 'image_style'
         'defaults' => ['text' => 'sonar-pro'],
         'catalog' => static fn () => new PerplexityCatalog(),
-        'factory' => static fn (array $profile, $httpClient) => PerplexityFactory::create($profile['api_key'], $httpClient),
+        'factory' => static fn (array $profile, $httpClient) => PerplexityFactory::createPlatform($profile['api_key'], $httpClient),
     ];
     return $providers;
 });
@@ -274,7 +303,8 @@ Reproduzierbarer Harness in `.claude/tests/`, DB-Zugang aus
 `data/core/config.yml` abgeleitet:
 
 ```bash
-php  .claude/tests/provider-registry-test.php      # Provider, Kataloge, Bridges (180)
+php  .claude/tests/provider-registry-test.php      # Provider, Kataloge, Bridges (182)
+php  .claude/tests/agent-test.php                  # createAgent() und die Toolbox (6)
 node .claude/tests/model-picker-test.mjs           # Modellauswahl im Formular (19)
 php  .claude/tests/oauth-storage-test.php          # OAuth-Speicherschicht
 bash .claude/tests/oauth-token-endpoint-test.sh    # Token-Endpunkt über curl

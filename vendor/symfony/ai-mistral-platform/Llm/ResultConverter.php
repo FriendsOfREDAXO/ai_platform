@@ -11,17 +11,24 @@
 
 namespace Symfony\AI\Platform\Bridge\Mistral\Llm;
 
+use Symfony\AI\Platform\Bridge\Generic\Completions\CompletionsConversionTrait;
+use Symfony\AI\Platform\Bridge\Generic\Completions\FinishReasonMapper;
 use Symfony\AI\Platform\Bridge\Mistral\Mistral;
+use Symfony\AI\Platform\Exception\ExceedContextSizeException;
 use Symfony\AI\Platform\Exception\RuntimeException;
 use Symfony\AI\Platform\Model;
 use Symfony\AI\Platform\Result\ChoiceResult;
+use Symfony\AI\Platform\Result\HttpStatusErrorHandlingTrait;
+use Symfony\AI\Platform\Result\MultiPartResult;
 use Symfony\AI\Platform\Result\RawHttpResult;
 use Symfony\AI\Platform\Result\RawResultInterface;
 use Symfony\AI\Platform\Result\ResultInterface;
+use Symfony\AI\Platform\Result\Stream\Delta\TextDelta;
+use Symfony\AI\Platform\Result\Stream\Delta\ThinkingComplete;
+use Symfony\AI\Platform\Result\Stream\Delta\ThinkingDelta;
 use Symfony\AI\Platform\Result\StreamResult;
 use Symfony\AI\Platform\Result\TextResult;
-use Symfony\AI\Platform\Result\ToolCall;
-use Symfony\AI\Platform\Result\ToolCallResult;
+use Symfony\AI\Platform\Result\ThinkingResult;
 use Symfony\AI\Platform\ResultConverterInterface;
 
 /**
@@ -29,6 +36,12 @@ use Symfony\AI\Platform\ResultConverterInterface;
  */
 final class ResultConverter implements ResultConverterInterface
 {
+    use CompletionsConversionTrait {
+        yieldContentDeltas as private yieldOpenAiContentDeltas;
+        convertChoice as private convertOpenAiChoice;
+    }
+    use HttpStatusErrorHandlingTrait;
+
     public function supports(Model $model): bool
     {
         return $model instanceof Mistral;
@@ -41,12 +54,24 @@ final class ResultConverter implements ResultConverterInterface
     {
         $httpResponse = $result->getObject();
 
-        if ($options['stream'] ?? false) {
-            return new StreamResult($this->convertStream($result));
+        if (400 === $httpResponse->getStatusCode()) {
+            $body = json_decode($httpResponse->getContent(false), true) ?? [];
+            $code = $body['error']['code'] ?? $body['code'] ?? null;
+            $message = $body['error']['message'] ?? $body['message'] ?? '';
+
+            if ('context_length_exceeded' === $code || str_contains($message, 'maximum context length')) {
+                throw new ExceedContextSizeException('' !== $message ? $message : 'Context size exceeded');
+            }
         }
 
-        if (200 !== $code = $httpResponse->getStatusCode()) {
+        $this->throwOnHttpError($httpResponse);
+
+        if (($code = $httpResponse->getStatusCode()) >= 400) {
             throw new RuntimeException(\sprintf('Unexpected response code %d: "%s"', $code, $httpResponse->getContent(false)));
+        }
+
+        if ($options['stream'] ?? false) {
+            return new StreamResult($this->convertStream($result));
         }
 
         $data = $result->getData();
@@ -65,118 +90,92 @@ final class ResultConverter implements ResultConverterInterface
         return new TokenUsageExtractor();
     }
 
-    private function convertStream(RawResultInterface $result): \Generator
-    {
-        $toolCalls = [];
-        foreach ($result->getDataStream() as $data) {
-            if ($this->streamIsToolCall($data)) {
-                $toolCalls = $this->convertStreamToToolCalls($toolCalls, $data);
-            }
-
-            if ([] !== $toolCalls && $this->isToolCallsStreamFinished($data)) {
-                yield new ToolCallResult(...array_map($this->convertToolCall(...), $toolCalls));
-            }
-
-            if (!isset($data['choices'][0]['delta']['content'])) {
-                continue;
-            }
-
-            yield $data['choices'][0]['delta']['content'];
-        }
-    }
-
     /**
-     * @param array<string, mixed> $toolCalls
-     * @param array<string, mixed> $data
+     * @param array<string, mixed> $delta
      *
-     * @return array<string, mixed>
+     * @return \Generator<int, ThinkingDelta|ThinkingComplete|TextDelta, mixed, string>
      */
-    private function convertStreamToToolCalls(array $toolCalls, array $data): array
+    protected function yieldContentDeltas(array $delta, string $reasoning): \Generator
     {
-        if (!isset($data['choices'][0]['delta']['tool_calls'])) {
-            return $toolCalls;
+        $content = $delta['content'] ?? null;
+
+        if (!\is_array($content)) {
+            return yield from $this->yieldOpenAiContentDeltas($delta, $reasoning);
         }
 
-        foreach ($data['choices'][0]['delta']['tool_calls'] as $i => $toolCall) {
-            if (isset($toolCall['id'])) {
-                // initialize tool call
-                $toolCalls[$i] = [
-                    'id' => $toolCall['id'],
-                    'function' => $toolCall['function'],
-                ];
+        foreach ($content as $chunk) {
+            $type = \is_array($chunk) ? ($chunk['type'] ?? null) : null;
+
+            if ('thinking' === $type) {
+                $thinking = $this->flattenThinking($chunk['thinking'] ?? []);
+                if ('' !== $thinking) {
+                    $reasoning .= $thinking;
+                    yield new ThinkingDelta($thinking);
+                }
+
                 continue;
             }
 
-            // add arguments delta to tool call
-            $toolCalls[$i]['function']['arguments'] .= $toolCall['function']['arguments'];
+            if ('text' === $type) {
+                if ('' !== $reasoning) {
+                    yield new ThinkingComplete($reasoning);
+                    $reasoning = '';
+                }
+
+                $text = \is_string($chunk['text'] ?? null) ? $chunk['text'] : '';
+                if ('' !== $text) {
+                    yield new TextDelta($text);
+                }
+            }
         }
 
-        return $toolCalls;
+        return $reasoning;
     }
 
     /**
-     * @param array<string, mixed> $data
+     * @param array<string, mixed> $choice
      */
-    private function streamIsToolCall(array $data): bool
+    protected function convertChoice(array $choice): ResultInterface
     {
-        return isset($data['choices'][0]['delta']['tool_calls']);
-    }
+        $content = $choice['message']['content'] ?? null;
 
-    /**
-     * @param array<string, mixed> $data
-     */
-    private function isToolCallsStreamFinished(array $data): bool
-    {
-        return isset($data['choices'][0]['finish_reason']) && 'tool_calls' === $data['choices'][0]['finish_reason'];
-    }
-
-    /**
-     * @param array{
-     *     index: int,
-     *     message: array{
-     *         role: 'assistant',
-     *         content: ?string,
-     *         tool_calls: array{
-     *             id: string,
-     *             type: 'function',
-     *             function: array{
-     *                 name: string,
-     *                 arguments: string
-     *             },
-     *         },
-     *         refusal: ?mixed
-     *     },
-     *     logprobs: string,
-     *     finish_reason: 'stop'|'length'|'tool_calls'|'content_filter',
-     * } $choice
-     */
-    private function convertChoice(array $choice): ToolCallResult|TextResult
-    {
-        if ('tool_calls' === $choice['finish_reason']) {
-            return new ToolCallResult(...array_map([$this, 'convertToolCall'], $choice['message']['tool_calls']));
+        if (!\is_array($content) || 'tool_calls' === ($choice['finish_reason'] ?? null)) {
+            return $this->convertOpenAiChoice($choice);
         }
 
-        if ('stop' === $choice['finish_reason']) {
-            return new TextResult($choice['message']['content']);
+        $results = [];
+        foreach ($content as $chunk) {
+            $type = \is_array($chunk) ? ($chunk['type'] ?? null) : null;
+
+            if ('thinking' === $type) {
+                $results[] = new ThinkingResult($this->flattenThinking($chunk['thinking'] ?? []));
+            } elseif ('text' === $type && \is_string($chunk['text'] ?? null)) {
+                $results[] = new TextResult($chunk['text']);
+            }
         }
 
-        throw new RuntimeException(\sprintf('Unsupported finish reason "%s".', $choice['finish_reason']));
+        if ([] === $results) {
+            $results[] = new TextResult('');
+        }
+
+        return $this->withFinishReason(
+            1 === \count($results) ? $results[0] : new MultiPartResult($results),
+            FinishReasonMapper::map($choice['finish_reason'] ?? null),
+        );
     }
 
     /**
-     * @param array{
-     *     id: string,
-     *     type: 'function',
-     *     function: array{
-     *         name: string,
-     *         arguments: string
-     *     }
-     * } $toolCall
+     * @param list<array<string, mixed>> $chunks
      */
-    private function convertToolCall(array $toolCall): ToolCall
+    private function flattenThinking(array $chunks): string
     {
-        $arguments = json_decode((string) $toolCall['function']['arguments'], true, flags: \JSON_THROW_ON_ERROR);
+        $thinking = '';
+        foreach ($chunks as $chunk) {
+            if ('text' === ($chunk['type'] ?? null) && \is_string($chunk['text'] ?? null)) {
+                $thinking .= $chunk['text'];
+            }
+        }
 
-        return new ToolCall($toolCall['id'], $toolCall['function']['name'], $arguments);
+        return $thinking;
     }
 }

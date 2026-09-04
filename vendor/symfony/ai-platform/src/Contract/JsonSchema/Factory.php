@@ -26,11 +26,11 @@ use Symfony\AI\Platform\Contract\JsonSchema\Subject\ObjectSubject;
  *         pattern?: string,
  *         minLength?: int,
  *         maxLength?: int,
- *         minimum?: int,
- *         maximum?: int,
- *         multipleOf?: int,
- *         exclusiveMinimum?: int,
- *         exclusiveMaximum?: int,
+ *         minimum?: int|float,
+ *         maximum?: int|float,
+ *         multipleOf?: int|float,
+ *         exclusiveMinimum?: int|float,
+ *         exclusiveMaximum?: int|float,
  *         minItems?: int,
  *         maxItems?: int,
  *         uniqueItems?: bool,
@@ -57,23 +57,27 @@ final class Factory
     }
 
     /**
+     * @param array<string, mixed> $context Describer context, e.g. `['serializer_groups' => ['write']]`
+     *
      * @return JsonSchema|null
      */
-    public function buildParameters(string $className, string $methodName): ?array
+    public function buildParameters(string $className, string $methodName, array $context = []): ?array
     {
         $schema = null;
-        $this->objectDescriber->describeObject(new ObjectSubject($className.'::'.$methodName, new \ReflectionMethod($className, $methodName)), $schema);
+        $this->objectDescriber->describeObject(new ObjectSubject($className.'::'.$methodName, new \ReflectionMethod($className, $methodName), $context), $schema);
 
         return $schema;
     }
 
     /**
+     * @param array<string, mixed> $context Describer context, e.g. `['serializer_groups' => ['write']]`
+     *
      * @return JsonSchema|null
      */
-    public function buildProperties(string $className): ?array
+    public function buildProperties(string $className, array $context = []): ?array
     {
         $schema = null;
-        $this->objectDescriber->describeObject(new ObjectSubject($className, new \ReflectionClass($className)), $schema);
+        $this->objectDescriber->describeObject(new ObjectSubject($className, new \ReflectionClass($className), $context), $schema);
 
         return $schema;
     }

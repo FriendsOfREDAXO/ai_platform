@@ -9,25 +9,24 @@ use rex_extension;
 use rex_extension_point;
 use rex_i18n;
 use Symfony\AI\Platform\Bridge\Anthropic\ModelCatalog as AnthropicCatalog;
-use Symfony\AI\Platform\Bridge\Anthropic\PlatformFactory as AnthropicFactory;
+use Symfony\AI\Platform\Bridge\Anthropic\Factory as AnthropicFactory;
 use Symfony\AI\Platform\Bridge\Cerebras\ModelCatalog as CerebrasCatalog;
-use Symfony\AI\Platform\Bridge\Cerebras\PlatformFactory as CerebrasFactory;
+use Symfony\AI\Platform\Bridge\Cerebras\Factory as CerebrasFactory;
 use Symfony\AI\Platform\Bridge\Gemini\ModelCatalog as GeminiCatalog;
-use Symfony\AI\Platform\Bridge\Gemini\PlatformFactory as GeminiFactory;
+use Symfony\AI\Platform\Bridge\Gemini\Factory as GeminiFactory;
 use Symfony\AI\Platform\Bridge\Generic\FallbackModelCatalog as GenericCatalog;
-use Symfony\AI\Platform\Bridge\Generic\PlatformFactory as GenericFactory;
+use Symfony\AI\Platform\Bridge\Generic\Factory as GenericFactory;
 use Symfony\AI\Platform\Bridge\Mistral\ModelCatalog as MistralCatalog;
-use Symfony\AI\Platform\Bridge\Mistral\PlatformFactory as MistralFactory;
-use Symfony\AI\Platform\Bridge\Ollama\ModelCatalog as OllamaCatalog;
-use Symfony\AI\Platform\Bridge\Ollama\PlatformFactory as OllamaFactory;
+use Symfony\AI\Platform\Bridge\Mistral\Factory as MistralFactory;
+use Symfony\AI\Platform\Bridge\Ollama\Factory as OllamaFactory;
 use Symfony\AI\Platform\Bridge\OpenAi\ModelCatalog as OpenAiCatalog;
-use Symfony\AI\Platform\Bridge\OpenAi\PlatformFactory as OpenAiFactory;
+use Symfony\AI\Platform\Bridge\OpenAi\Factory as OpenAiFactory;
 use Symfony\AI\Platform\Bridge\OpenRouter\ModelCatalog as OpenRouterCatalog;
-use Symfony\AI\Platform\Bridge\OpenRouter\PlatformFactory as OpenRouterFactory;
+use Symfony\AI\Platform\Bridge\OpenRouter\Factory as OpenRouterFactory;
 use Symfony\AI\Platform\Bridge\Replicate\ModelCatalog as ReplicateCatalog;
-use Symfony\AI\Platform\Bridge\Replicate\PlatformFactory as ReplicateFactory;
+use Symfony\AI\Platform\Bridge\Replicate\Factory as ReplicateFactory;
 use Symfony\AI\Platform\Bridge\Scaleway\ModelCatalog as ScalewayCatalog;
-use Symfony\AI\Platform\Bridge\Scaleway\PlatformFactory as ScalewayFactory;
+use Symfony\AI\Platform\Bridge\Scaleway\Factory as ScalewayFactory;
 use Symfony\AI\Platform\Capability;
 use Symfony\AI\Platform\ModelCatalog\ModelCatalogInterface;
 use Symfony\AI\Platform\PlatformInterface;
@@ -50,7 +49,7 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
  *             'fields'   => ['api_key'],
  *             'defaults' => ['text' => 'sonar-pro'],
  *             'catalog'  => static fn () => new PerplexityCatalog(),
- *             'factory'  => static fn (array $p, $client) => PerplexityFactory::create($p['api_key'], $client),
+ *             'factory'  => static fn (array $p, $client) => PerplexityFactory::createPlatform($p['api_key'], $client),
  *         ];
  *         return $providers;
  *     });
@@ -82,13 +81,15 @@ final class ProviderRegistry
      * Profile type => the capabilities a model needs to be offered for that type: all of
      * 'all', and at least one of 'any' when that list is not empty.
      *
-     * Both halves earn their keep. OUTPUT_TEXT on its own also matches speech-to-text, so
-     * `whisper-1` would show up under a text profile — hence the demand for a text-ish
-     * input. But demanding INPUT_MESSAGES specifically is too narrow: the OpenRouter
-     * catalog describes its entries with INPUT_TEXT, and requiring INPUT_MESSAGES left 2
-     * of its 362 models standing. Accepting either keeps whisper out and OpenRouter in,
-     * and changes nothing for OpenAI, Anthropic, Gemini and Ollama (19/14/9/19 models
-     * before and after).
+     * Both halves earn their keep, gemessen gegen die Kataloge von Symfony AI 0.13.
+     * OUTPUT_TEXT on its own also matches speech-to-text: `whisper-1` carries
+     * `input-audio|output-text` and would show up under a text profile — hence the
+     * demand for a text-ish input, which is exactly the one model it removes from
+     * OpenAI's list (56 → 55). But demanding INPUT_MESSAGES specifically is too narrow:
+     * the OpenRouter catalog describes its entries with INPUT_TEXT, and that stricter
+     * rule leaves **4 of its 538 models** standing. Accepting either keeps whisper out
+     * and OpenRouter in, and changes nothing for OpenAI, Anthropic and Gemini
+     * (55/27/40 text models under either rule).
      *
      * @var array<string, array{all: list<Capability>, any: list<Capability>}>
      */
@@ -118,16 +119,20 @@ final class ProviderRegistry
     {
         $providers = [
             'openai' => [
-                'label' => 'OpenAI (GPT, DALL-E)',
-                'fields' => ['api_key', 'image_quality', 'image_style'],
+                'label' => 'OpenAI (GPT, gpt-image)',
+                // 'image_style' stand hier bis Symfony AI 0.13: es war eine
+                // DALL-E-Option, und die dall-e-Eintraege sind aus dem Katalog
+                // entfernt ("retired by OpenAI"). Kein Bildmodell dieser Bridge
+                // kennt noch ein 'style' -- mitgesendet ergibt es einen 400.
+                'fields' => ['api_key', 'image_quality'],
                 'defaults' => [
                     'text' => 'gpt-4o',
-                    'image_generation' => 'dall-e-3',
+                    'image_generation' => 'gpt-image-1',
                     'image_understanding' => 'gpt-4o',
                     'embedding' => 'text-embedding-3-small',
                 ],
                 'catalog' => static fn (): ModelCatalogInterface => new OpenAiCatalog(),
-                'factory' => static fn (array $profile, ?HttpClientInterface $httpClient): PlatformInterface => OpenAiFactory::create(
+                'factory' => static fn (array $profile, ?HttpClientInterface $httpClient): PlatformInterface => OpenAiFactory::createPlatform(
                     self::requireApiKey($profile, 'openai'),
                     $httpClient,
                 ),
@@ -135,12 +140,15 @@ final class ProviderRegistry
             'anthropic' => [
                 'label' => 'Anthropic (Claude)',
                 'fields' => ['api_key'],
+                // Bis Symfony AI 0.12 endete der Katalog bei Sonnet 4.5, weshalb hier
+                // ein datierter Name aus 2025 stand. Der nicht datierte Alias zeigt
+                // immer auf die aktuelle Fassung des Modells.
                 'defaults' => [
-                    'text' => 'claude-sonnet-4-20250514',
-                    'image_understanding' => 'claude-sonnet-4-20250514',
+                    'text' => 'claude-sonnet-5',
+                    'image_understanding' => 'claude-sonnet-5',
                 ],
                 'catalog' => static fn (): ModelCatalogInterface => new AnthropicCatalog(),
-                'factory' => static fn (array $profile, ?HttpClientInterface $httpClient): PlatformInterface => AnthropicFactory::create(
+                'factory' => static fn (array $profile, ?HttpClientInterface $httpClient): PlatformInterface => AnthropicFactory::createPlatform(
                     self::requireApiKey($profile, 'anthropic'),
                     $httpClient,
                 ),
@@ -160,7 +168,7 @@ final class ProviderRegistry
                     'embedding' => 'gemini-embedding-001',
                 ],
                 'catalog' => static fn (): ModelCatalogInterface => new GeminiCatalog(),
-                'factory' => static fn (array $profile, ?HttpClientInterface $httpClient): PlatformInterface => GeminiFactory::create(
+                'factory' => static fn (array $profile, ?HttpClientInterface $httpClient): PlatformInterface => GeminiFactory::createPlatform(
                     self::requireApiKey($profile, 'google'),
                     $httpClient,
                 ),
@@ -173,8 +181,16 @@ final class ProviderRegistry
                     'image_understanding' => 'llava',
                     'embedding' => 'nomic-embed-text',
                 ],
-                'catalog' => static fn (): ModelCatalogInterface => new OllamaCatalog(),
-                'factory' => static fn (array $profile, ?HttpClientInterface $httpClient): PlatformInterface => OllamaFactory::create(
+                // Ollamas Katalog ist seit 0.13 ein Live-Katalog: er fragt den
+                // Server (`POST api/show`, `GET api/tags`) und braucht dafuer einen
+                // HttpClient. Fuer das Formular ist das nichts -- formConfig() laeuft
+                // bei jedem Rendern und darf kein HTTP-Request werden. Hier steht
+                // deshalb ein leerer Katalog: die Auswahl entfaellt, es bleibt das
+                // Textfeld. Die Platform baut ihren Live-Katalog selbst, weshalb dort
+                // jeder Name funktioniert, den der Server geladen hat -- auch
+                // llama3.2-vision, das die frueher fest eingebaute Liste nicht kannte.
+                'catalog' => static fn (): ModelCatalogInterface => new GenericCatalog(),
+                'factory' => static fn (array $profile, ?HttpClientInterface $httpClient): PlatformInterface => OllamaFactory::createPlatform(
                     self::baseUrl($profile) ?? 'http://localhost:11434',
                     self::apiKey($profile),
                     $httpClient,
@@ -189,7 +205,7 @@ final class ProviderRegistry
                     'embedding' => 'mistral-embed',
                 ],
                 'catalog' => static fn (): ModelCatalogInterface => new MistralCatalog(),
-                'factory' => static fn (array $profile, ?HttpClientInterface $httpClient): PlatformInterface => MistralFactory::create(
+                'factory' => static fn (array $profile, ?HttpClientInterface $httpClient): PlatformInterface => MistralFactory::createPlatform(
                     self::requireApiKey($profile, 'mistral'),
                     $httpClient,
                 ),
@@ -201,7 +217,7 @@ final class ProviderRegistry
                 'fields' => ['api_key'],
                 'defaults' => ['text' => 'llama-3.3-70b'],
                 'catalog' => static fn (): ModelCatalogInterface => new CerebrasCatalog(),
-                'factory' => static fn (array $profile, ?HttpClientInterface $httpClient): PlatformInterface => CerebrasFactory::create(
+                'factory' => static fn (array $profile, ?HttpClientInterface $httpClient): PlatformInterface => CerebrasFactory::createPlatform(
                     self::requireApiKey($profile, 'cerebras'),
                     $httpClient,
                 ),
@@ -215,7 +231,7 @@ final class ProviderRegistry
                     'embedding' => 'bge-multilingual-gemma2',
                 ],
                 'catalog' => static fn (): ModelCatalogInterface => new ScalewayCatalog(),
-                'factory' => static fn (array $profile, ?HttpClientInterface $httpClient): PlatformInterface => ScalewayFactory::create(
+                'factory' => static fn (array $profile, ?HttpClientInterface $httpClient): PlatformInterface => ScalewayFactory::createPlatform(
                     self::requireApiKey($profile, 'scaleway'),
                     $httpClient,
                 ),
@@ -239,7 +255,7 @@ final class ProviderRegistry
                 // from OpenRouter. Not used here: formConfig() runs on every render of the
                 // profile form, and that must not turn into an HTTP request.
                 'catalog' => static fn (): ModelCatalogInterface => new OpenRouterCatalog(),
-                'factory' => static fn (array $profile, ?HttpClientInterface $httpClient): PlatformInterface => OpenRouterFactory::create(
+                'factory' => static fn (array $profile, ?HttpClientInterface $httpClient): PlatformInterface => OpenRouterFactory::createPlatform(
                     self::requireApiKey($profile, 'openrouter'),
                     $httpClient,
                 ),
@@ -254,7 +270,7 @@ final class ProviderRegistry
                 'fields' => ['api_key'],
                 'defaults' => ['text' => 'llama-3.3-70B-Instruct'],
                 'catalog' => static fn (): ModelCatalogInterface => new ReplicateCatalog(),
-                'factory' => static fn (array $profile, ?HttpClientInterface $httpClient): PlatformInterface => ReplicateFactory::create(
+                'factory' => static fn (array $profile, ?HttpClientInterface $httpClient): PlatformInterface => ReplicateFactory::createPlatform(
                     self::requireApiKey($profile, 'replicate'),
                     $httpClient,
                 ),
@@ -270,7 +286,7 @@ final class ProviderRegistry
                         throw new rex_exception('AI provider "generic" needs a base URL on the profile.');
                     }
 
-                    return GenericFactory::create($baseUrl, self::apiKey($profile), $httpClient);
+                    return GenericFactory::createPlatform($baseUrl, self::apiKey($profile), $httpClient);
                 },
             ],
         ];

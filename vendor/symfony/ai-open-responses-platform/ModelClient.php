@@ -12,9 +12,12 @@
 namespace Symfony\AI\Platform\Bridge\OpenResponses;
 
 use Symfony\AI\Platform\Exception\InvalidArgumentException;
+use Symfony\AI\Platform\JsonBodyEncodingTrait;
 use Symfony\AI\Platform\Model;
 use Symfony\AI\Platform\ModelClientInterface;
 use Symfony\AI\Platform\Result\RawHttpResult;
+use Symfony\AI\Platform\Result\Stream\HttpStreamInterface;
+use Symfony\AI\Platform\Result\Stream\RawSseStream;
 use Symfony\AI\Platform\StructuredOutput\PlatformSubscriber;
 use Symfony\Component\HttpClient\EventSourceHttpClient;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
@@ -24,15 +27,22 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
  */
 class ModelClient implements ModelClientInterface
 {
-    private readonly EventSourceHttpClient $httpClient;
+    use JsonBodyEncodingTrait;
 
+    private readonly EventSourceHttpClient $httpClient;
+    private readonly string $baseUrl;
+
+    /**
+     * @param string $baseUrl Base URL of an Open Responses-compatible endpoint, with or without a trailing slash
+     */
     public function __construct(
         HttpClientInterface $httpClient,
-        private readonly string $baseUrl,
+        string $baseUrl,
         #[\SensitiveParameter] private readonly ?string $apiKey = null,
         private readonly string $path = '/v1/responses',
     ) {
         $this->httpClient = $httpClient instanceof EventSourceHttpClient ? $httpClient : new EventSourceHttpClient($httpClient);
+        $this->baseUrl = rtrim($baseUrl, '/');
     }
 
     public function supports(Model $model): bool
@@ -56,13 +66,29 @@ class ModelClient implements ModelClientInterface
         }
 
         $requestOptions = [
-            'json' => array_merge($options, ['model' => $model->getName()], $payload),
+            'headers' => ['Content-Type' => 'application/json'],
+            'body' => $this->encodeJsonBody(array_merge($options, ['model' => $model->getName()], $payload)),
         ];
 
         if (null !== $this->apiKey) {
             $requestOptions['auth_bearer'] = $this->apiKey;
         }
 
-        return new RawHttpResult($this->httpClient->request('POST', $this->baseUrl.$this->path, $requestOptions));
+        // The ChatGPT Codex backend streams SSE without a text/event-stream
+        // content type, so use a stream parser that handles that framing too.
+        return new RawHttpResult($this->httpClient->request('POST', $this->baseUrl.$this->path, $requestOptions), $this->createStreamParser());
+    }
+
+    /**
+     * Stream parser applied to the raw response.
+     *
+     * Defaults to a lenient SSE parser for backends (e.g. ChatGPT Codex) that
+     * stream without a proper "text/event-stream" content type. Bridges talking
+     * to APIs that always send the correct content type can override this to
+     * return a stricter parser.
+     */
+    protected function createStreamParser(): HttpStreamInterface
+    {
+        return new RawSseStream();
     }
 }

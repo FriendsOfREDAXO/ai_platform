@@ -13,6 +13,7 @@ namespace Symfony\AI\Platform\Bridge\Generic\Completions;
 
 use Symfony\AI\Platform\Bridge\Generic\CompletionsModel;
 use Symfony\AI\Platform\Exception\InvalidArgumentException;
+use Symfony\AI\Platform\JsonBodyEncodingTrait;
 use Symfony\AI\Platform\Model;
 use Symfony\AI\Platform\ModelClientInterface;
 use Symfony\AI\Platform\Result\RawHttpResult;
@@ -21,21 +22,28 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 /**
  * This default implementation is based on OpenAI's initial completion endpoint, that got later adopted by other
- * providers as well. It can be used by any bridge or directly with the default PlatformFactory.
+ * providers as well. It can be used by any bridge or directly with the default Factory.
  *
  * @author Christopher Hertel <mail@christopher-hertel.de>
  */
 class ModelClient implements ModelClientInterface
 {
-    private readonly EventSourceHttpClient $httpClient;
+    use JsonBodyEncodingTrait;
 
+    private readonly EventSourceHttpClient $httpClient;
+    private readonly string $baseUrl;
+
+    /**
+     * @param string $baseUrl Base URL of an OpenAI-compatible endpoint, with or without a trailing slash
+     */
     public function __construct(
         HttpClientInterface $httpClient,
-        private readonly string $baseUrl,
+        string $baseUrl,
         #[\SensitiveParameter] private readonly ?string $apiKey = null,
         private readonly string $path = '/v1/chat/completions',
     ) {
         $this->httpClient = $httpClient instanceof EventSourceHttpClient ? $httpClient : new EventSourceHttpClient($httpClient);
+        $this->baseUrl = rtrim($baseUrl, '/');
     }
 
     public function supports(Model $model): bool
@@ -49,6 +57,20 @@ class ModelClient implements ModelClientInterface
             throw new InvalidArgumentException(\sprintf('Payload must be an array, but a string was given to "%s".', self::class));
         }
 
+        // Request usage stats for streamed responses by default,
+        // but preserve explicit stream_options when provided.
+        if ($options['stream'] ?? false) {
+            if (!\array_key_exists('stream_options', $options)) {
+                $options['stream_options'] = ['include_usage' => true];
+            }
+        }
+
+        // Some OpenAI-compatible providers do not default "tool_choice" to "auto" server-side,
+        // which makes the model answer with a text response instead of a proper tool call.
+        if ([] !== ($options['tools'] ?? [])) {
+            $options['tool_choice'] ??= 'auto';
+        }
+
         // cacheRetention is an internal Symfony AI option consumed by PromptCacheNormalizer
         // (Anthropic-only).  Strip it here so it is never forwarded to OpenAI-compatible
         // endpoints, which reject unknown request body fields with a 400 error.
@@ -57,7 +79,7 @@ class ModelClient implements ModelClientInterface
         return new RawHttpResult($this->httpClient->request('POST', $this->baseUrl.$this->path, [
             'auth_bearer' => $this->apiKey,
             'headers' => ['Content-Type' => 'application/json'],
-            'json' => array_merge($options, $payload),
+            'body' => $this->encodeJsonBody(array_merge($options, $payload)),
         ]));
     }
 }
