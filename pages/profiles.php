@@ -124,11 +124,13 @@ if ('add' === $func || 'edit' === $func) {
     $field->setLabel(rex_i18n::msg('ai_platform_image_size'));
     $select = $field->getSelect();
     $select->addOption(rex_i18n::msg('ai_platform_default'), '');
+    // Die Groessen der gpt-image-Modelle. 1792x1024, 1024x1792, 512x512 und 256x256
+    // standen hier fuer dall-e-3 und dall-e-2 -- die sind mit Symfony AI 0.13 aus dem
+    // OpenAI-Katalog verschwunden, und an ein gpt-image-Modell gesendet ergibt eine
+    // dieser Groessen einen 400.
     $select->addOption('1024x1024', '1024x1024');
-    $select->addOption('1792x1024 (Landscape)', '1792x1024');
-    $select->addOption('1024x1792 (Portrait)', '1024x1792');
-    $select->addOption('512x512', '512x512');
-    $select->addOption('256x256', '256x256');
+    $select->addOption('1536x1024 (Landscape)', '1536x1024');
+    $select->addOption('1024x1536 (Portrait)', '1024x1536');
     $field->setAttribute('class', 'form-control selectpicker');
     if ($isAdd) {
         $select->setSelected('1024x1024');
@@ -139,24 +141,30 @@ if ('add' === $func || 'edit' === $func) {
     $field->setLabel(rex_i18n::msg('ai_platform_image_quality'));
     $select = $field->getSelect();
     $select->addOption(rex_i18n::msg('ai_platform_default'), '');
-    $select->addOption('Standard', 'standard');
-    $select->addOption('HD', 'hd');
+    // Auch das folgt dem Modellwechsel: DALL-E kannte standard und hd, die
+    // gpt-image-Modelle nehmen auto, low, medium und high. Keine Vorauswahl beim
+    // Anlegen -- ohne Angabe entscheidet der Provider, und das ist hier die
+    // vernuenftigste Vorgabe.
+    $select->addOption('Auto', 'auto');
+    $select->addOption('High', 'high');
+    $select->addOption('Medium', 'medium');
+    $select->addOption('Low', 'low');
     $field->setAttribute('class', 'form-control selectpicker');
-    if ($isAdd) {
-        $select->setSelected('standard');
-    }
 
     // Image Style (image_generation only)
     $field = $form->addSelectField('image_style');
     $field->setLabel(rex_i18n::msg('ai_platform_image_style'));
     $select = $field->getSelect();
     $select->addOption(rex_i18n::msg('ai_platform_default'), '');
+    // Kein mitgelieferter Provider fuehrt 'image_style' mehr in seinen Feldern, das
+    // Feld ist damit im Backend unsichtbar. Es bleibt trotzdem stehen: 'image_style'
+    // ist in ProviderRegistry::OPTION_FIELDS weiter vorgesehen, und ein per Extension
+    // Point registrierter Provider mit einem DALL-E-artigen Modell braucht ein Feld,
+    // das er einblenden kann. Keine Vorauswahl mehr, damit ein neues Profil den Wert
+    // nicht speichert, ohne ihn zu zeigen.
     $select->addOption('Vivid', 'vivid');
     $select->addOption('Natural', 'natural');
     $field->setAttribute('class', 'form-control selectpicker');
-    if ($isAdd) {
-        $select->setSelected('vivid');
-    }
 
     // Detail Level (image_understanding only)
     $field = $form->addSelectField('detail_level');

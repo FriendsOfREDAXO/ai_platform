@@ -14,26 +14,26 @@ Die **KI Platform** ist das zentrale AddOn fuer die Integration von KI-Diensten 
 - Eingebautes `redaxo_status` MCP-Tool (Systeminfos der REDAXO-Instanz, public)
 - Änderungswuensche: Agenten und AddOns reichen Inhaltsaenderungen ein, ein Redakteur gibt sie frei — fuer Slices, Artikel, Kategorien, Metainfo, Medien und YForm-Datensaetze
 - Extension Points fuer andere AddOns (MCP-Tools, Agent-Tools, eigene Scopes, eigene Änderungstypen, eigene LLM-Provider)
-- Basiert auf [Symfony AI](https://symfony.com/ai) (v0.6)
+- Basiert auf [Symfony AI](https://symfony.com/ai) (v0.13)
 
 ## Unterstuetzte Provider
 
 | Provider | Text | Embeddings | Bildgenerierung | Bildverstaendnis |
 |---|---|---|---|---|
-| **OpenAI** | `gpt-4o`, `gpt-4o-mini`, `gpt-5`, `o3`, `o3-mini` | `text-embedding-3-small`, `text-embedding-3-large`, `text-embedding-ada-002` | `dall-e-3`, `dall-e-2` | `gpt-4o`, `gpt-4o-mini`, `gpt-5` |
-| **Anthropic** | `claude-sonnet-4-20250514`, `claude-opus-4-20250514`, `claude-3-7-sonnet-latest` | - | - | `claude-sonnet-4-20250514`, `claude-opus-4-20250514` |
-| **Google** | `gemini-2.5-flash`, `gemini-2.5-pro` | `gemini-embedding-001` | `gemini-2.5-flash-image`, `gemini-3-pro-image-preview` | `gemini-2.5-flash`, `gemini-2.5-pro` |
-| **Ollama** | `llama3.2`, `mistral`, `deepseek-r1` u.a. | `nomic-embed-text`, `bge-m3`, `all-minilm` | - | `llava`, `llama3.2-vision` -- nur ueber „eigener Modellname" (s.u.) |
+| **OpenAI** | `gpt-5`, `gpt-5-mini`, `gpt-4o`, `gpt-4o-mini`, `o3` | `text-embedding-3-small`, `text-embedding-3-large`, `text-embedding-ada-002` | `gpt-image-1`, `gpt-image-1.5`, `gpt-image-2` | `gpt-5`, `gpt-4o`, `gpt-4o-mini` |
+| **Anthropic** | `claude-sonnet-5`, `claude-opus-5`, `claude-sonnet-4-5`, `claude-haiku-4-5` | - | - | `claude-sonnet-5`, `claude-opus-5`, `claude-sonnet-4-5` |
+| **Google** | `gemini-3-pro-preview`, `gemini-2.5-flash`, `gemini-2.5-pro` | `gemini-embedding-001`, `gemini-embedding-2` | `gemini-3-pro-image`, `gemini-3.1-flash-image`, `gemini-2.5-flash-image` | `gemini-3-pro-preview`, `gemini-2.5-flash`, `gemini-2.5-pro` |
+| **Ollama** | jedes Modell, das der Server geladen hat | dito, z.B. `nomic-embed-text`, `bge-m3` | - | dito, z.B. `llava`, `llama3.2-vision` |
 | **Mistral** | `mistral-medium-latest`, `mistral-large-latest`, `codestral-latest` | `mistral-embed` | - | `pixtral-large-latest`, `pixtral-12b-latest` |
 | **Cerebras** | `llama-3.3-70b`, `qwen-3-32b`, `gpt-oss-120b` | - | - | - |
 | **Scaleway** | `llama-3.3-70b-instruct`, `gemma-3-27b-it`, `deepseek-r1-distill-llama-70b` | `bge-multilingual-gemma2` | - | `pixtral-12b-2409` |
-| **OpenRouter** | ueber 300 Modelle vieler Anbieter, z.B. `openai/gpt-4o`, `anthropic/claude-sonnet-4.5` | z.B. `google/gemini-embedding-001` | z.B. `google/gemini-2.5-flash-image` | ueber 100 Modelle, z.B. `openai/gpt-4o` |
+| **OpenRouter** | ueber 500 Modelle vieler Anbieter, z.B. `openai/gpt-4o`, `anthropic/claude-sonnet-5` | z.B. `google/gemini-embedding-001` | z.B. `google/gemini-3-pro-image` | ueber 250 Modelle, z.B. `openai/gpt-4o` |
 | **Replicate** | nur Llama, z.B. `llama-3.3-70B-Instruct` | - | - | - |
 | **OpenAI-kompatibel** | beliebige Modellnamen des Servers | beliebige Modellnamen des Servers | - | beliebige Modellnamen des Servers |
 
 Bei Ollama ist nur die Basis-URL Pflicht (Standard: `http://localhost:11434`). Der API-Key ist dort optional: bleibt er leer, wird kein `Authorization`-Header gesendet -- gesetzt, geht er als Bearer-Token mit, wie es ein per Reverse Proxy abgesicherter Ollama-Server erwartet.
 
-Fuer **Bildverstaendnis** ist die Modellauswahl bei Ollama leer, und das ist kein Fehler: `llama3.2-vision` fehlt im Katalog von Symfony AI ganz, `llava` und `qwen2.5vl` stehen dort ohne die Faehigkeit `INPUT_IMAGE`. Der Weg dorthin ist der Eintrag „eigener Modellname" -- fuer `llava` und `qwen2.5vl` funktioniert er, `llama3.2-vision` weist Symfony AI dagegen mit `ModelNotFoundException` ab, bevor ein Request gebaut wird. Wer es braucht, ergaenzt den Provider per Extension Point mit einem eigenen Katalog.
+**Bei Ollama gibt es keine Modellauswahl, sondern ein Textfeld** -- und das ist hier die bessere Antwort. Symfony AI fragt seit 0.13 den Ollama-Server selbst nach den Faehigkeiten eines Modells, statt eine feste Liste mitzubringen. Eine solche Abfrage gehoert aber nicht ins Formular, das bei jedem Aufruf neu rendert, also steht dort das Textfeld. Dafuer gilt jeder Name, den der Server geladen hat: auch `llama3.2-vision`, das die frueher eingebaute Liste nicht kannte und das dieses AddOn deshalb gar nicht erreichen konnte.
 
 **Mistral, Cerebras und Scaleway** sind direkte Anbieter und brauchen nur einen API-Key. Mistral deckt Text, Bildverstaendnis (pixtral) und Embeddings ab, Scaleway dasselbe in kleinerem Umfang, Cerebras ausschliesslich Text -- der Anbieter hostet offene Modelle fuer schnelle Inferenz, keine multimodalen. Bildgenerierung gibt es bei keinem der drei.
 
@@ -54,7 +54,7 @@ Ein anderes AddOn haengt seinen Provider ueber den Extension Point `AI_PLATFORM_
 ```php
 use FriendsOfRedaxo\AiPlatform\ProviderRegistry;
 use Symfony\AI\Platform\Bridge\Perplexity\ModelCatalog as PerplexityCatalog;
-use Symfony\AI\Platform\Bridge\Perplexity\PlatformFactory as PerplexityFactory;
+use Symfony\AI\Platform\Bridge\Perplexity\Factory as PerplexityFactory;
 
 rex_extension::register(ProviderRegistry::EXTENSION_POINT, function (rex_extension_point $ep) {
     $providers = $ep->getSubject();
@@ -67,7 +67,7 @@ rex_extension::register(ProviderRegistry::EXTENSION_POINT, function (rex_extensi
         // Vorbelegung des Modellfelds je Profiltyp
         'defaults' => ['text' => 'sonar-pro'],
         'catalog' => static fn () => new PerplexityCatalog(),
-        'factory' => static fn (array $profile, $httpClient) => PerplexityFactory::create($profile['api_key'], $httpClient),
+        'factory' => static fn (array $profile, $httpClient) => PerplexityFactory::createPlatform($profile['api_key'], $httpClient),
     ];
 
     return $providers;
@@ -78,7 +78,11 @@ Ein Schluessel, der schon vergeben ist, **ersetzt** den eingebauten Provider -- 
 
 Die Modellauswahl im Profilformular kommt aus `catalog` -- gefiltert nach den Faehigkeiten, die der gewaehlte Typ braucht. Kennt ein Provider fuer den Typ keine Modelle, entfaellt die Auswahl und es bleibt ein Textfeld; ausserdem hat die Auswahl immer den Eintrag "eigener Modellname", der dieses Textfeld freischaltet.
 
-Ob ein selbst eingetragener Name funktioniert, entscheidet der Katalog des Providers: `FallbackModelCatalog` (OpenAI-kompatibel, und was ein Fremd-AddOn mitbringt) akzeptiert jeden Namen, alle anderen -- OpenAI, Anthropic, Google, Ollama, Mistral, Cerebras, Scaleway, OpenRouter und Replicate -- weisen einen unbekannten Namen mit `ModelNotFoundException` ab, noch bevor ein Request gebaut wird; bei Ollama betrifft das etwa `llama3.2-vision`, das im Katalog fehlt. Wer dort ein Modell braucht, das Symfony AI noch nicht kennt, ergaenzt den Provider per Extension Point mit einem eigenen Katalog.
+Ob ein selbst eingetragener Name funktioniert, entscheidet der Katalog des Providers. Drei Sorten gibt es:
+
+- **Gepflegte Kataloge** -- OpenAI, Anthropic, Google, Mistral, Cerebras, Scaleway, OpenRouter, Replicate. Die Liste steckt im Bridge-Paket von Symfony AI; ein unbekannter Name wird mit `ModelNotFoundException` abgewiesen, noch bevor ein Request gebaut wird. Wer dort ein Modell braucht, das Symfony AI noch nicht kennt, ergaenzt den Provider per Extension Point mit einem eigenen Katalog -- oder wartet auf die naechste Version der Bridge.
+- **Live-Katalog** -- Ollama. Der Server wird gefragt, es gilt also, was dort installiert ist.
+- **Freier Katalog** -- OpenAI-kompatibel und was ein Fremd-AddOn mitbringt: jeder Name wird angenommen, ueber Erfolg entscheidet der Server.
 
 ## Installation
 
@@ -97,7 +101,7 @@ Unter **KI Platform > Profile** werden Profile fuer jeden Anwendungsfall separat
 
 | Feld | Beschreibung |
 |---|---|
-| **Profilname** | Eindeutiger Name, z.B. "Claude Text" oder "DALL-E Bilder" |
+| **Profilname** | Eindeutiger Name, z.B. "Claude Text" oder "Bilder fuer Artikelheader" |
 | **Typ** | Text/Code/Completion, Embeddings, Bildgenerierung oder Bildverstaendnis |
 | **Provider** | OpenAI, Anthropic, Google, Ollama, Mistral, Cerebras, Scaleway, OpenRouter, Replicate oder OpenAI-kompatibel -- weitere lassen sich per Extension Point ergaenzen |
 | **API-Key** | API-Schluessel; bei Ollama und OpenAI-kompatibel optional (Bearer-Token fuer abgesicherte Server) |
@@ -124,11 +128,13 @@ Typische Modelle sind z.B. `text-embedding-3-small` (OpenAI), `gemini-embedding-
 
 | Einstellung | Beschreibung | Standard | Nur bei |
 |---|---|---|---|
-| **Bildgroesse** | z.B. 1024x1024, 1792x1024 | 1024x1024 | alle |
-| **Bildqualitaet** | Standard oder HD | Standard | OpenAI |
-| **Bildstil** | Vivid oder Natural | Vivid | OpenAI |
+| **Bildgroesse** | 1024x1024, 1536x1024 (Landscape), 1024x1536 (Portrait) | Provider entscheidet | alle |
+| **Bildqualitaet** | Auto, High, Medium oder Low | Provider entscheidet | OpenAI |
+| **Bildstil** | Vivid oder Natural | -- | derzeit kein Provider |
 
-Bildqualitaet und Bildstil sind DALL-E-spezifisch und werden bei anderen Providern ausgeblendet.
+Bei OpenAI laufen Bilder seit Symfony AI 0.13 ueber die `gpt-image`-Modelle; `dall-e-2` und `dall-e-3` sind aus dem Katalog entfernt. Daran haengen die Werte oben: Qualitaet heisst dort auto/low/medium/high statt standard/hd, die Groessen sind andere, und ein **Bildstil** existiert nicht mehr -- das Feld bleibt nur fuer einen per Extension Point ergaenzten Provider mit DALL-E-artigen Modellen und ist sonst ausgeblendet.
+
+Bestehende Profile werden beim Update mitgenommen: `dall-e-*` wird zu `gpt-image-1`, `hd` zu `high`, `standard` zu `medium`, und die alten Bildgroessen auf das naechstliegende neue Format (`update-image-models.php`).
 
 #### Typ: Bildverstaendnis
 
@@ -191,11 +197,13 @@ $altText = $service->understandImage(
 
 ### Bildgenerierung
 
+Rueckgabe ist ein String, der in ein `src`-Attribut passt: eine URL, wenn der Provider eine liefert, sonst eine Data-URI. Die `gpt-image`-Modelle von OpenAI geben die Bilddaten base64-kodiert zurueck und nie eine URL -- wer die Datei braucht, dekodiert die Data-URI und legt sie selbst ab.
+
 ```php
 $service = FriendsOfRedaxo\AiPlatform\Service::getInstance();
 
-// Nutzt automatisch Bildgroesse, Qualitaet und Stil aus dem Profil
-$imageUrl = $service->generateImage('Ein modernes Logo fuer ein CMS');
+// Nutzt automatisch Bildgroesse und Qualitaet aus dem Profil
+$imageSrc = $service->generateImage('Ein modernes Logo fuer ein CMS');
 ```
 
 ### Embeddings

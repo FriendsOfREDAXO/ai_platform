@@ -12,6 +12,9 @@
 namespace Symfony\AI\Platform\Contract\Normalizer\Message;
 
 use Symfony\AI\Platform\Message\AssistantMessage;
+use Symfony\AI\Platform\Message\Content\Text;
+use Symfony\AI\Platform\Message\Content\Thinking;
+use Symfony\AI\Platform\Result\ToolCall;
 use Symfony\Component\Serializer\Normalizer\NormalizerAwareInterface;
 use Symfony\Component\Serializer\Normalizer\NormalizerAwareTrait;
 use Symfony\Component\Serializer\Normalizer\NormalizerInterface;
@@ -38,17 +41,35 @@ final class AssistantMessageNormalizer implements NormalizerInterface, Normalize
     /**
      * @param AssistantMessage $data
      *
-     * @return array{role: 'assistant', content: string|null, tool_calls?: array<array<string, mixed>>}
+     * @return array{role: 'assistant', content: string|null, tool_calls?: array<array<string, mixed>>, reasoning_content?: string}
      */
     public function normalize(mixed $data, ?string $format = null, array $context = []): array
     {
+        $text = '';
+        $reasoning = '';
+        $toolCalls = [];
+
+        foreach ($data->getContent() as $part) {
+            if ($part instanceof Text) {
+                $text .= $part->getText();
+            } elseif ($part instanceof Thinking) {
+                $reasoning .= $part->getContent();
+            } elseif ($part instanceof ToolCall) {
+                $toolCalls[] = $part;
+            }
+        }
+
         $array = [
             'role' => $data->getRole()->value,
-            'content' => $data->getContent(),
+            'content' => '' === $text ? null : $text,
         ];
 
-        if ($data->hasToolCalls()) {
-            $array['tool_calls'] = $this->normalizer->normalize($data->getToolCalls(), $format, $context);
+        if ([] !== $toolCalls) {
+            $array['tool_calls'] = $this->normalizer->normalize($toolCalls, $format, $context);
+        }
+
+        if ('' !== $reasoning) {
+            $array['reasoning_content'] = $reasoning;
         }
 
         return $array;

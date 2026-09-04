@@ -12,12 +12,12 @@ use rex_extension_point;
 use rex_i18n;
 use rex_sql;
 use Symfony\AI\Platform\PlatformInterface;
+use Symfony\AI\Platform\Result\TextResult;
 use Symfony\AI\Platform\Message\Message;
 use Symfony\AI\Platform\Message\MessageBag;
 use Symfony\AI\Platform\Message\Content\Image;
 use Symfony\AI\Platform\Message\Content\ImageUrl;
 use Symfony\AI\Agent\Agent;
-use Symfony\AI\Agent\Toolbox\AgentProcessor;
 use Symfony\AI\Agent\Toolbox\Toolbox;
 
 class Service
@@ -227,15 +227,39 @@ class Service
             if ('' !== ($profile['image_size'] ?? '')) {
                 $options['size'] = $profile['image_size'];
             }
-            if ('' !== ($profile['image_quality'] ?? '')) {
+
+            // Die beiden providerspezifischen Optionen gehen nur mit, wenn der
+            // Provider sie laut Registry ueberhaupt anbietet. Sonst reicht ein alter
+            // Wert in der Spalte, um den Aufruf zu zerlegen: das Formular blendet ein
+            // Feld nur aus, es loescht nichts, und ein Profil, das zu DALL-E-Zeiten
+            // `style = vivid` gespeichert hat, wuerde das an ein gpt-image-Modell
+            // senden, das die Option nicht kennt -- ein 400 fuer eine Einstellung,
+            // die im Backend gar nicht mehr zu sehen ist.
+            $fields = self::providerFields((string) $provider);
+            if (in_array('image_quality', $fields, true) && '' !== ($profile['image_quality'] ?? '')) {
                 $options['quality'] = $profile['image_quality'];
             }
-            if ('' !== ($profile['image_style'] ?? '')) {
+            if (in_array('image_style', $fields, true) && '' !== ($profile['image_style'] ?? '')) {
                 $options['style'] = $profile['image_style'];
             }
         }
 
         return $options;
+    }
+
+    /**
+     * Fields the provider declares in the registry, or an empty list for a provider
+     * nobody registered (a profile row can outlive the addon that added it).
+     *
+     * @return list<string>
+     */
+    private static function providerFields(string $provider): array
+    {
+        try {
+            return ProviderRegistry::get($provider)['fields'];
+        } catch (rex_exception) {
+            return [];
+        }
     }
 
     /**
@@ -305,10 +329,25 @@ class Service
         $platform = $this->getPlatform($profileId);
         $model = $profile['model'];
         $options = $this->getProfileOptions($profileId);
-        $options['response_format'] = 'url';
 
         $result = $platform->invoke($model, $prompt, $options);
-        return $result->asText();
+
+        // Hier stand `$options['response_format'] = 'url'` und darunter ein
+        // schlichtes asText(). Beides galt fuer DALL-E. Die gpt-image-Modelle, die
+        // dessen Katalogeintraege in Symfony AI 0.13 ersetzt haben, kennen die Option
+        // nicht (mitgesendet: 400) und liefern die Bytes base64-kodiert -- der
+        // Converter der Bridge macht daraus einen BinaryResult bzw. bei mehreren
+        // Bildern einen MultiPartResult. asText() wuerfe darauf.
+        //
+        // Beide Formen bleiben moeglich, weil es vom Provider abhaengt: wer eine URL
+        // zurueckgibt, liefert einen TextResult. Deshalb wird der konvertierte Typ
+        // gefragt, statt eine Form zu erzwingen. Rueckgabe ist in beiden Faellen ein
+        // String, der in ein src-Attribut passt -- bei Bytes eine Data-URI.
+        if ($result->getResult() instanceof TextResult) {
+            return $result->asText();
+        }
+
+        return $result->asDataUri();
     }
 
 
@@ -375,9 +414,14 @@ class Service
             ['type' => $type],
         ));
 
+        // Bis Symfony AI 0.12 lief das Tool-Calling ueber einen AgentProcessor, der
+        // als Input- und Output-Processor eingehaengt wurde. Der ist in 0.13 entfernt
+        // ("tool calling is now driven by the Agent itself"); die Toolbox wird jetzt
+        // direkt uebergeben. Die Vorgabe von maxToolCalls ist dabei 50 und nicht mehr
+        // unbegrenzt -- fuer die Agenten dieses AddOns reichlich, aber der Grund,
+        // warum eine sehr lange Werkzeugkette irgendwann abbricht.
         $toolbox = new Toolbox($tools);
-        $processor = new AgentProcessor($toolbox);
 
-        return new Agent($platform, $model, [$processor], [$processor]);
+        return new Agent($platform, $model, toolbox: $toolbox);
     }
 }

@@ -11,6 +11,7 @@
 
 namespace Symfony\AI\Platform\Message;
 
+use Symfony\AI\Platform\Exception\InvalidArgumentException;
 use Symfony\AI\Platform\Metadata\MetadataAwareTrait;
 use Symfony\Component\Uid\AbstractUid;
 use Symfony\Component\Uid\TimeBasedUidInterface;
@@ -49,6 +50,25 @@ class MessageBag implements \Countable, \IteratorAggregate
     }
 
     /**
+     * Mutable counterpart of {@see self::with()} that prepends the message in place.
+     */
+    public function prepend(MessageInterface $message): void
+    {
+        array_unshift($this->messages, $message);
+    }
+
+    /**
+     * Mutable counterpart of {@see self::withoutSystemMessage()} that removes the system message in place.
+     */
+    public function removeSystemMessage(): void
+    {
+        $this->messages = array_values(array_filter(
+            $this->messages,
+            static fn (MessageInterface $message): bool => !$message instanceof SystemMessage,
+        ));
+    }
+
+    /**
      * @return list<MessageInterface>
      */
     public function getMessages(): array
@@ -56,15 +76,27 @@ class MessageBag implements \Countable, \IteratorAggregate
         return $this->messages;
     }
 
-    public function getSystemMessage(): ?SystemMessage
+    public function getSystemMessage(string $separator = \PHP_EOL.\PHP_EOL): ?SystemMessage
     {
-        foreach ($this->messages as $message) {
-            if ($message instanceof SystemMessage) {
-                return $message;
-            }
+        $systemMessages = array_values(array_filter(
+            $this->messages,
+            static fn (MessageInterface $message): bool => $message instanceof SystemMessage,
+        ));
+
+        if ([] === $systemMessages) {
+            return null;
         }
 
-        return null;
+        if (1 === \count($systemMessages)) {
+            return $systemMessages[0];
+        }
+
+        $content = implode($separator, array_map(
+            static fn (SystemMessage $message): string => (string) $message->getContent(),
+            $systemMessages,
+        ));
+
+        return new SystemMessage($content);
     }
 
     public function getUserMessage(): ?UserMessage
@@ -94,12 +126,55 @@ class MessageBag implements \Countable, \IteratorAggregate
         return $messages;
     }
 
+    public function replace(AbstractUid&TimeBasedUidInterface $uuid, MessageInterface $newMessage): self
+    {
+        $messagesByUuid = array_filter(
+            $this->messages,
+            static fn (MessageInterface $message): bool => $message->getId()->equals($uuid)
+        );
+
+        if (1 < \count($messagesByUuid)) {
+            throw new InvalidArgumentException(\sprintf('More than one message found for Uuid: "%s".', $uuid->toRfc4122()));
+        }
+
+        $currentMessage = array_search(array_values($messagesByUuid)[0], $this->messages, true);
+
+        $this->messages[$currentMessage] = $newMessage;
+
+        return $this;
+    }
+
     public function withoutSystemMessage(): self
     {
         $messages = clone $this;
         $messages->messages = array_values(array_filter(
             $messages->messages,
             static fn (MessageInterface $message) => !$message instanceof SystemMessage,
+        ));
+
+        return $messages;
+    }
+
+    /**
+     * Clones the MessageBag without tool-call messages and tool-call-only assistant messages,
+     * leaving only the conversational messages (user input and assistant messages carrying text).
+     */
+    public function withoutToolMessages(): self
+    {
+        $messages = clone $this;
+        $messages->messages = array_values(array_filter(
+            $messages->messages,
+            static function (MessageInterface $message): bool {
+                if ($message instanceof ToolCallMessage) {
+                    return false;
+                }
+
+                if ($message instanceof AssistantMessage && null === $message->asText()) {
+                    return false;
+                }
+
+                return true;
+            },
         ));
 
         return $messages;
@@ -114,6 +189,31 @@ class MessageBag implements \Countable, \IteratorAggregate
         $messages->messages = array_merge([$message], $messages->messages);
 
         return $messages;
+    }
+
+    public function latestAs(Role $role): MessageInterface
+    {
+        $messages = array_filter(
+            $this->messages,
+            static fn (MessageInterface $message): bool => $message->getRole() === $role,
+        );
+
+        $message = array_pop($messages);
+
+        if (!$message instanceof MessageInterface) {
+            throw new InvalidArgumentException(\sprintf('No message found for role "%s".', $role->name));
+        }
+
+        return $message;
+    }
+
+    public function isLastMessageFrom(Role $role): bool
+    {
+        if ([] === $this->messages) {
+            return false;
+        }
+
+        return $this->messages[\count($this->messages) - 1]->getRole() === $role;
     }
 
     public function containsAudio(): bool

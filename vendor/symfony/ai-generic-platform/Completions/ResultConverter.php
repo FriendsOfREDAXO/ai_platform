@@ -15,17 +15,16 @@ use Symfony\AI\Platform\Bridge\Generic\CompletionsModel;
 use Symfony\AI\Platform\Exception\AuthenticationException;
 use Symfony\AI\Platform\Exception\BadRequestException;
 use Symfony\AI\Platform\Exception\ContentFilterException;
+use Symfony\AI\Platform\Exception\ExceedContextSizeException;
 use Symfony\AI\Platform\Exception\RateLimitExceededException;
 use Symfony\AI\Platform\Exception\RuntimeException;
+use Symfony\AI\Platform\Exception\ServerException;
 use Symfony\AI\Platform\Model;
 use Symfony\AI\Platform\Result\ChoiceResult;
 use Symfony\AI\Platform\Result\RawHttpResult;
 use Symfony\AI\Platform\Result\RawResultInterface;
 use Symfony\AI\Platform\Result\ResultInterface;
 use Symfony\AI\Platform\Result\StreamResult;
-use Symfony\AI\Platform\Result\TextResult;
-use Symfony\AI\Platform\Result\ToolCall;
-use Symfony\AI\Platform\Result\ToolCallResult;
 use Symfony\AI\Platform\ResultConverterInterface;
 use Symfony\AI\Platform\TokenUsage\TokenUsageExtractorInterface;
 
@@ -37,6 +36,8 @@ use Symfony\AI\Platform\TokenUsage\TokenUsageExtractorInterface;
  */
 class ResultConverter implements ResultConverterInterface
 {
+    use CompletionsConversionTrait;
+
     public function supports(Model $model): bool
     {
         return $model instanceof CompletionsModel;
@@ -47,20 +48,36 @@ class ResultConverter implements ResultConverterInterface
         $response = $result->getObject();
 
         if (401 === $response->getStatusCode()) {
-            $errorMessage = json_decode($response->getContent(false), true)['error']['message'];
+            $errorMessage = json_decode($response->getContent(false), true)['error']['message'] ?? 'Authentication failed.';
             throw new AuthenticationException($errorMessage);
         }
 
         if (400 === $response->getStatusCode()) {
-            $errorMessage = json_decode($response->getContent(false), true)['error']['message'] ?? 'Bad Request';
+            $error = json_decode($response->getContent(false), true)['error'] ?? [];
+            $errorMessage = $error['message'] ?? 'Bad Request';
+
+            if ('context_length_exceeded' === ($error['code'] ?? null) || preg_match('/context[_ ]length[_ ]exceeded/i', $errorMessage)) {
+                throw new ExceedContextSizeException($errorMessage);
+            }
+
             throw new BadRequestException($errorMessage);
         }
 
         if (429 === $response->getStatusCode()) {
-            throw new RateLimitExceededException();
+            $errorMessage = json_decode($response->getContent(false), true)['error']['message'] ?? null;
+            throw new RateLimitExceededException(null, $errorMessage);
+        }
+
+        if (($code = $response->getStatusCode()) >= 500) {
+            $errorMessage = json_decode($response->getContent(false), true)['error']['message'] ?? null;
+            throw new ServerException($code, $errorMessage);
         }
 
         if ($options['stream'] ?? false) {
+            if (($code = $response->getStatusCode()) >= 400) {
+                throw new RuntimeException(\sprintf('Unexpected response code %d: "%s"', $code, $response->getContent(false)));
+            }
+
             return new StreamResult($this->convertStream($result));
         }
 
@@ -86,120 +103,5 @@ class ResultConverter implements ResultConverterInterface
     public function getTokenUsageExtractor(): ?TokenUsageExtractorInterface
     {
         return new TokenUsageExtractor();
-    }
-
-    private function convertStream(RawResultInterface|RawHttpResult $result): \Generator
-    {
-        $toolCalls = [];
-        foreach ($result->getDataStream() as $data) {
-            if ($this->streamIsToolCall($data)) {
-                $toolCalls = $this->convertStreamToToolCalls($toolCalls, $data);
-            }
-
-            if ([] !== $toolCalls && $this->isToolCallsStreamFinished($data)) {
-                yield new ToolCallResult(...array_map($this->convertToolCall(...), $toolCalls));
-            }
-
-            if (!isset($data['choices'][0]['delta']['content'])) {
-                continue;
-            }
-
-            yield $data['choices'][0]['delta']['content'];
-        }
-    }
-
-    /**
-     * @param array<string, mixed> $toolCalls
-     * @param array<string, mixed> $data
-     *
-     * @return array<string, mixed>
-     */
-    private function convertStreamToToolCalls(array $toolCalls, array $data): array
-    {
-        if (!isset($data['choices'][0]['delta']['tool_calls'])) {
-            return $toolCalls;
-        }
-
-        foreach ($data['choices'][0]['delta']['tool_calls'] as $i => $toolCall) {
-            if (isset($toolCall['id'])) {
-                // initialize tool call
-                $toolCalls[$i] = [
-                    'id' => $toolCall['id'],
-                    'function' => $toolCall['function'],
-                ];
-                continue;
-            }
-
-            // add arguments delta to tool call
-            $toolCalls[$i]['function']['arguments'] .= $toolCall['function']['arguments'];
-        }
-
-        return $toolCalls;
-    }
-
-    /**
-     * @param array<string, mixed> $data
-     */
-    private function streamIsToolCall(array $data): bool
-    {
-        return isset($data['choices'][0]['delta']['tool_calls']);
-    }
-
-    /**
-     * @param array<string, mixed> $data
-     */
-    private function isToolCallsStreamFinished(array $data): bool
-    {
-        return isset($data['choices'][0]['finish_reason']) && 'tool_calls' === $data['choices'][0]['finish_reason'];
-    }
-
-    /**
-     * @param array{
-     *     index: int,
-     *     message: array{
-     *         role: 'assistant',
-     *         content: ?string,
-     *         tool_calls: list<array{
-     *             id: string,
-     *             type: 'function',
-     *             function: array{
-     *                 name: string,
-     *                 arguments: string
-     *             },
-     *         }>,
-     *         refusal: ?mixed
-     *     },
-     *     logprobs: string,
-     *     finish_reason: 'stop'|'length'|'tool_calls'|'content_filter',
-     * } $choice
-     */
-    private function convertChoice(array $choice): ToolCallResult|TextResult
-    {
-        if ('tool_calls' === $choice['finish_reason']) {
-            return new ToolCallResult(...array_map([$this, 'convertToolCall'], $choice['message']['tool_calls']));
-        }
-
-        if (\in_array($choice['finish_reason'], ['stop', 'length'], true)) {
-            return new TextResult($choice['message']['content']);
-        }
-
-        throw new RuntimeException(\sprintf('Unsupported finish reason "%s".', $choice['finish_reason']));
-    }
-
-    /**
-     * @param array{
-     *     id: string,
-     *     type: 'function',
-     *     function: array{
-     *         name: string,
-     *         arguments: string
-     *     }
-     * } $toolCall
-     */
-    private function convertToolCall(array $toolCall): ToolCall
-    {
-        $arguments = json_decode($toolCall['function']['arguments'], true, flags: \JSON_THROW_ON_ERROR);
-
-        return new ToolCall($toolCall['id'], $toolCall['function']['name'], $arguments);
     }
 }

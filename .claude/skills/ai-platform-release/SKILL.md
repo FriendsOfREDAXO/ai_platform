@@ -17,6 +17,8 @@ Lokale Notizen zum Release-Pfad dieses Addons. Repo lebt auf `https://github.com
    php -r '$lock = json_decode(file_get_contents("composer.lock"), true); foreach ($lock["packages"] as $p) { if (preg_match("#^symfony/#", $p["name"])) echo str_pad($p["name"], 40) . " " . $p["version"] . "\n"; }'
    ```
 5. README, CLAUDE.md und Code: kein `/Users/<name>/...` und keine echten Tokens drin (globale Regel).
+6. Wenn der Release einen Symfony-AI-Sprung enthaelt: gibt es gespeicherte Werte, die dadurch ungueltig werden? Dann gehoert eine Migration dazu, eingebunden aus `update.php` **und** `install.php` -- Muster ist `update-image-models.php` (dall-e -> gpt-image). `update.php` laeuft beim Installer-Update aus dem neuen Paket, waehrend noch die alten Dateien installiert sind: dort **kein** Zugriff auf neue Klassen oder den neuen `vendor/`-Baum, nur SQL.
+7. Testsatz durch: `provider-registry-test.php`, `agent-test.php`, `model-picker-test.mjs`, die vier `change-*`, die drei `oauth-*` und `api-changes-test.sh`.
 
 ## Release schneiden
 

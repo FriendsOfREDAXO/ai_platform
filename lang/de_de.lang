@@ -42,9 +42,9 @@ ai_platform_system_prompt_notice = Standard-Anweisung fuer das Modell, z.B. "Du 
 ai_platform_image_size = Bildgroesse
 ai_platform_image_size_notice = Groesse des generierten Bildes.
 ai_platform_image_quality = Bildqualitaet
-ai_platform_image_quality_notice = HD erzeugt detailreichere Bilder, kostet aber mehr.
+ai_platform_image_quality_notice = Hoehere Qualitaet erzeugt detailreichere Bilder, kostet aber mehr. Ohne Angabe entscheidet der Provider.
 ai_platform_image_style = Bildstil
-ai_platform_image_style_notice = Vivid erzeugt lebendigere Bilder, Natural erzeugt realistischere Bilder.
+ai_platform_image_style_notice = Nur fuer Provider mit DALL-E-artigen Modellen. Kein mitgelieferter Provider nutzt diese Option noch.
 ai_platform_detail_level = Detail-Level
 ai_platform_detail_level_notice = Wie detailliert das Bild analysiert werden soll. High kostet mehr Tokens.
 

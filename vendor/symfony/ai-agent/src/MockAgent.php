@@ -14,10 +14,15 @@ namespace Symfony\AI\Agent;
 use Symfony\AI\Agent\Exception\LogicException;
 use Symfony\AI\Agent\Exception\OutOfBoundsException;
 use Symfony\AI\Agent\Exception\RuntimeException;
+use Symfony\AI\Agent\Execution\Execution;
+use Symfony\AI\Agent\Execution\Update\Progress;
+use Symfony\AI\Agent\Execution\Update\Result as ResultUpdate;
 use Symfony\AI\Platform\Message\Content\Text;
 use Symfony\AI\Platform\Message\MessageBag;
 use Symfony\AI\Platform\Message\UserMessage;
-use Symfony\AI\Platform\Result\ResultInterface;
+use Symfony\AI\Platform\Result\Stream\Delta\TextDelta;
+use Symfony\AI\Platform\Result\StreamResult;
+use Symfony\AI\Platform\Result\TextResult;
 
 /**
  * A test-friendly agent implementation that doesn't make actual AI calls.
@@ -44,7 +49,7 @@ final class MockAgent implements AgentInterface
     private array $calls = [];
 
     /**
-     * @param array<string, string|MockResponse|\Closure> $responses Predefined responses for specific inputs
+     * @param array<string, string|MockResponse|StreamResult|\Closure> $responses Predefined responses for specific inputs
      */
     public function __construct(
         array $responses = [],
@@ -56,18 +61,10 @@ final class MockAgent implements AgentInterface
     /**
      * @param array<string, mixed> $options
      */
-    public function call(MessageBag $messages, array $options = []): ResultInterface
+    public function call(string|MessageBag|UserMessage $input, array $options = []): Execution
     {
-        $lastMessage = $messages->getMessages()[\count($messages->getMessages()) - 1];
-        $content = '';
-
-        if ($lastMessage instanceof UserMessage) {
-            foreach ($lastMessage->getContent() as $messageContent) {
-                if ($messageContent instanceof Text) {
-                    $content .= $messageContent->getText();
-                }
-            }
-        }
+        $messages = InputNormalizer::toMessageBag($input);
+        $content = $this->extractText($messages);
 
         if (!isset($this->responses[$content])) {
             throw new RuntimeException(\sprintf('No response configured for input "%s".', $content));
@@ -80,10 +77,12 @@ final class MockAgent implements AgentInterface
             $response = $response($messages, $options, $content);
         }
 
-        // Convert response to ResultInterface
-        $result = $response instanceof MockResponse
-            ? $response->toResult()
-            : MockResponse::create($response)->toResult();
+        $result = match (true) {
+            $response instanceof MockResponse => $response->toResult(),
+            \is_string($response) => MockResponse::create($response)->toResult(),
+            $response instanceof StreamResult => $response,
+            default => throw new RuntimeException(\sprintf('Invalid response type for input "%s".', $content)),
+        };
 
         $responseText = $response instanceof MockResponse
             ? $response->getContent()
@@ -98,7 +97,28 @@ final class MockAgent implements AgentInterface
             'response' => $responseText,
         ];
 
-        return $result;
+        if ($result instanceof StreamResult) {
+            // mirror a streamed agent call: every delta is reported as an update, the answer is assembled from the text deltas
+            return new Execution(static function () use ($result): \Generator {
+                $text = '';
+                foreach ($result->getContent() as $delta) {
+                    if ($delta instanceof TextDelta) {
+                        $text .= $delta->getText();
+                    }
+
+                    yield new Progress('delta', 'Received a streamed delta.', $delta);
+                }
+
+                $final = new TextResult($text);
+                $final->getMetadata()->merge($result->getMetadata());
+
+                yield new ResultUpdate($final);
+            }, true);
+        }
+
+        return new Execution(static function () use ($result): \Generator {
+            yield new ResultUpdate($result);
+        });
     }
 
     /**
@@ -247,5 +267,22 @@ final class MockAgent implements AgentInterface
     public function getName(): string
     {
         return $this->name;
+    }
+
+    private function extractText(MessageBag $messages): string
+    {
+        $lastMessage = $messages->getMessages()[\count($messages->getMessages()) - 1];
+        if (!$lastMessage instanceof UserMessage) {
+            return '';
+        }
+
+        $content = '';
+        foreach ($lastMessage->getContent() as $messageContent) {
+            if ($messageContent instanceof Text) {
+                $content .= $messageContent->getText();
+            }
+        }
+
+        return $content;
     }
 }

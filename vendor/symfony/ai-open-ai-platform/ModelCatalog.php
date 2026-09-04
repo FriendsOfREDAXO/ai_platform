@@ -24,7 +24,19 @@ final class ModelCatalog extends AbstractModelCatalog
      */
     public function __construct(array $additionalModels = [])
     {
+        // STATIC LIST START
+        // This list is generated from external metadata. Run dev/update-model-catalogs.php to refresh it.
         $defaultModels = [
+            'chatgpt-image-latest' => [
+                'class' => Gpt::class,
+                'capabilities' => [
+                    Capability::INPUT_MESSAGES,
+                    Capability::OUTPUT_TEXT,
+                    Capability::OUTPUT_STREAMING,
+                    Capability::INPUT_IMAGE,
+                    Capability::OUTPUT_IMAGE,
+                ],
+            ],
             'gpt-3.5-turbo' => [
                 'class' => Gpt::class,
                 'capabilities' => [
@@ -63,89 +75,6 @@ final class ModelCatalog extends AbstractModelCatalog
                     Capability::INPUT_PDF,
                 ],
             ],
-            'gpt-4o' => [
-                'class' => Gpt::class,
-                'capabilities' => [
-                    Capability::INPUT_MESSAGES,
-                    Capability::OUTPUT_TEXT,
-                    Capability::OUTPUT_STREAMING,
-                    Capability::TOOL_CALLING,
-                    Capability::INPUT_PDF,
-                    Capability::INPUT_IMAGE,
-                    Capability::OUTPUT_STRUCTURED,
-                ],
-            ],
-            'gpt-4o-mini' => [
-                'class' => Gpt::class,
-                'capabilities' => [
-                    Capability::INPUT_MESSAGES,
-                    Capability::OUTPUT_TEXT,
-                    Capability::OUTPUT_STREAMING,
-                    Capability::TOOL_CALLING,
-                    Capability::INPUT_IMAGE,
-                    Capability::INPUT_PDF,
-                    Capability::OUTPUT_STRUCTURED,
-                ],
-            ],
-            'gpt-4o-audio-preview' => [
-                'class' => Gpt::class,
-                'capabilities' => [
-                    Capability::INPUT_MESSAGES,
-                    Capability::OUTPUT_TEXT,
-                    Capability::OUTPUT_STREAMING,
-                    Capability::TOOL_CALLING,
-                    Capability::INPUT_IMAGE,
-                    Capability::INPUT_PDF,
-                    Capability::OUTPUT_STRUCTURED,
-                    // Audio is unsupported temporarily due to migration to Responses API;
-                    // Capability will be reintroduced when Responses API supports audio ("coming soon")
-                    // See: https://platform.openai.com/docs/guides/migrate-to-responses#responses-benefits
-                    // Capability::INPUT_AUDIO,
-                ],
-            ],
-            'o3' => [
-                'class' => Gpt::class,
-                'capabilities' => [
-                    Capability::INPUT_MESSAGES,
-                    Capability::OUTPUT_TEXT,
-                    Capability::OUTPUT_STREAMING,
-                    Capability::TOOL_CALLING,
-                    Capability::INPUT_IMAGE,
-                ],
-            ],
-            'o3-mini' => [
-                'class' => Gpt::class,
-                'capabilities' => [
-                    Capability::INPUT_MESSAGES,
-                    Capability::OUTPUT_TEXT,
-                    Capability::OUTPUT_STREAMING,
-                    Capability::TOOL_CALLING,
-                    Capability::INPUT_IMAGE,
-                    Capability::INPUT_PDF,
-                    Capability::OUTPUT_STRUCTURED,
-                ],
-            ],
-            'o3-mini-high' => [
-                'class' => Gpt::class,
-                'capabilities' => [
-                    Capability::INPUT_MESSAGES,
-                    Capability::OUTPUT_TEXT,
-                    Capability::OUTPUT_STREAMING,
-                    Capability::TOOL_CALLING,
-                ],
-            ],
-            'gpt-4.5-preview' => [
-                'class' => Gpt::class,
-                'capabilities' => [
-                    Capability::INPUT_MESSAGES,
-                    Capability::OUTPUT_TEXT,
-                    Capability::OUTPUT_STREAMING,
-                    Capability::TOOL_CALLING,
-                    Capability::INPUT_PDF,
-                    Capability::INPUT_IMAGE,
-                    Capability::OUTPUT_STRUCTURED,
-                ],
-            ],
             'gpt-4.1' => [
                 'class' => Gpt::class,
                 'capabilities' => [
@@ -182,6 +111,94 @@ final class ModelCatalog extends AbstractModelCatalog
                     Capability::OUTPUT_STRUCTURED,
                 ],
             ],
+            'gpt-4.5-preview' => [
+                'class' => Gpt::class,
+                'capabilities' => [
+                    Capability::INPUT_MESSAGES,
+                    Capability::OUTPUT_TEXT,
+                    Capability::OUTPUT_STREAMING,
+                    Capability::TOOL_CALLING,
+                    Capability::INPUT_PDF,
+                    Capability::INPUT_IMAGE,
+                    Capability::OUTPUT_STRUCTURED,
+                ],
+            ],
+            'gpt-4o' => [
+                'class' => Gpt::class,
+                'capabilities' => [
+                    Capability::INPUT_MESSAGES,
+                    Capability::OUTPUT_TEXT,
+                    Capability::OUTPUT_STREAMING,
+                    Capability::TOOL_CALLING,
+                    Capability::INPUT_PDF,
+                    Capability::INPUT_IMAGE,
+                    Capability::OUTPUT_STRUCTURED,
+                ],
+            ],
+            'gpt-4o-2024-05-13' => [
+                'class' => Gpt::class,
+                'capabilities' => [
+                    Capability::INPUT_MESSAGES,
+                    Capability::OUTPUT_TEXT,
+                    Capability::OUTPUT_STREAMING,
+                    Capability::TOOL_CALLING,
+                    Capability::OUTPUT_STRUCTURED,
+                    Capability::INPUT_IMAGE,
+                ],
+            ],
+            'gpt-4o-2024-08-06' => [
+                'class' => Gpt::class,
+                'capabilities' => [
+                    Capability::INPUT_MESSAGES,
+                    Capability::OUTPUT_TEXT,
+                    Capability::OUTPUT_STREAMING,
+                    Capability::TOOL_CALLING,
+                    Capability::OUTPUT_STRUCTURED,
+                    Capability::INPUT_IMAGE,
+                ],
+            ],
+            'gpt-4o-2024-11-20' => [
+                'class' => Gpt::class,
+                'capabilities' => [
+                    Capability::INPUT_MESSAGES,
+                    Capability::OUTPUT_TEXT,
+                    Capability::OUTPUT_STREAMING,
+                    Capability::TOOL_CALLING,
+                    Capability::OUTPUT_STRUCTURED,
+                    Capability::INPUT_IMAGE,
+                ],
+            ],
+            'gpt-4o-audio-preview' => [
+                'class' => Gpt::class,
+                'capabilities' => [
+                    Capability::INPUT_MESSAGES,
+                    Capability::OUTPUT_TEXT,
+                    Capability::OUTPUT_STREAMING,
+                    Capability::TOOL_CALLING,
+                    Capability::INPUT_IMAGE,
+                    Capability::INPUT_PDF,
+                    Capability::OUTPUT_STRUCTURED,
+                ],
+            ],
+            'gpt-4o-mini' => [
+                'class' => Gpt::class,
+                'capabilities' => [
+                    Capability::INPUT_MESSAGES,
+                    Capability::OUTPUT_TEXT,
+                    Capability::OUTPUT_STREAMING,
+                    Capability::TOOL_CALLING,
+                    Capability::INPUT_IMAGE,
+                    Capability::INPUT_PDF,
+                    Capability::OUTPUT_STRUCTURED,
+                ],
+            ],
+            'gpt-4o-mini-tts' => [
+                'class' => TextToSpeech::class,
+                'capabilities' => [
+                    Capability::INPUT_TEXT,
+                    Capability::OUTPUT_AUDIO,
+                ],
+            ],
             'gpt-5' => [
                 'class' => Gpt::class,
                 'capabilities' => [
@@ -202,6 +219,18 @@ final class ModelCatalog extends AbstractModelCatalog
                     Capability::OUTPUT_STREAMING,
                     Capability::INPUT_IMAGE,
                     Capability::INPUT_PDF,
+                ],
+            ],
+            'gpt-5-codex' => [
+                'class' => Gpt::class,
+                'capabilities' => [
+                    Capability::INPUT_MESSAGES,
+                    Capability::OUTPUT_TEXT,
+                    Capability::OUTPUT_STREAMING,
+                    Capability::TOOL_CALLING,
+                    Capability::OUTPUT_STRUCTURED,
+                    Capability::THINKING,
+                    Capability::INPUT_IMAGE,
                 ],
             ],
             'gpt-5-mini' => [
@@ -228,6 +257,78 @@ final class ModelCatalog extends AbstractModelCatalog
                     Capability::OUTPUT_STRUCTURED,
                 ],
             ],
+            'gpt-5-pro' => [
+                'class' => Gpt::class,
+                'capabilities' => [
+                    Capability::INPUT_MESSAGES,
+                    Capability::OUTPUT_TEXT,
+                    Capability::OUTPUT_STREAMING,
+                    Capability::TOOL_CALLING,
+                    Capability::OUTPUT_STRUCTURED,
+                    Capability::THINKING,
+                    Capability::INPUT_IMAGE,
+                ],
+            ],
+            'gpt-5.1' => [
+                'class' => Gpt::class,
+                'capabilities' => [
+                    Capability::INPUT_MESSAGES,
+                    Capability::OUTPUT_TEXT,
+                    Capability::OUTPUT_STREAMING,
+                    Capability::TOOL_CALLING,
+                    Capability::OUTPUT_STRUCTURED,
+                    Capability::THINKING,
+                    Capability::INPUT_IMAGE,
+                ],
+            ],
+            'gpt-5.1-chat-latest' => [
+                'class' => Gpt::class,
+                'capabilities' => [
+                    Capability::INPUT_MESSAGES,
+                    Capability::OUTPUT_TEXT,
+                    Capability::OUTPUT_STREAMING,
+                    Capability::TOOL_CALLING,
+                    Capability::OUTPUT_STRUCTURED,
+                    Capability::THINKING,
+                    Capability::INPUT_IMAGE,
+                ],
+            ],
+            'gpt-5.1-codex' => [
+                'class' => Gpt::class,
+                'capabilities' => [
+                    Capability::INPUT_MESSAGES,
+                    Capability::OUTPUT_TEXT,
+                    Capability::OUTPUT_STREAMING,
+                    Capability::TOOL_CALLING,
+                    Capability::OUTPUT_STRUCTURED,
+                    Capability::THINKING,
+                    Capability::INPUT_IMAGE,
+                ],
+            ],
+            'gpt-5.1-codex-max' => [
+                'class' => Gpt::class,
+                'capabilities' => [
+                    Capability::INPUT_MESSAGES,
+                    Capability::OUTPUT_TEXT,
+                    Capability::OUTPUT_STREAMING,
+                    Capability::TOOL_CALLING,
+                    Capability::OUTPUT_STRUCTURED,
+                    Capability::THINKING,
+                    Capability::INPUT_IMAGE,
+                ],
+            ],
+            'gpt-5.1-codex-mini' => [
+                'class' => Gpt::class,
+                'capabilities' => [
+                    Capability::INPUT_MESSAGES,
+                    Capability::OUTPUT_TEXT,
+                    Capability::OUTPUT_STREAMING,
+                    Capability::TOOL_CALLING,
+                    Capability::OUTPUT_STRUCTURED,
+                    Capability::THINKING,
+                    Capability::INPUT_IMAGE,
+                ],
+            ],
             'gpt-5.2' => [
                 'class' => Gpt::class,
                 'capabilities' => [
@@ -240,17 +341,383 @@ final class ModelCatalog extends AbstractModelCatalog
                     Capability::TOOL_CALLING,
                 ],
             ],
-            'text-embedding-ada-002' => [
-                'class' => Embeddings::class,
-                'capabilities' => [Capability::INPUT_TEXT, Capability::EMBEDDINGS],
+            'gpt-5.2-chat-latest' => [
+                'class' => Gpt::class,
+                'capabilities' => [
+                    Capability::INPUT_MESSAGES,
+                    Capability::OUTPUT_TEXT,
+                    Capability::OUTPUT_STREAMING,
+                    Capability::TOOL_CALLING,
+                    Capability::OUTPUT_STRUCTURED,
+                    Capability::THINKING,
+                    Capability::INPUT_IMAGE,
+                ],
+            ],
+            'gpt-5.2-codex' => [
+                'class' => Gpt::class,
+                'capabilities' => [
+                    Capability::INPUT_MESSAGES,
+                    Capability::OUTPUT_TEXT,
+                    Capability::OUTPUT_STREAMING,
+                    Capability::TOOL_CALLING,
+                    Capability::OUTPUT_STRUCTURED,
+                    Capability::THINKING,
+                    Capability::INPUT_IMAGE,
+                    Capability::INPUT_PDF,
+                ],
+            ],
+            'gpt-5.2-pro' => [
+                'class' => Gpt::class,
+                'capabilities' => [
+                    Capability::INPUT_MESSAGES,
+                    Capability::OUTPUT_TEXT,
+                    Capability::OUTPUT_STREAMING,
+                    Capability::TOOL_CALLING,
+                    Capability::THINKING,
+                    Capability::INPUT_IMAGE,
+                ],
+            ],
+            'gpt-5.3-chat-latest' => [
+                'class' => Gpt::class,
+                'capabilities' => [
+                    Capability::INPUT_MESSAGES,
+                    Capability::OUTPUT_TEXT,
+                    Capability::OUTPUT_STREAMING,
+                    Capability::TOOL_CALLING,
+                    Capability::OUTPUT_STRUCTURED,
+                    Capability::INPUT_IMAGE,
+                ],
+            ],
+            'gpt-5.3-codex' => [
+                'class' => Gpt::class,
+                'capabilities' => [
+                    Capability::INPUT_MESSAGES,
+                    Capability::OUTPUT_TEXT,
+                    Capability::OUTPUT_STREAMING,
+                    Capability::TOOL_CALLING,
+                    Capability::OUTPUT_STRUCTURED,
+                    Capability::THINKING,
+                    Capability::INPUT_IMAGE,
+                    Capability::INPUT_PDF,
+                ],
+            ],
+            'gpt-5.3-codex-spark' => [
+                'class' => Gpt::class,
+                'capabilities' => [
+                    Capability::INPUT_MESSAGES,
+                    Capability::OUTPUT_TEXT,
+                    Capability::OUTPUT_STREAMING,
+                    Capability::TOOL_CALLING,
+                    Capability::OUTPUT_STRUCTURED,
+                    Capability::THINKING,
+                    Capability::INPUT_IMAGE,
+                    Capability::INPUT_PDF,
+                ],
+            ],
+            'gpt-5.4' => [
+                'class' => Gpt::class,
+                'capabilities' => [
+                    Capability::INPUT_IMAGE,
+                    Capability::INPUT_MESSAGES,
+                    Capability::INPUT_PDF,
+                    Capability::OUTPUT_STREAMING,
+                    Capability::OUTPUT_STRUCTURED,
+                    Capability::OUTPUT_TEXT,
+                    Capability::TOOL_CALLING,
+                ],
+            ],
+            'gpt-5.4-mini' => [
+                'class' => Gpt::class,
+                'capabilities' => [
+                    Capability::INPUT_IMAGE,
+                    Capability::INPUT_MESSAGES,
+                    Capability::INPUT_PDF,
+                    Capability::OUTPUT_STREAMING,
+                    Capability::OUTPUT_STRUCTURED,
+                    Capability::OUTPUT_TEXT,
+                    Capability::TOOL_CALLING,
+                ],
+            ],
+            'gpt-5.4-nano' => [
+                'class' => Gpt::class,
+                'capabilities' => [
+                    Capability::INPUT_IMAGE,
+                    Capability::INPUT_MESSAGES,
+                    Capability::INPUT_PDF,
+                    Capability::OUTPUT_STREAMING,
+                    Capability::OUTPUT_STRUCTURED,
+                    Capability::OUTPUT_TEXT,
+                    Capability::TOOL_CALLING,
+                ],
+            ],
+            'gpt-5.4-pro' => [
+                'class' => Gpt::class,
+                'capabilities' => [
+                    Capability::INPUT_IMAGE,
+                    Capability::INPUT_MESSAGES,
+                    Capability::INPUT_PDF,
+                    Capability::OUTPUT_STREAMING,
+                    Capability::OUTPUT_TEXT,
+                    Capability::TOOL_CALLING,
+                ],
+            ],
+            'gpt-5.5' => [
+                'class' => Gpt::class,
+                'capabilities' => [
+                    Capability::INPUT_IMAGE,
+                    Capability::INPUT_MESSAGES,
+                    Capability::INPUT_PDF,
+                    Capability::OUTPUT_STREAMING,
+                    Capability::OUTPUT_STRUCTURED,
+                    Capability::OUTPUT_TEXT,
+                    Capability::TOOL_CALLING,
+                ],
+            ],
+            'gpt-5.5-pro' => [
+                'class' => Gpt::class,
+                'capabilities' => [
+                    Capability::INPUT_IMAGE,
+                    Capability::INPUT_MESSAGES,
+                    Capability::INPUT_PDF,
+                    Capability::OUTPUT_STRUCTURED,
+                    Capability::OUTPUT_TEXT,
+                    Capability::TOOL_CALLING,
+                ],
+            ],
+            'gpt-5.6' => [
+                'class' => Gpt::class,
+                'capabilities' => [
+                    Capability::INPUT_MESSAGES,
+                    Capability::OUTPUT_TEXT,
+                    Capability::OUTPUT_STREAMING,
+                    Capability::TOOL_CALLING,
+                    Capability::OUTPUT_STRUCTURED,
+                    Capability::THINKING,
+                    Capability::INPUT_IMAGE,
+                    Capability::INPUT_PDF,
+                ],
+            ],
+            'gpt-5.6-luna' => [
+                'class' => Gpt::class,
+                'capabilities' => [
+                    Capability::INPUT_MESSAGES,
+                    Capability::OUTPUT_TEXT,
+                    Capability::OUTPUT_STREAMING,
+                    Capability::TOOL_CALLING,
+                    Capability::OUTPUT_STRUCTURED,
+                    Capability::THINKING,
+                    Capability::INPUT_IMAGE,
+                    Capability::INPUT_PDF,
+                ],
+            ],
+            'gpt-5.6-sol' => [
+                'class' => Gpt::class,
+                'capabilities' => [
+                    Capability::INPUT_MESSAGES,
+                    Capability::OUTPUT_TEXT,
+                    Capability::OUTPUT_STREAMING,
+                    Capability::TOOL_CALLING,
+                    Capability::OUTPUT_STRUCTURED,
+                    Capability::THINKING,
+                    Capability::INPUT_IMAGE,
+                    Capability::INPUT_PDF,
+                ],
+            ],
+            'gpt-5.6-terra' => [
+                'class' => Gpt::class,
+                'capabilities' => [
+                    Capability::INPUT_MESSAGES,
+                    Capability::OUTPUT_TEXT,
+                    Capability::OUTPUT_STREAMING,
+                    Capability::TOOL_CALLING,
+                    Capability::OUTPUT_STRUCTURED,
+                    Capability::THINKING,
+                    Capability::INPUT_IMAGE,
+                    Capability::INPUT_PDF,
+                ],
+            ],
+            'gpt-image-1' => [
+                'class' => Image::class,
+                'capabilities' => [
+                    Capability::INPUT_TEXT,
+                    Capability::OUTPUT_IMAGE,
+                ],
+            ],
+            'gpt-image-1-mini' => [
+                'class' => Image::class,
+                'capabilities' => [
+                    Capability::INPUT_TEXT,
+                    Capability::OUTPUT_IMAGE,
+                ],
+            ],
+            'gpt-image-1.5' => [
+                'class' => Image::class,
+                'capabilities' => [
+                    Capability::INPUT_TEXT,
+                    Capability::OUTPUT_IMAGE,
+                ],
+            ],
+            'gpt-image-2' => [
+                'class' => Image::class,
+                'capabilities' => [
+                    Capability::INPUT_TEXT,
+                    Capability::OUTPUT_IMAGE,
+                ],
+            ],
+            'gpt-realtime-2.1' => [
+                'class' => Gpt::class,
+                'capabilities' => [
+                    Capability::INPUT_MESSAGES,
+                    Capability::OUTPUT_TEXT,
+                    Capability::OUTPUT_STREAMING,
+                    Capability::TOOL_CALLING,
+                    Capability::THINKING,
+                    Capability::INPUT_IMAGE,
+                    Capability::INPUT_AUDIO,
+                    Capability::OUTPUT_AUDIO,
+                ],
+            ],
+            'o1' => [
+                'class' => Gpt::class,
+                'capabilities' => [
+                    Capability::INPUT_MESSAGES,
+                    Capability::OUTPUT_TEXT,
+                    Capability::OUTPUT_STREAMING,
+                    Capability::TOOL_CALLING,
+                    Capability::OUTPUT_STRUCTURED,
+                    Capability::THINKING,
+                    Capability::INPUT_IMAGE,
+                    Capability::INPUT_PDF,
+                ],
+            ],
+            'o1-mini' => [
+                'class' => Gpt::class,
+                'capabilities' => [
+                    Capability::INPUT_MESSAGES,
+                    Capability::OUTPUT_TEXT,
+                    Capability::OUTPUT_STREAMING,
+                    Capability::OUTPUT_STRUCTURED,
+                    Capability::THINKING,
+                ],
+            ],
+            'o1-preview' => [
+                'class' => Gpt::class,
+                'capabilities' => [
+                    Capability::INPUT_MESSAGES,
+                    Capability::OUTPUT_TEXT,
+                    Capability::OUTPUT_STREAMING,
+                    Capability::THINKING,
+                ],
+            ],
+            'o1-pro' => [
+                'class' => Gpt::class,
+                'capabilities' => [
+                    Capability::INPUT_MESSAGES,
+                    Capability::OUTPUT_TEXT,
+                    Capability::OUTPUT_STREAMING,
+                    Capability::TOOL_CALLING,
+                    Capability::OUTPUT_STRUCTURED,
+                    Capability::THINKING,
+                    Capability::INPUT_IMAGE,
+                ],
+            ],
+            'o3' => [
+                'class' => Gpt::class,
+                'capabilities' => [
+                    Capability::INPUT_MESSAGES,
+                    Capability::OUTPUT_TEXT,
+                    Capability::OUTPUT_STREAMING,
+                    Capability::TOOL_CALLING,
+                    Capability::INPUT_IMAGE,
+                ],
+            ],
+            'o3-deep-research' => [
+                'class' => Gpt::class,
+                'capabilities' => [
+                    Capability::INPUT_MESSAGES,
+                    Capability::OUTPUT_TEXT,
+                    Capability::OUTPUT_STREAMING,
+                    Capability::TOOL_CALLING,
+                    Capability::THINKING,
+                    Capability::INPUT_IMAGE,
+                ],
+            ],
+            'o3-mini' => [
+                'class' => Gpt::class,
+                'capabilities' => [
+                    Capability::INPUT_MESSAGES,
+                    Capability::OUTPUT_TEXT,
+                    Capability::OUTPUT_STREAMING,
+                    Capability::TOOL_CALLING,
+                    Capability::INPUT_IMAGE,
+                    Capability::INPUT_PDF,
+                    Capability::OUTPUT_STRUCTURED,
+                ],
+            ],
+            'o3-mini-high' => [
+                'class' => Gpt::class,
+                'capabilities' => [
+                    Capability::INPUT_MESSAGES,
+                    Capability::OUTPUT_TEXT,
+                    Capability::OUTPUT_STREAMING,
+                    Capability::TOOL_CALLING,
+                ],
+            ],
+            'o3-pro' => [
+                'class' => Gpt::class,
+                'capabilities' => [
+                    Capability::INPUT_MESSAGES,
+                    Capability::OUTPUT_TEXT,
+                    Capability::OUTPUT_STREAMING,
+                    Capability::TOOL_CALLING,
+                    Capability::OUTPUT_STRUCTURED,
+                    Capability::THINKING,
+                    Capability::INPUT_IMAGE,
+                ],
+            ],
+            'o4-mini' => [
+                'class' => Gpt::class,
+                'capabilities' => [
+                    Capability::INPUT_MESSAGES,
+                    Capability::OUTPUT_TEXT,
+                    Capability::OUTPUT_STREAMING,
+                    Capability::TOOL_CALLING,
+                    Capability::OUTPUT_STRUCTURED,
+                    Capability::THINKING,
+                    Capability::INPUT_IMAGE,
+                ],
+            ],
+            'o4-mini-deep-research' => [
+                'class' => Gpt::class,
+                'capabilities' => [
+                    Capability::INPUT_MESSAGES,
+                    Capability::OUTPUT_TEXT,
+                    Capability::OUTPUT_STREAMING,
+                    Capability::TOOL_CALLING,
+                    Capability::THINKING,
+                    Capability::INPUT_IMAGE,
+                ],
             ],
             'text-embedding-3-large' => [
                 'class' => Embeddings::class,
-                'capabilities' => [Capability::INPUT_TEXT, Capability::EMBEDDINGS],
+                'capabilities' => [
+                    Capability::INPUT_TEXT,
+                    Capability::EMBEDDINGS,
+                ],
             ],
             'text-embedding-3-small' => [
                 'class' => Embeddings::class,
-                'capabilities' => [Capability::INPUT_TEXT, Capability::EMBEDDINGS],
+                'capabilities' => [
+                    Capability::INPUT_TEXT,
+                    Capability::EMBEDDINGS,
+                ],
+            ],
+            'text-embedding-ada-002' => [
+                'class' => Embeddings::class,
+                'capabilities' => [
+                    Capability::INPUT_TEXT,
+                    Capability::EMBEDDINGS,
+                ],
             ],
             'tts-1' => [
                 'class' => TextToSpeech::class,
@@ -266,13 +733,6 @@ final class ModelCatalog extends AbstractModelCatalog
                     Capability::OUTPUT_AUDIO,
                 ],
             ],
-            'gpt-4o-mini-tts' => [
-                'class' => TextToSpeech::class,
-                'capabilities' => [
-                    Capability::INPUT_TEXT,
-                    Capability::OUTPUT_AUDIO,
-                ],
-            ],
             'whisper-1' => [
                 'class' => Whisper::class,
                 'capabilities' => [
@@ -280,21 +740,8 @@ final class ModelCatalog extends AbstractModelCatalog
                     Capability::OUTPUT_TEXT,
                 ],
             ],
-            'dall-e-2' => [
-                'class' => DallE::class,
-                'capabilities' => [
-                    Capability::INPUT_TEXT,
-                    Capability::OUTPUT_IMAGE,
-                ],
-            ],
-            'dall-e-3' => [
-                'class' => DallE::class,
-                'capabilities' => [
-                    Capability::INPUT_TEXT,
-                    Capability::OUTPUT_IMAGE,
-                ],
-            ],
         ];
+        // STATIC LIST END
 
         $this->models = array_merge($defaultModels, $additionalModels);
     }

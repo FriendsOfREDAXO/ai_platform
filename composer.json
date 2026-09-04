@@ -5,19 +5,19 @@
     "license": "MIT",
     "require": {
         "php": ">=8.2",
-        "symfony/ai-platform": "^0.6",
-        "symfony/ai-agent": "^0.6",
-        "symfony/ai-open-ai-platform": "^0.6",
-        "symfony/ai-anthropic-platform": "^0.6",
-        "symfony/ai-gemini-platform": "^0.6",
-        "symfony/ai-ollama-platform": "^0.6",
-        "symfony/http-client": "^6.4|^7.0",
-        "symfony/ai-generic-platform": "^0.6",
-        "symfony/ai-open-router-platform": "^0.6",
-        "symfony/ai-replicate-platform": "^0.6",
-        "symfony/ai-mistral-platform": "^0.6",
-        "symfony/ai-cerebras-platform": "^0.6",
-        "symfony/ai-scaleway-platform": "^0.6"
+        "symfony/ai-platform": "^0.13",
+        "symfony/ai-agent": "^0.13",
+        "symfony/ai-open-ai-platform": "^0.13",
+        "symfony/ai-anthropic-platform": "^0.13",
+        "symfony/ai-gemini-platform": "^0.13",
+        "symfony/ai-ollama-platform": "^0.13",
+        "symfony/http-client": "^7.3|^8.0",
+        "symfony/ai-generic-platform": "^0.13",
+        "symfony/ai-open-router-platform": "^0.13",
+        "symfony/ai-replicate-platform": "^0.13",
+        "symfony/ai-mistral-platform": "^0.13",
+        "symfony/ai-cerebras-platform": "^0.13",
+        "symfony/ai-scaleway-platform": "^0.13"
     },
     "autoload": {
         "psr-4": {

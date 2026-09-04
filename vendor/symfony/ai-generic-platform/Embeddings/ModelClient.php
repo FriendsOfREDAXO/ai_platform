@@ -19,18 +19,24 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 /**
  * This generic implementation is based on OpenAI's initial embeddings endpoint, that got later adopted by other
- * providers as well. It can be used by any bridge or directly with the generic PlatformFactory.
+ * providers as well. It can be used by any bridge or directly with the generic Factory.
  *
  * @author Christopher Hertel <mail@christopher-hertel.de>
  */
 class ModelClient implements ModelClientInterface
 {
+    private readonly string $baseUrl;
+
+    /**
+     * @param string $baseUrl Base URL of an OpenAI-compatible endpoint, with or without a trailing slash
+     */
     public function __construct(
         private readonly ?HttpClientInterface $httpClient,
-        private readonly string $baseUrl,
+        string $baseUrl,
         #[\SensitiveParameter] private readonly ?string $apiKey = null,
         private readonly string $path = '/v1/embeddings',
     ) {
+        $this->baseUrl = rtrim($baseUrl, '/');
     }
 
     public function supports(Model $model): bool

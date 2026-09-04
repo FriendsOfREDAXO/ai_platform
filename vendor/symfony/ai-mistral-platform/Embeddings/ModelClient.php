@@ -24,12 +24,18 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 final class ModelClient implements ModelClientInterface
 {
     private readonly EventSourceHttpClient $httpClient;
+    private readonly string $baseUrl;
 
+    /**
+     * @param string $baseUrl Base URL of a Mistral-compatible endpoint, with or without a trailing slash
+     */
     public function __construct(
         HttpClientInterface $httpClient,
         #[\SensitiveParameter] private readonly string $apiKey,
+        string $baseUrl = 'https://api.mistral.ai',
     ) {
         $this->httpClient = $httpClient instanceof EventSourceHttpClient ? $httpClient : new EventSourceHttpClient($httpClient);
+        $this->baseUrl = rtrim($baseUrl, '/');
     }
 
     public function supports(Model $model): bool
@@ -39,7 +45,7 @@ final class ModelClient implements ModelClientInterface
 
     public function request(Model $model, array|string $payload, array $options = []): RawHttpResult
     {
-        return new RawHttpResult($this->httpClient->request('POST', 'https://api.mistral.ai/v1/embeddings', [
+        return new RawHttpResult($this->httpClient->request('POST', $this->baseUrl.'/v1/embeddings', [
             'auth_bearer' => $this->apiKey,
             'headers' => [
                 'Content-Type' => 'application/json',

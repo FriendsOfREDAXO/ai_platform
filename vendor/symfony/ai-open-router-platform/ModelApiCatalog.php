@@ -25,9 +25,14 @@ final class ModelApiCatalog extends AbstractOpenRouterModelCatalog
 {
     protected bool $modelsAreLoaded = false;
 
+    private readonly string $baseUrl;
+
     public function __construct(
         private readonly HttpClientInterface $httpClient,
+        string $baseUrl = 'https://openrouter.ai/api',
     ) {
+        $this->baseUrl = rtrim($baseUrl, '/');
+
         parent::__construct();
     }
 
@@ -53,6 +58,7 @@ final class ModelApiCatalog extends AbstractOpenRouterModelCatalog
                 ...$this->fetchRemoteModels(),
                 ...$this->fetchRemoteEmbeddings(),
             ];
+            ksort($this->models);
             $this->modelsAreLoaded = true;
         }
     }
@@ -62,7 +68,7 @@ final class ModelApiCatalog extends AbstractOpenRouterModelCatalog
      */
     protected function fetchRemoteModels(): iterable
     {
-        $responseModels = $this->httpClient->request('GET', 'https://openrouter.ai/api/v1/models');
+        $responseModels = $this->httpClient->request('GET', $this->baseUrl.'/v1/models');
         foreach ($responseModels->toArray()['data'] as $model) {
             $capabilities = [];
 
@@ -81,7 +87,7 @@ final class ModelApiCatalog extends AbstractOpenRouterModelCatalog
                         $capabilities[] = Capability::INPUT_PDF;
                         break;
                     case 'video':
-                        $capabilities[] = Capability::INPUT_MULTIMODAL; // Video?
+                        $capabilities[] = Capability::INPUT_VIDEO;
                         break;
                     default:
                         throw new InvalidArgumentException('Unknown model '.$inputModality.' input modality.', 1763717587);
@@ -107,9 +113,12 @@ final class ModelApiCatalog extends AbstractOpenRouterModelCatalog
             // Streaming is allowed for any model: https://openrouter.ai/docs/api/reference/streaming
             $capabilities[] = Capability::OUTPUT_STREAMING;
 
-            // Structured Output via PlatformSubscriber
             if (\in_array('structured_outputs', $model['supported_parameters'] ?? [])) {
                 $capabilities[] = Capability::OUTPUT_STRUCTURED;
+            }
+
+            if (\in_array('tool_choice', $model['supported_parameters'] ?? [])) {
+                $capabilities[] = Capability::TOOL_CALLING;
             }
 
             yield $model['id'] => [
@@ -124,7 +133,7 @@ final class ModelApiCatalog extends AbstractOpenRouterModelCatalog
      */
     protected function fetchRemoteEmbeddings(): iterable
     {
-        $responseEmbeddings = $this->httpClient->request('GET', 'https://openrouter.ai/api/v1/embeddings/models');
+        $responseEmbeddings = $this->httpClient->request('GET', $this->baseUrl.'/v1/embeddings/models');
         foreach ($responseEmbeddings->toArray()['data'] as $embedding) {
             yield $embedding['id'] => [
                 'class' => EmbeddingsModel::class,

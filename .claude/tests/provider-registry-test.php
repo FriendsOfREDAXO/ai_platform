@@ -47,6 +47,18 @@ $types = ['embedding', 'image_generation', 'image_understanding', 'text'];
 $capture = static function (array $profile, array $response): array {
     $captured = null;
     $client = new MockHttpClient(static function (string $method, string $url, array $options) use (&$captured, $response): MockResponse {
+        // Ollamas Katalog ist seit Symfony AI 0.13 live: er fragt vor dem eigentlichen
+        // Aufruf `POST api/show` nach den Faehigkeiten des Modells. Diese Vorfrage wird
+        // hier beantwortet, ohne sie aufzuzeichnen -- interessant ist der Aufruf danach.
+        // Ohne die Weiche bekommt der Katalog die Chat-Antwort zu sehen, findet darin
+        // kein 'capabilities' und stirbt in array_map().
+        if (str_ends_with($url, 'api/show')) {
+            return new MockResponse(
+                json_encode(['capabilities' => ['completion', 'tools', 'vision']], JSON_THROW_ON_ERROR),
+                ['response_headers' => ['content-type' => 'application/json']],
+            );
+        }
+
         $captured = ['method' => $method, 'url' => $url, 'headers' => $options['headers'] ?? []];
 
         return new MockResponse(json_encode($response, JSON_THROW_ON_ERROR), [
@@ -135,7 +147,7 @@ $t->section('Model lists come from the bridge catalogs');
 $text = ProviderRegistry::models('openai', 'text');
 $t->assert(in_array('gpt-4o', $text, true), 'openai/text offers gpt-4o');
 $t->assert(!in_array('text-embedding-3-small', $text, true), 'openai/text leaves out embedding models');
-$t->assert(!in_array('dall-e-3', $text, true), 'openai/text leaves out image models');
+$t->assert(!in_array('gpt-image-1', $text, true), 'openai/text leaves out image models');
 // OUTPUT_TEXT alone also matches speech-to-text, which is why TYPE_CAPABILITIES
 // demands INPUT_MESSAGES next to it.
 $t->assert(!in_array('whisper-1', $text, true), 'openai/text leaves out whisper-1');
@@ -143,7 +155,11 @@ $t->assert(!in_array('whisper-1', $text, true), 'openai/text leaves out whisper-
 $embedding = ProviderRegistry::models('openai', 'embedding');
 $t->assert(in_array('text-embedding-3-small', $embedding, true), 'openai/embedding offers text-embedding-3-small');
 $t->assert(!in_array('gpt-4o', $embedding, true), 'openai/embedding leaves out chat models');
-$t->assert(in_array('dall-e-3', ProviderRegistry::models('openai', 'image_generation'), true), 'openai/image_generation offers dall-e-3');
+// dall-e-2 und dall-e-3 standen hier bis Symfony AI 0.13 und sind aus dem
+// OpenAI-Katalog entfernt ("retired by OpenAI"); Bildgenerierung laeuft dort jetzt
+// ueber die gpt-image-Modelle.
+$t->assert(in_array('gpt-image-1', ProviderRegistry::models('openai', 'image_generation'), true), 'openai/image_generation offers gpt-image-1');
+$t->assert(!in_array('dall-e-3', ProviderRegistry::models('openai', 'image_generation'), true), 'the retired dall-e-3 is gone');
 
 $t->assertSame([], ProviderRegistry::models('anthropic', 'image_generation'), 'anthropic offers no image generation');
 $t->assertSame([], ProviderRegistry::models('anthropic', 'embedding'), 'anthropic offers no embeddings');
@@ -186,13 +202,15 @@ foreach (['mistral', 'cerebras', 'scaleway'] as $provider) {
     $t->assertSame([], ProviderRegistry::models($provider, 'image_generation'), $provider . ' offers no image generation');
 }
 
-// Mistral and Scaleway carry a vision and an embedding model, Cerebras hosts open text
-// models only -- so its empty lists are the catalog's statement, not a filter bug.
+// Mistral and Scaleway carry a vision and an embedding model. Cerebras hosted open
+// text models only until its catalog gained gemma-4-31b, which reads images -- so the
+// assertion is on the shape of the answer, not on a count that a catalog update moves.
+// Its embedding list is still empty, and that is the catalog's statement, not a filter bug.
 $t->assert([] !== ProviderRegistry::models('mistral', 'image_understanding'), 'mistral offers vision models (pixtral)');
 $t->assert([] !== ProviderRegistry::models('mistral', 'embedding'), 'mistral offers an embedding model');
 $t->assert([] !== ProviderRegistry::models('scaleway', 'image_understanding'), 'scaleway offers a vision model');
 $t->assert([] !== ProviderRegistry::models('scaleway', 'embedding'), 'scaleway offers an embedding model');
-$t->assertSame([], ProviderRegistry::models('cerebras', 'image_understanding'), 'cerebras offers no vision models');
+$t->assert([] !== ProviderRegistry::models('cerebras', 'image_understanding'), 'cerebras offers a vision model (gemma-4-31b)');
 $t->assertSame([], ProviderRegistry::models('cerebras', 'embedding'), 'cerebras offers no embedding models');
 
 $t->assertSame([], ProviderRegistry::models('openai', 'no-such-type'), 'an unknown type yields no models');
@@ -308,17 +326,31 @@ $ollama = $capture(
 $t->assertSame('https://ollama.example/api/chat', $ollama['url'], 'ollama keeps its native endpoint');
 $t->assertSame('Bearer proxy-token', $authHeader($ollama['headers']), 'ollama passes the key on as a bearer token');
 
-// A model name outside the provider's catalog is not merely unlisted -- Symfony AI's
-// AbstractModelCatalog refuses it, so nothing is sent. This is the difference between the
-// two kinds of provider, and the reason the free-text input matters for the generic one:
-// its FallbackModelCatalog accepts any name, Ollama's strict catalog does not.
+// llama3.2-vision ist der Beleg fuer den Gewinn aus Symfony AI 0.13: bis 0.12 hatte
+// Ollama eine fest eingebaute Modellliste, in der dieser Name fehlte, und der Katalog
+// wies ihn mit ModelNotFoundException ab, bevor irgendetwas gesendet wurde -- ein
+// funktionierendes Modell, das ueber dieses AddOn nicht erreichbar war. Jetzt fragt der
+// Katalog den Server (`POST api/show`), und damit gilt jeder Name, den der Server
+// geladen hat.
+$vision = $capture(
+    ['provider' => 'ollama', 'base_url' => 'https://ollama.example', 'model' => 'llama3.2-vision'],
+    ['message' => ['role' => 'assistant', 'content' => 'OK'], 'done' => true],
+);
+$t->assertSame('https://ollama.example/api/chat', $vision['url'], 'ollama now accepts a model the old fixed list did not have');
+
+// Ein Katalog, der weiter streng ist: Anthropic pflegt seine Liste im Bridge-Paket, ein
+// unbekannter Name wird dort abgewiesen, ohne dass ein Request entsteht. Das ist der
+// Unterschied zwischen den Providertypen und der Grund, warum das Freitextfeld beim
+// generischen Provider mehr taugt als bei den gepflegten.
 $t->assertThrows(
     static fn () => $capture(
-        ['provider' => 'ollama', 'base_url' => 'https://ollama.example', 'model' => 'llama3.2-vision'],
-        ['message' => ['content' => 'OK'], 'done' => true],
+        ['provider' => 'anthropic', 'api_key' => 'sk-ant-key', 'model' => 'claude-does-not-exist'],
+        $completion,
     ),
-    'ollama refuses a model its catalog does not list',
-    'not found in',
+    'anthropic refuses a model its catalog does not list',
+    // Auf den Wortlaut ist hier kein Verlass: bis 0.11 hiess es "not found in <Katalog>",
+    // seit 0.12 "No provider found for model". Der Modellname steht in beiden.
+    'claude-does-not-exist',
 );
 
 $anyName = $capture(

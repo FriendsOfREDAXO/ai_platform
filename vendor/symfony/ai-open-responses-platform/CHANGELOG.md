@@ -1,6 +1,49 @@
 CHANGELOG
 =========
 
+0.13
+----
+
+ * Throw `ServerException` when an OpenAI response reports that the server is overloaded
+ * Preserve reasoning items as thinking signatures and replay them on subsequent requests
+ * Add `ToolCallStart` and `ToolInputDelta` deltas to streaming responses
+ * Add `CustomToolCallResult` for `custom_tool_call` output items, produced by remote tools like `x_search` in xAI
+ * Add `citations` metadata entry to `TextResult`, extracted from `url_citation` annotations on `output_text` content
+
+0.12
+----
+
+ * Throw `MaxOutputTokensException` when a response reaches its output token limit
+ * Throw a clear exception for malformed tool call arguments
+
+0.11
+----
+
+ * Throw `ServerException` on server errors (HTTP 5xx) instead of a generic `RuntimeException`
+ * Throw typed exceptions on rate limit and server error events mid-stream
+ * Normalize the `baseUrl` and tolerate a trailing slash in the model client
+ * Raise a `RuntimeException` on unhandled HTTP error statuses before streaming, instead of returning an empty stream
+
+0.10
+----
+
+ * Throw `ExceedContextSizeException` instead of `BadRequestException` when a 400 response reports a context overflow
+ * Throw `IncompleteStreamException` when a stream ends before `response.completed`
+ * Throw a clear exception when a non-streaming response is incomplete or yields no content, instead of building an empty `MultiPartResult`
+ * Replace malformed UTF-8 sequences in request bodies instead of aborting the request
+
+0.8
+---
+
+ * [BC BREAK] `OpenResponsesContract::create()` no longer accepts variadic `NormalizerInterface` arguments; pass an array instead
+ * [BC BREAK] Rename `PlatformFactory` to `Factory` with explicit `createProvider()` and `createPlatform()` methods
+
+0.7
+---
+
+ * [BC BREAK] Streaming responses now yield `TextDelta`, `ToolCallComplete`, and streamed `TokenUsage` deltas instead of raw strings and `ToolCallResult`
+ * Add reasoning content streaming support via `ThinkingDelta`
+
 0.4
 ---
 
