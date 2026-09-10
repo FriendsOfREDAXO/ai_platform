@@ -32,5 +32,6 @@ return array(
     'ReflectionConstant' => $vendorDir . '/symfony/polyfill-php84/Resources/stubs/ReflectionConstant.php',
     'RoundingMode' => $vendorDir . '/symfony/polyfill-php84/Resources/stubs/RoundingMode.php',
     'SQLite3Exception' => $vendorDir . '/symfony/polyfill-php83/Resources/stubs/SQLite3Exception.php',
+    'rex_api_ai_change_file' => $baseDir . '/lib/rex_api_ai_change_file.php',
     'rex_api_ai_test' => $baseDir . '/lib/rex_api_ai_test.php',
 );

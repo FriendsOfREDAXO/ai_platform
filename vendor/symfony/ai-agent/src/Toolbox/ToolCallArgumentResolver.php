@@ -14,12 +14,20 @@ namespace Symfony\AI\Agent\Toolbox;
 use Symfony\AI\Agent\Toolbox\Exception\ToolException;
 use Symfony\AI\Platform\Result\ToolCall;
 use Symfony\AI\Platform\Tool\Tool;
+use Symfony\Component\PropertyInfo\Extractor\PhpDocExtractor;
+use Symfony\Component\PropertyInfo\Extractor\ReflectionExtractor;
+use Symfony\Component\PropertyInfo\PropertyInfoExtractor;
+use Symfony\Component\Serializer\Mapping\ClassDiscriminatorFromClassMetadata;
+use Symfony\Component\Serializer\Mapping\Factory\ClassMetadataFactory;
+use Symfony\Component\Serializer\Mapping\Loader\AttributeLoader;
 use Symfony\Component\Serializer\Normalizer\ArrayDenormalizer;
+use Symfony\Component\Serializer\Normalizer\BackedEnumNormalizer;
 use Symfony\Component\Serializer\Normalizer\DateTimeNormalizer;
 use Symfony\Component\Serializer\Normalizer\DenormalizerInterface;
 use Symfony\Component\Serializer\Normalizer\ObjectNormalizer;
 use Symfony\Component\Serializer\Serializer;
 use Symfony\Component\TypeInfo\Type\CollectionType;
+use Symfony\Component\TypeInfo\Type\NullableType;
 use Symfony\Component\TypeInfo\TypeResolver\TypeResolver;
 
 /**
@@ -27,12 +35,28 @@ use Symfony\Component\TypeInfo\TypeResolver\TypeResolver;
  */
 final class ToolCallArgumentResolver implements ToolCallArgumentResolverInterface
 {
+    private readonly DenormalizerInterface $denormalizer;
     private readonly TypeResolver $typeResolver;
 
     public function __construct(
-        private readonly DenormalizerInterface $denormalizer = new Serializer([new DateTimeNormalizer(), new ObjectNormalizer(), new ArrayDenormalizer()]),
+        ?DenormalizerInterface $denormalizer = null,
         ?TypeResolver $typeResolver = null,
     ) {
+        if (null === $denormalizer) {
+            $classMetadataFactory = new ClassMetadataFactory(new AttributeLoader());
+            $propertyTypeExtractor = new PropertyInfoExtractor([], [new PhpDocExtractor(), new ReflectionExtractor()]);
+            $denormalizer = new Serializer([
+                new DateTimeNormalizer(),
+                new BackedEnumNormalizer(),
+                new ObjectNormalizer(
+                    classDiscriminatorResolver: new ClassDiscriminatorFromClassMetadata($classMetadataFactory),
+                    propertyTypeExtractor: $propertyTypeExtractor,
+                ),
+                new ArrayDenormalizer(),
+            ]);
+        }
+
+        $this->denormalizer = $denormalizer;
         $this->typeResolver = $typeResolver ?? TypeResolver::create();
     }
 
@@ -59,6 +83,16 @@ final class ToolCallArgumentResolver implements ToolCallArgumentResolverInterfac
 
             $value = $toolCall->getArguments()[$name];
             $parameterType = $this->typeResolver->resolve($reflectionParameter);
+
+            if ($parameterType instanceof NullableType) {
+                $parameterType = $parameterType->getWrappedType();
+
+                if (null === $value) {
+                    $arguments[$name] = null;
+                    continue;
+                }
+            }
+
             $dimensions = '';
             while ($parameterType instanceof CollectionType) {
                 $dimensions .= '[]';
@@ -67,8 +101,12 @@ final class ToolCallArgumentResolver implements ToolCallArgumentResolverInterfac
 
             $parameterType .= $dimensions;
 
-            if ($this->denormalizer->supportsDenormalization($value, $parameterType)) {
-                $value = $this->denormalizer->denormalize($value, $parameterType);
+            if ('float' === $parameterType && \is_int($value)) {
+                $value = (float) $value;
+            }
+
+            if ($this->denormalizer->supportsDenormalization($value, $parameterType, 'json')) {
+                $value = $this->denormalizer->denormalize($value, $parameterType, 'json');
             }
 
             $arguments[$name] = $value;

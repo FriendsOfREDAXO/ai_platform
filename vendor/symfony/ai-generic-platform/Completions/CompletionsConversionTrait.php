@@ -1,0 +1,292 @@
+<?php
+
+/*
+ * This file is part of the Symfony package.
+ *
+ * (c) Fabien Potencier <fabien@symfony.com>
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
+namespace Symfony\AI\Platform\Bridge\Generic\Completions;
+
+use Symfony\AI\Platform\Exception\IncompleteStreamException;
+use Symfony\AI\Platform\Exception\MalformedToolCallException;
+use Symfony\AI\Platform\Exception\RateLimitExceededException;
+use Symfony\AI\Platform\Exception\RuntimeException;
+use Symfony\AI\Platform\Exception\ServerException;
+use Symfony\AI\Platform\FinishReason\FinishReasonAwareTrait;
+use Symfony\AI\Platform\Result\RawResultInterface;
+use Symfony\AI\Platform\Result\Stream\Delta\MetadataDelta;
+use Symfony\AI\Platform\Result\Stream\Delta\TextDelta;
+use Symfony\AI\Platform\Result\Stream\Delta\ThinkingComplete;
+use Symfony\AI\Platform\Result\Stream\Delta\ThinkingDelta;
+use Symfony\AI\Platform\Result\Stream\Delta\ToolCallComplete;
+use Symfony\AI\Platform\Result\Stream\Delta\ToolCallStart;
+use Symfony\AI\Platform\Result\Stream\Delta\ToolInputDelta;
+use Symfony\AI\Platform\Result\TextResult;
+use Symfony\AI\Platform\Result\ToolCall;
+use Symfony\AI\Platform\Result\ToolCallResult;
+use Symfony\AI\Platform\TokenUsage\TokenUsage;
+
+/**
+ * Shared streaming and tool-call conversion logic for OpenAI-compatible completions APIs.
+ *
+ * Used by bridges whose response format follows the OpenAI chat completions schema
+ * (choices[].delta.tool_calls, choices[].finish_reason, etc.).
+ *
+ * @author Christopher Hertel <mail@christopher-hertel.de>
+ */
+trait CompletionsConversionTrait
+{
+    use FinishReasonAwareTrait;
+
+    protected function convertStream(RawResultInterface $result): \Generator
+    {
+        $toolCalls = [];
+        $reasoning = '';
+        $sawChunk = false;
+        $finishReason = null;
+
+        foreach ($result->getDataStream() as $data) {
+            if (isset($data['error'])) {
+                $message = \is_array($data['error']) ? ($data['error']['message'] ?? 'Unknown error') : (string) $data['error'];
+                $code = \is_array($data['error']) ? ($data['error']['code'] ?? null) : null;
+                $type = \is_array($data['error']) ? ($data['error']['type'] ?? null) : null;
+                $errorMessage = \sprintf('Stream error: "%s".', $message);
+
+                if ($this->isRateLimitError($code, $type)) {
+                    throw new RateLimitExceededException(null, $errorMessage);
+                }
+
+                if ($this->isServerError($code, $type)) {
+                    throw new ServerException(null, $errorMessage);
+                }
+
+                throw new RuntimeException($errorMessage);
+            }
+
+            $sawChunk = true;
+
+            // A non-null finish_reason on the leading choice marks the terminal content chunk.
+            // It is null on every non-final chunk, and a trailing usage-only chunk has choices: [].
+            // With n > 1 every choice terminates in its own chunk; the leading one wins, matching
+            // the buffered path where the metadata of the first choice surfaces on the result.
+            if (null !== ($data['choices'][0]['finish_reason'] ?? null)) {
+                $finishReason ??= FinishReasonMapper::map($data['choices'][0]['finish_reason']);
+            }
+
+            if (isset($data['usage'])) {
+                yield $this->convertStreamUsage($data['usage']);
+            }
+
+            if ($this->streamIsToolCall($data)) {
+                yield from $this->yieldToolCallDeltas($toolCalls, $data);
+                $toolCalls = $this->convertStreamToToolCalls($toolCalls, $data);
+            }
+
+            if ([] !== $toolCalls && $this->isToolCallsStreamFinished($data)) {
+                yield new ToolCallComplete(array_map($this->convertToolCall(...), $toolCalls));
+            }
+
+            $reasoning = yield from $this->yieldContentDeltas($data['choices'][0]['delta'] ?? [], $reasoning);
+        }
+
+        if ('' !== $reasoning) {
+            yield new ThinkingComplete($reasoning);
+        }
+
+        if ($sawChunk && null === $finishReason) {
+            throw new IncompleteStreamException('Completions stream ended before a finish reason was received.');
+        }
+
+        // Emitted last so the reason never precedes the visible deltas of the chunk that carried it:
+        // providers such as Mistral bundle the final content token and the finish_reason in one chunk.
+        if (null !== $finishReason) {
+            yield new MetadataDelta('finish_reason', $finishReason);
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $delta     The `choices[0].delta` payload
+     * @param string               $reasoning Reasoning accumulated by the previous chunks
+     *
+     * @return \Generator<int, ThinkingDelta|ThinkingComplete|TextDelta, mixed, string> Yields the content deltas; returns the updated reasoning
+     */
+    protected function yieldContentDeltas(array $delta, string $reasoning): \Generator
+    {
+        $reasoningContent = $delta['reasoning_content'] ?? $delta['reasoning'] ?? null;
+        if (null !== $reasoningContent && '' !== $reasoningContent) {
+            $reasoning .= $reasoningContent;
+            yield new ThinkingDelta($reasoningContent);
+        }
+
+        if ('' !== $reasoning && isset($delta['content']) && '' !== $delta['content']) {
+            yield new ThinkingComplete($reasoning);
+            $reasoning = '';
+        }
+
+        if (isset($delta['content'])) {
+            yield new TextDelta($delta['content']);
+        }
+
+        return $reasoning;
+    }
+
+    /**
+     * @param array<string, mixed> $usage
+     */
+    protected function convertStreamUsage(array $usage): TokenUsage
+    {
+        return (new TokenUsageExtractor())->extractFromArray($usage);
+    }
+
+    /**
+     * @param array<string, mixed> $toolCalls
+     * @param array<string, mixed> $data
+     *
+     * @return array<string, mixed>
+     */
+    protected function convertStreamToToolCalls(array $toolCalls, array $data): array
+    {
+        if (!isset($data['choices'][0]['delta']['tool_calls'])) {
+            return $toolCalls;
+        }
+
+        foreach ($data['choices'][0]['delta']['tool_calls'] as $i => $toolCall) {
+            $index = $toolCall['index'] ?? $i;
+
+            // A new tool call starts only on a NON-EMPTY id. OpenAI omits the id on continuation
+            // deltas, but some compatible providers (Alibaba Cloud Qwen / DashScope) repeat it as an
+            // empty string — isset() is true for "", so the empty-string case must be excluded or each
+            // continuation is misread as a start (losing the name and clobbering accumulated arguments).
+            if (isset($toolCall['id']) && '' !== $toolCall['id']) {
+                // initialize tool call
+                $toolCalls[$index] = [
+                    'id' => $toolCall['id'],
+                    'function' => $toolCall['function'],
+                ];
+                continue;
+            }
+
+            // add arguments delta to tool call
+            if (isset($toolCall['function']['arguments'])) {
+                if (!isset($toolCalls[$index]['function']['arguments'])) {
+                    $toolCalls[$index]['function']['arguments'] = '';
+                }
+
+                $toolCalls[$index]['function']['arguments'] .= $toolCall['function']['arguments'];
+            }
+        }
+
+        return $toolCalls;
+    }
+
+    /**
+     * @param array<string, mixed> $toolCalls Already-accumulated tool calls (before this chunk)
+     * @param array<string, mixed> $data
+     *
+     * @return \Generator<ToolCallStart|ToolInputDelta>
+     */
+    protected function yieldToolCallDeltas(array $toolCalls, array $data): \Generator
+    {
+        foreach ($data['choices'][0]['delta']['tool_calls'] ?? [] as $i => $toolCall) {
+            $index = $toolCall['index'] ?? $i;
+
+            if (isset($toolCall['id']) && '' !== $toolCall['id']) {
+                yield new ToolCallStart($toolCall['id'], $toolCall['function']['name']);
+            } elseif (isset($toolCall['function']['arguments'])) {
+                yield new ToolInputDelta($toolCalls[$index]['id'] ?? '', $toolCalls[$index]['function']['name'] ?? '', $toolCall['function']['arguments']);
+            }
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    protected function streamIsToolCall(array $data): bool
+    {
+        return isset($data['choices'][0]['delta']['tool_calls']);
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    protected function isToolCallsStreamFinished(array $data): bool
+    {
+        return isset($data['choices'][0]['finish_reason']) && 'tool_calls' === $data['choices'][0]['finish_reason'];
+    }
+
+    /**
+     * @param array{
+     *     index: int,
+     *     message: array{
+     *         role: 'assistant',
+     *         content: ?string,
+     *         tool_calls: list<array{
+     *             id: string,
+     *             type: 'function',
+     *             function: array{
+     *                 name: string,
+     *                 arguments: string
+     *             },
+     *         }>,
+     *         refusal: ?mixed
+     *     },
+     *     logprobs: string,
+     *     finish_reason: 'stop'|'length'|'tool_calls'|'content_filter',
+     * } $choice
+     */
+    protected function convertChoice(array $choice): ToolCallResult|TextResult
+    {
+        if ('tool_calls' === $choice['finish_reason']) {
+            return $this->withFinishReason(new ToolCallResult(array_map([$this, 'convertToolCall'], $choice['message']['tool_calls'])), FinishReasonMapper::map($choice['finish_reason']));
+        }
+
+        if (\in_array($choice['finish_reason'], ['stop', 'length'], true)) {
+            return $this->withFinishReason(new TextResult($choice['message']['content']), FinishReasonMapper::map($choice['finish_reason']));
+        }
+
+        throw new RuntimeException(\sprintf('Unsupported finish reason "%s".', $choice['finish_reason']));
+    }
+
+    /**
+     * @param array{
+     *     id: string,
+     *     type: 'function',
+     *     function: array{
+     *         name: string,
+     *         arguments?: string
+     *     }
+     * } $toolCall
+     *
+     * @throws MalformedToolCallException
+     */
+    protected function convertToolCall(array $toolCall): ToolCall
+    {
+        if (isset($toolCall['function']['arguments']) && '' !== $toolCall['function']['arguments']) {
+            try {
+                $arguments = json_decode($toolCall['function']['arguments'], true, flags: \JSON_THROW_ON_ERROR);
+            } catch (\JsonException $e) {
+                throw new MalformedToolCallException(\sprintf('Model returned malformed JSON arguments for the "%s" tool: "%s"', $toolCall['function']['name'], $e->getMessage()), 0, $e);
+            }
+        } else {
+            $arguments = [];
+        }
+
+        return new ToolCall($toolCall['id'], $toolCall['function']['name'], $arguments);
+    }
+
+    private function isRateLimitError(mixed $code, mixed $type): bool
+    {
+        return \in_array($code, ['rate_limit_exceeded', 'rate_limit_error', 'too_many_requests'], true)
+            || \in_array($type, ['rate_limit_exceeded', 'rate_limit_error', 'too_many_requests'], true);
+    }
+
+    private function isServerError(mixed $code, mixed $type): bool
+    {
+        return \in_array($code, ['server_error', 'internal_error'], true)
+            || \in_array($type, ['server_error', 'internal_error'], true);
+    }
+}

@@ -13,6 +13,9 @@ namespace Symfony\AI\Platform\Bridge\Gemini\Contract;
 
 use Symfony\AI\Platform\Bridge\Gemini\Gemini;
 use Symfony\AI\Platform\Contract\Normalizer\ModelContractNormalizer;
+use Symfony\AI\Platform\Exception\RuntimeException;
+use Symfony\AI\Platform\Message\Content\Image;
+use Symfony\AI\Platform\Message\Content\Text;
 use Symfony\AI\Platform\Message\ToolCallMessage;
 use Symfony\AI\Platform\Model;
 
@@ -24,28 +27,52 @@ final class ToolCallMessageNormalizer extends ModelContractNormalizer
     /**
      * @param ToolCallMessage $data
      *
-     * @return array{
-     *      functionResponse: array{
-     *          id: string,
+     * @return array<array{
+     *      functionResponse?: array{
+     *          id?: string,
      *          name: string,
-     *          response: array<int|string, mixed>
-     *      }
-     *  }[]
+     *          response: array{result: array<int|string, mixed>|string}
+     *      },
+     *      inline_data?: array{mime_type: string, data: string}
+     *  }>
      */
     public function normalize(mixed $data, ?string $format = null, array $context = []): array
     {
-        $resultContent = json_validate($data->getContent())
-            ? json_decode($data->getContent(), true) : $data->getContent();
+        $text = $data->asText() ?? '';
+        $resultContent = json_validate($text) ? json_decode($text, true) : $text;
 
-        return [[
-            'functionResponse' => array_filter([
-                'id' => $data->getToolCall()->getId(),
-                'name' => $data->getToolCall()->getName(),
-                'response' => \is_array($resultContent) ? $resultContent : [
-                    'rawResponse' => $resultContent, // Gemini expects the response to be an object, but not everyone uses objects as their responses.
-                ],
-            ]),
-        ]];
+        // Gemini's API requires `response` (FunctionResponse) to be a Protobuf Struct
+        $functionResponse = [
+            'name' => $data->getToolCall()->getName(),
+            'response' => ['result' => $resultContent],
+        ];
+
+        // Gemini < 3.0 may return an empty string as the ID which is invalid
+        $id = $data->getToolCall()->getId();
+        if ('' !== $id) {
+            $functionResponse['id'] = $id;
+        }
+
+        $parts = [['functionResponse' => $functionResponse]];
+
+        foreach ($data->getContent() as $part) {
+            if ($part instanceof Text) {
+                continue;
+            }
+
+            if ($part instanceof Image) {
+                $parts[] = ['inline_data' => [
+                    'mime_type' => $part->getFormat(),
+                    'data' => $part->asBase64(),
+                ]];
+
+                continue;
+            }
+
+            throw new RuntimeException(\sprintf('Unsupported tool result content part of type "%s".', get_debug_type($part)));
+        }
+
+        return $parts;
     }
 
     protected function supportedDataClass(): string

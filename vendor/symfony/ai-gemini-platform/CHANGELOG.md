@@ -1,6 +1,48 @@
 CHANGELOG
 =========
 
+0.13
+----
+
+ * [BC BREAK] Streamed tool calls are completed once at the end of the stream, instead of one `ToolCallComplete` delta per `functionCall` part
+ * Add `ToolCallStart` deltas to streaming responses for function calls the API identifies
+
+0.11
+----
+
+ * Throw `ServerException` on server errors (HTTP 5xx) instead of a generic `RuntimeException`
+ * Add a `baseUrl` argument to the model clients and the factory to target Gemini-compatible endpoints
+ * Raise a `RuntimeException` on unhandled HTTP error statuses before streaming, instead of returning an empty stream
+ * Stream thinking as `ThinkingStart`/`ThinkingDelta`/`ThinkingComplete` deltas for `thought` parts and expand multi-part streamed candidates
+
+0.10
+----
+
+ * Throw `ExceedContextSizeException` instead of `BadRequestException` when a 400 response reports a context overflow
+ * Throw `ModelNotFoundException` when a 404 response reports a missing model
+
+0.9
+---
+
+ * Add `thoughtSignature` round-trip: `ResultConverter` emits `ThinkingResult` for parts with `thought: true` and preserves `thoughtSignature` on `text`/`functionCall`/thought parts; `AssistantMessageNormalizer` sends them back on replay.
+ * `AssistantMessageNormalizer` emits `executableCode` and `codeExecutionResult` parts for `Message\Content\ExecutableCode` and `Message\Content\CodeExecution` content so multi-turn code-execution conversations replay end-to-end.
+
+0.8
+---
+
+ * [BC BREAK] `GeminiContract::create()` no longer accepts variadic `NormalizerInterface` arguments; pass an array instead
+ * [BC BREAK] Rename `PlatformFactory` to `Factory` with explicit `createProvider()` and `createPlatform()` methods
+ * [BC BREAK] `ResultConverter` now returns a `MultiPartResult` when there are multiple `parts` in a `candidate`
+ * [BC BREAK] `ResultConverter` now `ExecutableCodeResult` and `CodeExecutionResult` parts when using `code_execution` server tool
+ * [BC BREAK] Throwing when code execution server tool fails is replaced with `CodeExecutionResult::isSucceeded()`
+ * Add possibility to pass `tool_config` to the model
+ * HTTP 400/401/429 responses now throw dedicated exceptions (`BadRequestException`, `AuthenticationException`, `RateLimitExceededException`)
+
+0.7
+---
+
+ * [BC BREAK] Streaming responses now yield `TextDelta`, `BinaryDelta`, `ToolCallComplete`, and `ChoiceDelta` instead of result objects and raw strings
+
 0.1
 ---
 

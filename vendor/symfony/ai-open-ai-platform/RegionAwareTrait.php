@@ -1,0 +1,43 @@
+<?php
+
+/*
+ * This file is part of the Symfony package.
+ *
+ * (c) Fabien Potencier <fabien@symfony.com>
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
+namespace Symfony\AI\Platform\Bridge\OpenAi;
+
+use Symfony\AI\Platform\Exception\InvalidArgumentException;
+
+/**
+ * Resolves the OpenAI base URL for a region and validates the API key format.
+ *
+ * @author Oskar Stark <oskar.stark@sensiolabs.de>
+ */
+trait RegionAwareTrait
+{
+    protected static function getBaseUrl(?string $region): string
+    {
+        return match ($region) {
+            null => 'https://api.openai.com',
+            Factory::REGION_EU => 'https://eu.api.openai.com',
+            Factory::REGION_US => 'https://us.api.openai.com',
+            default => throw new InvalidArgumentException(\sprintf('Invalid region "%s". Valid options are: "%s", "%s", or null.', $region, Factory::REGION_EU, Factory::REGION_US)),
+        };
+    }
+
+    protected static function validateApiKey(string $apiKey): void
+    {
+        if ('' === $apiKey) {
+            throw new InvalidArgumentException('The API key must not be empty.');
+        }
+
+        if (!str_starts_with($apiKey, 'sk-')) {
+            throw new InvalidArgumentException('The API key must start with "sk-".');
+        }
+    }
+}

@@ -15,6 +15,7 @@ use Symfony\AI\Platform\Bridge\OpenResponses\ResponsesModel;
 use Symfony\AI\Platform\Contract\Normalizer\ModelContractNormalizer;
 use Symfony\AI\Platform\Message\AssistantMessage;
 use Symfony\AI\Platform\Message\MessageBag;
+use Symfony\AI\Platform\Message\Template;
 use Symfony\AI\Platform\Model;
 use Symfony\Component\Serializer\Exception\ExceptionInterface;
 use Symfony\Component\Serializer\Normalizer\NormalizerAwareInterface;
@@ -31,8 +32,8 @@ final class MessageBagNormalizer extends ModelContractNormalizer implements Norm
      * @param MessageBag $data
      *
      * @return array{
-     *     input: array<string, mixed>,
-     *     instructions?: string,
+     *     input: list<mixed>,
+     *     instructions?: string|Template,
      * }
      *
      * @throws ExceptionInterface
@@ -44,7 +45,7 @@ final class MessageBagNormalizer extends ModelContractNormalizer implements Norm
         foreach ($data->withoutSystemMessage()->getMessages() as $message) {
             $normalized = $this->normalizer->normalize($message, $format, $context);
 
-            if ($message instanceof AssistantMessage && $message->hasToolCalls()) {
+            if ($message instanceof AssistantMessage) {
                 $messages['input'] = array_merge($messages['input'], $normalized);
                 continue;
             }

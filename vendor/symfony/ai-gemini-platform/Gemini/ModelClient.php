@@ -13,6 +13,7 @@ namespace Symfony\AI\Platform\Bridge\Gemini\Gemini;
 
 use Symfony\AI\Platform\Bridge\Gemini\Gemini;
 use Symfony\AI\Platform\Exception\InvalidArgumentException;
+use Symfony\AI\Platform\JsonBodyEncodingTrait;
 use Symfony\AI\Platform\Model;
 use Symfony\AI\Platform\ModelClientInterface;
 use Symfony\AI\Platform\Result\RawHttpResult;
@@ -26,13 +27,21 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
  */
 final class ModelClient implements ModelClientInterface
 {
-    private readonly EventSourceHttpClient $httpClient;
+    use JsonBodyEncodingTrait;
 
+    private readonly EventSourceHttpClient $httpClient;
+    private readonly string $baseUrl;
+
+    /**
+     * @param string $baseUrl Base URL of a Gemini-compatible endpoint, with or without a trailing slash
+     */
     public function __construct(
         HttpClientInterface $httpClient,
         #[\SensitiveParameter] private readonly string $apiKey,
+        string $baseUrl = 'https://generativelanguage.googleapis.com',
     ) {
         $this->httpClient = $httpClient instanceof EventSourceHttpClient ? $httpClient : new EventSourceHttpClient($httpClient);
+        $this->baseUrl = rtrim($baseUrl, '/');
     }
 
     public function supports(Model $model): bool
@@ -50,9 +59,10 @@ final class ModelClient implements ModelClientInterface
         }
 
         $url = \sprintf(
-            'https://generativelanguage.googleapis.com/v1beta/models/%s:%s',
+            '%s/v1beta/models/%s:%s',
+            $this->baseUrl,
             $model->getName(),
-            $options['stream'] ?? false ? 'streamGenerateContent' : 'generateContent',
+            $options['stream'] ?? false ? 'streamGenerateContent?alt=sse' : 'generateContent',
         );
 
         if (isset($options[PlatformSubscriber::RESPONSE_FORMAT]['json_schema']['schema'])) {
@@ -61,18 +71,24 @@ final class ModelClient implements ModelClientInterface
             unset($options[PlatformSubscriber::RESPONSE_FORMAT]);
         }
 
-        $generationConfig = ['generationConfig' => $options];
-        unset($generationConfig['generationConfig']['stream']);
-        unset($generationConfig['generationConfig']['tools']);
-        unset($generationConfig['generationConfig']['server_tools']);
+        $config = ['generationConfig' => $options];
+        unset($config['generationConfig']['stream']);
+        unset($config['generationConfig']['tools']);
+        unset($config['generationConfig']['tool_config']);
+        unset($config['generationConfig']['server_tools']);
 
-        if ([] === $generationConfig['generationConfig']) {
-            $generationConfig = [];
+        if ([] === $config['generationConfig']) {
+            $config = [];
         }
 
         if (isset($options['tools'])) {
-            $generationConfig['tools'][] = ['functionDeclarations' => $options['tools']];
+            $config['tools'][] = ['functionDeclarations' => $options['tools']];
             unset($options['tools']);
+        }
+
+        if (isset($options['tool_config'])) {
+            $config['tool_config'] = $options['tool_config'];
+            unset($options['tool_config']);
         }
 
         foreach ($options['server_tools'] ?? [] as $tool => $params) {
@@ -80,14 +96,15 @@ final class ModelClient implements ModelClientInterface
                 continue;
             }
 
-            $generationConfig['tools'][] = [$tool => true === $params ? new \ArrayObject() : $params];
+            $config['tools'][] = [$tool => true === $params ? new \ArrayObject() : $params];
         }
 
         return new RawHttpResult($this->httpClient->request('POST', $url, [
             'headers' => [
                 'x-goog-api-key' => $this->apiKey,
+                'Content-Type' => 'application/json',
             ],
-            'json' => array_merge($generationConfig, $payload),
+            'body' => $this->encodeJsonBody(array_merge($config, $payload)),
         ]));
     }
 }

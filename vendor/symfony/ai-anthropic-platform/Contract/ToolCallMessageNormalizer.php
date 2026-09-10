@@ -13,6 +13,8 @@ namespace Symfony\AI\Platform\Bridge\Anthropic\Contract;
 
 use Symfony\AI\Platform\Bridge\Anthropic\Claude;
 use Symfony\AI\Platform\Contract\Normalizer\ModelContractNormalizer;
+use Symfony\AI\Platform\Message\Content\ContentInterface;
+use Symfony\AI\Platform\Message\Content\Text;
 use Symfony\AI\Platform\Message\ToolCallMessage;
 use Symfony\AI\Platform\Model;
 use Symfony\Component\Serializer\Normalizer\NormalizerAwareInterface;
@@ -33,19 +35,24 @@ final class ToolCallMessageNormalizer extends ModelContractNormalizer implements
      *     content: list<array{
      *         type: 'tool_result',
      *         tool_use_id: string,
-     *         content: string,
+     *         content: string|list<array<string, mixed>>,
      *     }>
      * }
      */
     public function normalize(mixed $data, ?string $format = null, array $context = []): array
     {
+        $parts = $data->getContent();
+        $content = $this->isTextOnly($parts)
+            ? ($data->asText() ?? '')
+            : array_map(fn (ContentInterface $part): array => $this->normalizer->normalize($part, $format, $context), $parts);
+
         return [
             'role' => 'user',
             'content' => [
                 [
                     'type' => 'tool_result',
                     'tool_use_id' => $data->getToolCall()->getId(),
-                    'content' => $data->getContent(),
+                    'content' => $content,
                 ],
             ],
         ];
@@ -59,5 +66,19 @@ final class ToolCallMessageNormalizer extends ModelContractNormalizer implements
     protected function supportsModel(Model $model): bool
     {
         return $model instanceof Claude;
+    }
+
+    /**
+     * @param ContentInterface[] $parts
+     */
+    private function isTextOnly(array $parts): bool
+    {
+        foreach ($parts as $part) {
+            if (!$part instanceof Text) {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

@@ -38,7 +38,7 @@ final class ToolCallMessageNormalizer extends ModelContractNormalizer
         return [
             'type' => 'function_call_output',
             'call_id' => $data->getToolCall()->getId(),
-            'output' => $data->getContent(),
+            'output' => $data->asText() ?? '',
         ];
     }
 

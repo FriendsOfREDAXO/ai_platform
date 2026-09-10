@@ -19,6 +19,7 @@ use Symfony\AI\Agent\InputProcessorInterface;
 use Symfony\AI\Agent\Toolbox\ToolboxInterface;
 use Symfony\AI\Platform\Message\Content\File;
 use Symfony\AI\Platform\Message\Message;
+use Symfony\AI\Platform\Message\Template;
 use Symfony\AI\Platform\Tool\Tool;
 use Symfony\Contracts\Translation\TranslatableInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
@@ -29,11 +30,11 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 final class SystemPromptInputProcessor implements InputProcessorInterface
 {
     /**
-     * @param \Stringable|TranslatableInterface|string|File $systemPrompt the system prompt to prepend to the input messages, or a File object to read from
-     * @param ToolboxInterface|null                         $toolbox      the tool box to be used to append the tool definitions to the system prompt
+     * @param \Stringable|TranslatableInterface|string|File|Template $systemPrompt the system prompt to prepend to the input messages, or a File object to read from
+     * @param ToolboxInterface|null                                  $toolbox      the tool box to be used to append the tool definitions to the system prompt
      */
     public function __construct(
-        private readonly \Stringable|TranslatableInterface|string|File $systemPrompt,
+        private readonly \Stringable|TranslatableInterface|string|File|Template $systemPrompt,
         private readonly ?ToolboxInterface $toolbox = null,
         private readonly ?TranslatorInterface $translator = null,
         private readonly LoggerInterface $logger = new NullLogger(),
@@ -41,6 +42,11 @@ final class SystemPromptInputProcessor implements InputProcessorInterface
         if ($this->systemPrompt instanceof TranslatableInterface && !$this->translator) {
             throw new RuntimeException('Translatable system prompt is not supported when no translator is provided.');
         }
+    }
+
+    public function getSystemPrompt(): \Stringable|TranslatableInterface|string|File|Template
+    {
+        return $this->systemPrompt;
     }
 
     public function processInput(Input $input): void
@@ -57,6 +63,8 @@ final class SystemPromptInputProcessor implements InputProcessorInterface
             $message = $this->systemPrompt->asBinary();
         } elseif ($this->systemPrompt instanceof TranslatableInterface) {
             $message = $this->systemPrompt->trans($this->translator);
+        } elseif ($this->systemPrompt instanceof Template) {
+            $message = $this->systemPrompt;
         } else {
             $message = (string) $this->systemPrompt;
         }
@@ -74,17 +82,28 @@ final class SystemPromptInputProcessor implements InputProcessorInterface
                 $this->toolbox->getTools()
             ));
 
-            $message = <<<PROMPT
-                {$message}
+            if ($message instanceof Template) {
+                $toolsPrompt = \PHP_EOL.\PHP_EOL
+                    .'# Tools'.\PHP_EOL.\PHP_EOL
+                    ."The following tools are available to assist you in completing the user's request:".\PHP_EOL.\PHP_EOL
+                    .$tools;
+                $template = 'expression' === $message->getType()
+                    ? '('.$message->getTemplate().') ~ '.json_encode($toolsPrompt, \JSON_THROW_ON_ERROR | \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE)
+                    : $message->getTemplate().$toolsPrompt;
+                $message = new Template($template, $message->getType());
+            } else {
+                $message = <<<PROMPT
+                    {$message}
 
-                # Tools
+                    # Tools
 
-                The following tools are available to assist you in completing the user's request:
+                    The following tools are available to assist you in completing the user's request:
 
-                {$tools}
-                PROMPT;
+                    {$tools}
+                    PROMPT;
+            }
         }
 
-        $input->setMessageBag($messages->withSystemMessage(Message::forSystem($message)));
+        $messages->prepend(Message::forSystem($message));
     }
 }

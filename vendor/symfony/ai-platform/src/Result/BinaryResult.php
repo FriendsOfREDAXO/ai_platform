@@ -11,6 +11,7 @@
 
 namespace Symfony\AI\Platform\Result;
 
+use Symfony\AI\Platform\Exception\IOException;
 use Symfony\AI\Platform\Exception\RuntimeException;
 
 /**
@@ -19,8 +20,8 @@ use Symfony\AI\Platform\Exception\RuntimeException;
 final class BinaryResult extends BaseResult
 {
     public function __construct(
-        private string $data,
-        private ?string $mimeType = null,
+        private readonly string $data,
+        private readonly ?string $mimeType = null,
     ) {
     }
 
@@ -48,6 +49,23 @@ final class BinaryResult extends BaseResult
     public function toBase64(): string
     {
         return base64_encode($this->data);
+    }
+
+    public function asFile(string $path): void
+    {
+        $directory = \dirname($path);
+
+        if (!is_dir($directory)) {
+            throw new IOException(\sprintf('The directory "%s" does not exist.', $directory));
+        }
+
+        if (!is_writable($directory)) {
+            throw new IOException(\sprintf('The directory "%s" is not writable.', $directory));
+        }
+
+        if (false === file_put_contents($path, $this->data)) {
+            throw new IOException(\sprintf('Failed to write file to "%s".', $path));
+        }
     }
 
     public function toDataUri(?string $mimeType = null): string

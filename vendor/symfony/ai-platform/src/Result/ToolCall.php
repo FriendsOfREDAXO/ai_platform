@@ -11,10 +11,12 @@
 
 namespace Symfony\AI\Platform\Result;
 
+use Symfony\AI\Platform\Message\Content\ContentInterface;
+
 /**
  * @author Christopher Hertel <mail@christopher-hertel.de>
  */
-final class ToolCall implements \JsonSerializable
+final class ToolCall implements ContentInterface
 {
     /**
      * @param array<string, mixed> $arguments
@@ -23,6 +25,7 @@ final class ToolCall implements \JsonSerializable
         private readonly string $id,
         private readonly string $name,
         private readonly array $arguments = [],
+        private readonly ?string $signature = null,
     ) {
     }
 
@@ -45,24 +48,12 @@ final class ToolCall implements \JsonSerializable
     }
 
     /**
-     * @return array{
-     *     id: string,
-     *     type: 'function',
-     *     function: array{
-     *         name: string,
-     *         arguments: string
-     *     }
-     * }
+     * Provider-scoped signature guarding this tool call when replayed on a subsequent turn.
+     * Currently only Google Gemini / Vertex AI emit signatures on function-call parts (for
+     * parallel calls, only the first part carries one).
      */
-    public function jsonSerialize(): array
+    public function getSignature(): ?string
     {
-        return [
-            'id' => $this->id,
-            'type' => 'function',
-            'function' => [
-                'name' => $this->name,
-                'arguments' => json_encode($this->arguments ?: new \stdClass()),
-            ],
-        ];
+        return $this->signature;
     }
 }

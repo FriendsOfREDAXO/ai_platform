@@ -1,0 +1,87 @@
+<?php
+
+/*
+ * This file is part of the Symfony package.
+ *
+ * (c) Fabien Potencier <fabien@symfony.com>
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
+namespace Symfony\AI\Platform\Bridge\Scaleway\Llm;
+
+use Symfony\AI\Platform\Bridge\Generic\Completions\CompletionsConversionTrait;
+use Symfony\AI\Platform\Bridge\Scaleway\Scaleway;
+use Symfony\AI\Platform\Exception\ContentFilterException;
+use Symfony\AI\Platform\Exception\ExceedContextSizeException;
+use Symfony\AI\Platform\Exception\RuntimeException;
+use Symfony\AI\Platform\Exception\ServerException;
+use Symfony\AI\Platform\Model;
+use Symfony\AI\Platform\Result\ChoiceResult;
+use Symfony\AI\Platform\Result\RawHttpResult;
+use Symfony\AI\Platform\Result\RawResultInterface;
+use Symfony\AI\Platform\Result\ResultInterface;
+use Symfony\AI\Platform\Result\StreamResult;
+use Symfony\AI\Platform\ResultConverterInterface;
+
+/**
+ * @author Marcus Stöhr <marcus@fischteich.net>
+ */
+final class ResultConverter implements ResultConverterInterface
+{
+    use CompletionsConversionTrait;
+
+    public function supports(Model $model): bool
+    {
+        return $model instanceof Scaleway;
+    }
+
+    public function convert(RawResultInterface $result, array $options = []): ResultInterface
+    {
+        if ($result instanceof RawHttpResult && ($code = $result->getObject()->getStatusCode()) >= 500) {
+            $errorMessage = json_decode($result->getObject()->getContent(false), true)['error']['message'] ?? null;
+            throw new ServerException($code, $errorMessage);
+        }
+
+        if ($options['stream'] ?? false) {
+            if ($result instanceof RawHttpResult && ($code = $result->getObject()->getStatusCode()) >= 400) {
+                throw new RuntimeException(\sprintf('Unexpected response code %d: "%s"', $code, $result->getObject()->getContent(false)));
+            }
+
+            return new StreamResult($this->convertStream($result));
+        }
+
+        $data = $result->getData();
+
+        if (isset($data['error']['code']) && 'content_filter' === $data['error']['code']) {
+            throw new ContentFilterException($data['error']['message']);
+        }
+
+        if (isset($data['error'])) {
+            $errorMessage = $data['error']['message'] ?? '';
+
+            if ('context_length_exceeded' === ($data['error']['code'] ?? null)
+                || str_contains($errorMessage, 'context length')
+                || str_contains($errorMessage, 'max_model_len')
+            ) {
+                throw new ExceedContextSizeException('' !== $errorMessage ? $errorMessage : 'Context size exceeded');
+            }
+
+            throw new RuntimeException(\sprintf('Error "%s": "%s".', $data['error']['type'] ?? $data['error']['code'] ?? 'unknown', $data['error']['message'] ?? 'Unknown error'));
+        }
+
+        if (!isset($data['choices'])) {
+            throw new RuntimeException('Result does not contain choices.');
+        }
+
+        $choices = array_map($this->convertChoice(...), $data['choices']);
+
+        return 1 === \count($choices) ? $choices[0] : new ChoiceResult($choices);
+    }
+
+    public function getTokenUsageExtractor(): null
+    {
+        return null;
+    }
+}

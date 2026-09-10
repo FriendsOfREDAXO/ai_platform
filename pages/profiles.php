@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use FriendsOfRedaxo\AiPlatform\ProviderRegistry;
 use FriendsOfRedaxo\AiPlatform\Service;
 
 $func = rex_request('func', 'string');
@@ -61,10 +62,25 @@ if ('add' === $func || 'edit' === $func) {
     $field->setAttribute('class', 'form-control');
     $field->setNotice(rex_i18n::msg('ai_platform_base_url_notice'));
 
-    // Model
+    // Model. The select in front of the input is filled by assets/profiles.js from the
+    // provider's catalog; picking an entry writes it into the input, which stays the
+    // single field bound to the column. The input only shows itself for a name the
+    // catalog does not have -- necessary, not a nicety: the catalogs have gaps
+    // (llama3.2-vision is missing entirely) and the generic provider has no catalog at
+    // all, so a closed select would lock out model names that work. The select renders
+    // as the field's prefix, which the core places inside the same <dd>
+    // (core/fragments/core/form/form.php).
     $field = $form->addTextField('model');
     $field->setLabel(rex_i18n::msg('ai_platform_model'));
     $field->setAttribute('class', 'form-control');
+    $field->setAttribute('autocomplete', 'off');
+    $field->setAttribute('placeholder', rex_i18n::msg('ai_platform_model_placeholder'));
+    $field->setPrefix(
+        '<select id="ai-model-select" class="form-control selectpicker ai-model-select"'
+        . ' data-live-search="true" data-custom-label="'
+        . rex_escape(rex_i18n::msg('ai_platform_model_custom_option'), 'html_attr')
+        . '"></select>',
+    );
     $field->setNotice(rex_i18n::msg('ai_platform_model_notice'));
 
     // --- Type-specific fields ---
@@ -108,11 +124,13 @@ if ('add' === $func || 'edit' === $func) {
     $field->setLabel(rex_i18n::msg('ai_platform_image_size'));
     $select = $field->getSelect();
     $select->addOption(rex_i18n::msg('ai_platform_default'), '');
+    // Die Groessen der gpt-image-Modelle. 1792x1024, 1024x1792, 512x512 und 256x256
+    // standen hier fuer dall-e-3 und dall-e-2 -- die sind mit Symfony AI 0.13 aus dem
+    // OpenAI-Katalog verschwunden, und an ein gpt-image-Modell gesendet ergibt eine
+    // dieser Groessen einen 400.
     $select->addOption('1024x1024', '1024x1024');
-    $select->addOption('1792x1024 (Landscape)', '1792x1024');
-    $select->addOption('1024x1792 (Portrait)', '1024x1792');
-    $select->addOption('512x512', '512x512');
-    $select->addOption('256x256', '256x256');
+    $select->addOption('1536x1024 (Landscape)', '1536x1024');
+    $select->addOption('1024x1536 (Portrait)', '1024x1536');
     $field->setAttribute('class', 'form-control selectpicker');
     if ($isAdd) {
         $select->setSelected('1024x1024');
@@ -123,24 +141,30 @@ if ('add' === $func || 'edit' === $func) {
     $field->setLabel(rex_i18n::msg('ai_platform_image_quality'));
     $select = $field->getSelect();
     $select->addOption(rex_i18n::msg('ai_platform_default'), '');
-    $select->addOption('Standard', 'standard');
-    $select->addOption('HD', 'hd');
+    // Auch das folgt dem Modellwechsel: DALL-E kannte standard und hd, die
+    // gpt-image-Modelle nehmen auto, low, medium und high. Keine Vorauswahl beim
+    // Anlegen -- ohne Angabe entscheidet der Provider, und das ist hier die
+    // vernuenftigste Vorgabe.
+    $select->addOption('Auto', 'auto');
+    $select->addOption('High', 'high');
+    $select->addOption('Medium', 'medium');
+    $select->addOption('Low', 'low');
     $field->setAttribute('class', 'form-control selectpicker');
-    if ($isAdd) {
-        $select->setSelected('standard');
-    }
 
     // Image Style (image_generation only)
     $field = $form->addSelectField('image_style');
     $field->setLabel(rex_i18n::msg('ai_platform_image_style'));
     $select = $field->getSelect();
     $select->addOption(rex_i18n::msg('ai_platform_default'), '');
+    // Kein mitgelieferter Provider fuehrt 'image_style' mehr in seinen Feldern, das
+    // Feld ist damit im Backend unsichtbar. Es bleibt trotzdem stehen: 'image_style'
+    // ist in ProviderRegistry::OPTION_FIELDS weiter vorgesehen, und ein per Extension
+    // Point registrierter Provider mit einem DALL-E-artigen Modell braucht ein Feld,
+    // das er einblenden kann. Keine Vorauswahl mehr, damit ein neues Profil den Wert
+    // nicht speichert, ohne ihn zu zeigen.
     $select->addOption('Vivid', 'vivid');
     $select->addOption('Natural', 'natural');
     $field->setAttribute('class', 'form-control selectpicker');
-    if ($isAdd) {
-        $select->setSelected('vivid');
-    }
 
     // Detail Level (image_understanding only)
     $field = $form->addSelectField('detail_level');
@@ -163,7 +187,15 @@ if ('add' === $func || 'edit' === $func) {
     $select->addOption(rex_i18n::msg('ai_platform_status_inactive'), '0');
     $field->setAttribute('class', 'form-control selectpicker');
 
-    $content = $form->get();
+    // Which fields a provider needs, its default model per type and the catalog
+    // suggestions -- all of it from ProviderRegistry, so assets/profiles.js carries no
+    // provider knowledge of its own. Written here rather than via
+    // rex_view::setJsProperty() because that renders in the head, which is already out
+    // the door by the time a page script runs.
+    $content = $form->get()
+        . '<script type="application/json" id="ai-provider-config">'
+        . json_encode(ProviderRegistry::formConfig(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG)
+        . '</script>';
 
     $fragment = new rex_fragment();
     $fragment->setVar('class', 'edit', false);

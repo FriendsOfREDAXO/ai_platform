@@ -14,29 +14,70 @@ namespace Symfony\AI\Platform\Bridge\OpenResponses;
 use Symfony\AI\Platform\Exception\AuthenticationException;
 use Symfony\AI\Platform\Exception\BadRequestException;
 use Symfony\AI\Platform\Exception\ContentFilterException;
+use Symfony\AI\Platform\Exception\ExceedContextSizeException;
+use Symfony\AI\Platform\Exception\IncompleteStreamException;
+use Symfony\AI\Platform\Exception\MalformedToolCallException;
+use Symfony\AI\Platform\Exception\MaxOutputTokensException;
 use Symfony\AI\Platform\Exception\RateLimitExceededException;
 use Symfony\AI\Platform\Exception\RuntimeException;
+use Symfony\AI\Platform\Exception\ServerException;
 use Symfony\AI\Platform\Model;
-use Symfony\AI\Platform\Result\ChoiceResult;
+use Symfony\AI\Platform\Result\BinaryResult;
+use Symfony\AI\Platform\Result\CodeExecutionResult;
+use Symfony\AI\Platform\Result\ComputerCallResult;
+use Symfony\AI\Platform\Result\CustomToolCallResult;
+use Symfony\AI\Platform\Result\ExecutableCodeResult;
+use Symfony\AI\Platform\Result\FileSearchResult;
+use Symfony\AI\Platform\Result\LocalShellCallResult;
+use Symfony\AI\Platform\Result\McpApprovalRequestResult;
+use Symfony\AI\Platform\Result\McpCallResult;
+use Symfony\AI\Platform\Result\McpListToolsResult;
+use Symfony\AI\Platform\Result\MultiPartResult;
 use Symfony\AI\Platform\Result\RawHttpResult;
 use Symfony\AI\Platform\Result\RawResultInterface;
 use Symfony\AI\Platform\Result\ResultInterface;
+use Symfony\AI\Platform\Result\Stream\Delta\MetadataDelta;
+use Symfony\AI\Platform\Result\Stream\Delta\TextDelta;
+use Symfony\AI\Platform\Result\Stream\Delta\ThinkingComplete;
+use Symfony\AI\Platform\Result\Stream\Delta\ThinkingDelta;
+use Symfony\AI\Platform\Result\Stream\Delta\ThinkingSignature;
+use Symfony\AI\Platform\Result\Stream\Delta\ThinkingStart;
+use Symfony\AI\Platform\Result\Stream\Delta\ToolCallComplete;
+use Symfony\AI\Platform\Result\Stream\Delta\ToolCallStart;
+use Symfony\AI\Platform\Result\Stream\Delta\ToolInputDelta;
 use Symfony\AI\Platform\Result\StreamResult;
 use Symfony\AI\Platform\Result\TextResult;
+use Symfony\AI\Platform\Result\ThinkingResult;
 use Symfony\AI\Platform\Result\ToolCall;
 use Symfony\AI\Platform\Result\ToolCallResult;
+use Symfony\AI\Platform\Result\WebSearchResult;
 use Symfony\AI\Platform\ResultConverterInterface;
+use Symfony\Contracts\HttpClient\ResponseInterface;
 
 /**
  * @author Christopher Hertel <mail@christopher-hertel.de>
  *
  * @phpstan-type OutputMessage array{content: array<Refusal|OutputText>, id: string, role: string, type: 'message'}
- * @phpstan-type OutputText array{type: 'output_text', text: string}
+ * @phpstan-type OutputText array{type: 'output_text', text: string, annotations?: Annotation[]}
+ * @phpstan-type Annotation UrlCitation|array{type: string}
+ * @phpstan-type UrlCitation array{type: 'url_citation', url: string, title?: string, start_index?: int, end_index?: int}
  * @phpstan-type Refusal array{type: 'refusal', refusal: string}
- * @phpstan-type FunctionCall array{id: string, arguments: string, call_id: string, name: string, type: 'function_call'}
- * @phpstan-type Reasoning array{summary: array{text?: string}, id: string}
+ * @phpstan-type FunctionCall array{id?: string|null, arguments: string, call_id?: string|null, name: string, type: 'function_call'}
+ * @phpstan-type Thinking array{summary: list<array{type: string, text?: string}>, id: string, encrypted_content?: string|null}
+ * @phpstan-type Error array{code?: string|null, type?: string|null, param?: string|null, message?: string|null}
+ * @phpstan-type WebSearchCall array{type: 'web_search_call', id?: string, status?: string, action?: array{type?: string, query?: string, queries?: list<string>}}
+ * @phpstan-type FileSearchCall array{type: 'file_search_call', id?: string, status?: string, queries?: list<string>, results?: list<array<string, mixed>>|null}
+ * @phpstan-type CodeInterpreterCall array{type: 'code_interpreter_call', id?: string, status?: string, code?: string|null, outputs?: list<array{type?: string, logs?: string, url?: string}>|null}
+ * @phpstan-type ImageGenerationCall array{type: 'image_generation_call', id?: string, status?: string, result?: string|null}
+ * @phpstan-type McpCall array{type: 'mcp_call', id?: string, status?: string, server_label?: string, name?: string, arguments?: string, output?: string|null, error?: string|null}
+ * @phpstan-type McpListTools array{type: 'mcp_list_tools', id?: string, server_label?: string, tools?: list<array<string, mixed>>}
+ * @phpstan-type McpApprovalRequest array{type: 'mcp_approval_request', id?: string, server_label?: string, name?: string, arguments?: string}
+ * @phpstan-type ComputerCall array{type: 'computer_call', id?: string, status?: string, call_id?: string, action?: array<string, mixed>, pending_safety_checks?: list<array{id: string, code?: string|null, message?: string|null}>}
+ * @phpstan-type LocalShellCall array{type: 'local_shell_call', id?: string, status?: string, call_id?: string, action?: array{type?: string, command?: list<string>}}
+ * @phpstan-type CustomToolCall array{type: 'custom_tool_call', id?: string, status?: string, name: string, input: string}
+ * @phpstan-type OutputItem OutputMessage|FunctionCall|Thinking|WebSearchCall|FileSearchCall|CodeInterpreterCall|ImageGenerationCall|McpCall|McpListTools|McpApprovalRequest|ComputerCall|LocalShellCall|CustomToolCall
  */
-final class ResultConverter implements ResultConverterInterface
+class ResultConverter implements ResultConverterInterface
 {
     private const KEY_OUTPUT = 'output';
 
@@ -55,15 +96,34 @@ final class ResultConverter implements ResultConverterInterface
         }
 
         if (400 === $response->getStatusCode()) {
-            $errorMessage = json_decode($response->getContent(false), true)['error']['message'] ?? 'Bad Request';
+            $error = json_decode($response->getContent(false), true)['error'] ?? [];
+            $errorMessage = $error['message'] ?? 'Bad Request';
+
+            if ('context_length_exceeded' === ($error['code'] ?? null)
+                || str_contains($errorMessage, 'exceeds the context window')
+                || str_contains($errorMessage, 'max_model_len')
+            ) {
+                throw new ExceedContextSizeException($errorMessage);
+            }
+
             throw new BadRequestException($errorMessage);
         }
 
         if (429 === $response->getStatusCode()) {
-            throw new RateLimitExceededException();
+            $errorMessage = json_decode($response->getContent(false), true)['error']['message'] ?? null;
+            throw new RateLimitExceededException($this->extractRateLimitReset($response), $errorMessage);
+        }
+
+        if (($code = $response->getStatusCode()) >= 500) {
+            $errorMessage = json_decode($response->getContent(false), true)['error']['message'] ?? null;
+            throw new ServerException($code, $errorMessage);
         }
 
         if ($options['stream'] ?? false) {
+            if (($code = $response->getStatusCode()) >= 400) {
+                throw new RuntimeException(\sprintf('Unexpected response code %d: "%s"', $code, $response->getContent(false)));
+            }
+
             return new StreamResult($this->convertStream($result));
         }
 
@@ -74,7 +134,7 @@ final class ResultConverter implements ResultConverterInterface
         }
 
         if (isset($data['error'])) {
-            throw new RuntimeException(\sprintf('Error "%s"-%s (%s): "%s".', $data['error']['code'] ?? '-', $data['error']['type'] ?? '-', $data['error']['param'] ?? '-', $data['error']['message'] ?? '-'));
+            throw new RuntimeException($this->generateErrorMessage($this->extractStreamError($data)));
         }
 
         if (!isset($data[self::KEY_OUTPUT])) {
@@ -83,7 +143,26 @@ final class ResultConverter implements ResultConverterInterface
 
         $results = $this->convertOutputArray($data[self::KEY_OUTPUT]);
 
-        return 1 === \count($results) ? array_pop($results) : new ChoiceResult($results);
+        if (!$this->containsContent($results)) {
+            if ('incomplete' === ($data['status'] ?? null)) {
+                $reason = $data['incomplete_details']['reason'] ?? 'unknown';
+                if (!\is_string($reason) || '' === $reason) {
+                    $reason = 'unknown';
+                }
+
+                if ('max_output_tokens' === $reason) {
+                    throw new MaxOutputTokensException('Responses API truncated the response after reaching the output token limit. Raise the output token budget (max_output_tokens) or reduce the request scope.');
+                }
+
+                throw new RuntimeException(\sprintf('Responses API response is incomplete (%s) and contains no content.', $reason));
+            }
+
+            throw new RuntimeException('Response does not contain any content.');
+        }
+
+        $converted = 1 === \count($results) ? array_pop($results) : new MultiPartResult(array_values($results));
+
+        return $this->withResponsesFinishReason($converted, $data['incomplete_details']['reason'] ?? $data['status'] ?? null);
     }
 
     public function getTokenUsageExtractor(): TokenUsageExtractor
@@ -92,7 +171,75 @@ final class ResultConverter implements ResultConverterInterface
     }
 
     /**
-     * @param array<OutputMessage|FunctionCall|Reasoning> $output
+     * Resolves the rate-limit reset delay (in seconds) from a 429 response.
+     *
+     * The generic Responses API does not expose a reset time; provider-specific
+     * bridges can override this to parse their own rate-limit headers.
+     */
+    protected function extractRateLimitReset(ResponseInterface $response): ?int
+    {
+        return null;
+    }
+
+    /**
+     * The Responses API has no per-choice `finish_reason`: a successful response reports `status: completed`
+     * and an aborted one `status: incomplete` plus an `incomplete_details.reason` such as `max_output_tokens`.
+     *
+     * It also reports `completed` when the model stopped to call a function, so the normalized case is derived
+     * from the converted output while the raw provider value is preserved as reported.
+     *
+     * @template T of ResultInterface
+     *
+     * @param T $result
+     *
+     * @return T
+     */
+    private function withResponsesFinishReason(ResultInterface $result, ?string $rawFinishReason): ResultInterface
+    {
+        if (null === $rawFinishReason || '' === $rawFinishReason) {
+            return $result;
+        }
+
+        $result->getMetadata()->add('finish_reason', FinishReasonMapper::map($rawFinishReason, $this->containsToolCall($result)));
+
+        return $result;
+    }
+
+    private function containsToolCall(ResultInterface $result): bool
+    {
+        if ($result instanceof ToolCallResult) {
+            return true;
+        }
+
+        if (!$result instanceof MultiPartResult) {
+            return false;
+        }
+
+        foreach ($result->getContent() as $part) {
+            if ($part instanceof ToolCallResult) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param ResultInterface[] $results
+     */
+    private function containsContent(array $results): bool
+    {
+        foreach ($results as $result) {
+            if (!$result instanceof ThinkingResult || null !== $result->getContent()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<OutputItem> $output
      *
      * @return ResultInterface[]
      */
@@ -100,7 +247,12 @@ final class ResultConverter implements ResultConverterInterface
     {
         [$toolCallResult, $output] = $this->extractFunctionCalls($output);
 
-        $results = array_filter(array_map($this->processOutputItem(...), $output));
+        $results = [];
+        foreach ($output as $item) {
+            foreach ($this->processOutputItem($item) as $result) {
+                $results[] = $result;
+            }
+        }
         if ($toolCallResult) {
             $results[] = $toolCallResult;
         }
@@ -109,48 +261,355 @@ final class ResultConverter implements ResultConverterInterface
     }
 
     /**
-     * @param OutputMessage|Reasoning $item
+     * @param OutputItem $item
+     *
+     * @return iterable<ResultInterface>
      */
-    private function processOutputItem(array $item): ?ResultInterface
+    private function processOutputItem(array $item): iterable
     {
         $type = $item['type'] ?? null;
 
+        // Built-in server-side tool calls (web search, file search, code
+        // interpreter, image generation, computer use, local shell, hosted MCP,
+        // provider-specific custom tools) are reported as their own output items
+        // next to the assistant message, already resolved by the provider.
+        // Convert them into typed results so consumers can introspect what the
+        // model did, while the message item is still converted as usual.
         return match ($type) {
             'message' => $this->convertOutputMessage($item),
             'reasoning' => $this->convertReasoning($item),
+            'web_search_call' => $this->convertWebSearchCall($item),
+            'file_search_call' => $this->convertFileSearchCall($item),
+            'code_interpreter_call' => $this->convertCodeInterpreterCall($item),
+            'image_generation_call' => $this->convertImageGenerationCall($item),
+            'computer_call' => $this->convertComputerCall($item),
+            'local_shell_call' => $this->convertLocalShellCall($item),
+            'mcp_call' => $this->convertMcpCall($item),
+            'mcp_list_tools' => $this->convertMcpListTools($item),
+            'mcp_approval_request' => $this->convertMcpApprovalRequest($item),
+            'custom_tool_call' => $this->convertCustomToolCall($item),
             default => throw new RuntimeException(\sprintf('Unsupported output type "%s".', $type)),
         };
     }
 
+    /**
+     * @param WebSearchCall $item
+     *
+     * @return list<WebSearchResult>
+     */
+    private function convertWebSearchCall(array $item): array
+    {
+        $action = $item['action'] ?? [];
+        $queries = $action['queries'] ?? [];
+        $query = $action['query'] ?? ($queries[0] ?? null);
+
+        return [new WebSearchResult($query, $item['id'] ?? null, $item['status'] ?? null, $queries)];
+    }
+
+    /**
+     * @param FileSearchCall $item
+     *
+     * @return list<FileSearchResult>
+     */
+    private function convertFileSearchCall(array $item): array
+    {
+        return [new FileSearchResult(
+            array_values($item['queries'] ?? []),
+            array_values($item['results'] ?? []),
+            $item['id'] ?? null,
+            $item['status'] ?? null,
+        )];
+    }
+
+    /**
+     * @param CodeInterpreterCall $item
+     *
+     * @return list<ExecutableCodeResult|CodeExecutionResult>
+     */
+    private function convertCodeInterpreterCall(array $item): array
+    {
+        $id = $item['id'] ?? null;
+        $results = [new ExecutableCodeResult($item['code'] ?? '', 'python', $id)];
+
+        $outputs = $item['outputs'] ?? null;
+        if (null !== $outputs && [] !== $outputs) {
+            $logs = '';
+            foreach ($outputs as $output) {
+                if ('logs' === ($output['type'] ?? null) && isset($output['logs'])) {
+                    $logs .= $output['logs'];
+                }
+            }
+
+            $results[] = new CodeExecutionResult('failed' !== ($item['status'] ?? null), '' !== $logs ? $logs : null, $id);
+        }
+
+        return $results;
+    }
+
+    /**
+     * @param ImageGenerationCall $item
+     *
+     * @return list<BinaryResult>
+     */
+    private function convertImageGenerationCall(array $item): array
+    {
+        $result = $item['result'] ?? null;
+        if (null === $result || '' === $result) {
+            return [];
+        }
+
+        return [BinaryResult::fromBase64($result, 'image/png')];
+    }
+
+    /**
+     * @param ComputerCall $item
+     *
+     * @return list<ComputerCallResult>
+     */
+    private function convertComputerCall(array $item): array
+    {
+        return [new ComputerCallResult(
+            $item['action'] ?? [],
+            $item['call_id'] ?? null,
+            array_values($item['pending_safety_checks'] ?? []),
+            $item['id'] ?? null,
+            $item['status'] ?? null,
+        )];
+    }
+
+    /**
+     * @param LocalShellCall $item
+     *
+     * @return list<LocalShellCallResult>
+     */
+    private function convertLocalShellCall(array $item): array
+    {
+        return [new LocalShellCallResult(
+            array_values($item['action']['command'] ?? []),
+            $item['call_id'] ?? null,
+            $item['id'] ?? null,
+            $item['status'] ?? null,
+        )];
+    }
+
+    /**
+     * @param McpCall $item
+     *
+     * @return list<McpCallResult>
+     */
+    private function convertMcpCall(array $item): array
+    {
+        return [new McpCallResult(
+            $item['server_label'] ?? '',
+            $item['name'] ?? '',
+            $item['arguments'] ?? null,
+            $item['output'] ?? null,
+            $item['error'] ?? null,
+            $item['id'] ?? null,
+            $item['status'] ?? null,
+        )];
+    }
+
+    /**
+     * @param McpListTools $item
+     *
+     * @return list<McpListToolsResult>
+     */
+    private function convertMcpListTools(array $item): array
+    {
+        return [new McpListToolsResult(
+            $item['server_label'] ?? '',
+            array_values($item['tools'] ?? []),
+            $item['id'] ?? null,
+        )];
+    }
+
+    /**
+     * @param McpApprovalRequest $item
+     *
+     * @return list<McpApprovalRequestResult>
+     */
+    private function convertMcpApprovalRequest(array $item): array
+    {
+        return [new McpApprovalRequestResult(
+            $item['server_label'] ?? '',
+            $item['name'] ?? '',
+            $item['arguments'] ?? null,
+            $item['id'] ?? null,
+        )];
+    }
+
+    /**
+     * @param CustomToolCall $item
+     *
+     * @return list<CustomToolCallResult>
+     */
+    private function convertCustomToolCall(array $item): array
+    {
+        return [new CustomToolCallResult(
+            $item['name'],
+            $item['input'],
+            $item['id'] ?? null,
+            $item['status'] ?? null,
+        )];
+    }
+
     private function convertStream(RawResultInterface|RawHttpResult $result): \Generator
     {
+        $currentThinking = null;
+        /** @var array<string, ToolCall> $toolCalls */
+        $toolCalls = [];
+        // Announced function calls, keyed by output item id, so the argument deltas of an item
+        // can be attributed to the call id that ToolCallStart was emitted with
+        /** @var array<string, array{id: string, name: string}> $announcedToolCalls */
+        $announcedToolCalls = [];
+        $sawResponseEvent = false;
+        $sawResponseCompleted = false;
+        $sawToolCallComplete = false;
+
         foreach ($result->getDataStream() as $event) {
             $type = $event['type'] ?? '';
+            $sawResponseEvent = true;
+
+            if ('error' === $type) {
+                $error = $this->extractStreamError($event);
+                $message = $this->generateErrorMessage($error);
+
+                if ($this->isRateLimitError($error)) {
+                    throw new RateLimitExceededException(null, $message);
+                }
+
+                if ($this->isServerError($error)) {
+                    throw new ServerException(null, $message);
+                }
+
+                throw new RuntimeException($message);
+            }
+
+            if ('response.failed' === $type) {
+                $response = \is_array($event['response'] ?? null) ? $event['response'] : [];
+                $error = $this->extractStreamError($response);
+                $message = $this->generateErrorMessage($error);
+
+                if ($this->isRateLimitError($error)) {
+                    throw new RateLimitExceededException(null, $message);
+                }
+
+                if ($this->isServerError($error)) {
+                    throw new ServerException(null, $message);
+                }
+
+                throw new RuntimeException($message);
+            }
+
+            if ('response.incomplete' === $type) {
+                $reason = $event['response']['incomplete_details']['reason'] ?? 'unknown';
+                if (!\is_string($reason) || '' === $reason) {
+                    $reason = 'unknown';
+                }
+
+                if ('max_output_tokens' === $reason) {
+                    throw new MaxOutputTokensException('Responses API truncated the response after reaching the output token limit. Raise the output token budget (max_output_tokens) or reduce the request scope.');
+                }
+
+                throw new RuntimeException(\sprintf('Responses API response is incomplete (%s).', $reason));
+            }
 
             if (isset($event['response']['usage'])) {
                 yield $this->getTokenUsageExtractor()->fromDataArray($event['response']);
             }
 
             if (str_contains($type, 'output_text') && isset($event['delta'])) {
-                yield $event['delta'];
+                yield new TextDelta($event['delta']);
             }
 
-            if (!str_contains($type, 'completed')) {
+            if ('response.reasoning_summary_text.delta' === $type && isset($event['delta'])) {
+                if (null === $currentThinking) {
+                    $currentThinking = '';
+                    yield new ThinkingStart();
+                }
+                $currentThinking .= $event['delta'];
+                yield new ThinkingDelta($event['delta']);
+            }
+
+            if ('response.reasoning_summary_text.done' === $type) {
+                yield new ThinkingComplete($currentThinking ?? '');
+                $currentThinking = null;
+            }
+
+            // A function call is announced before its arguments stream, which pins its position
+            // relative to the reasoning items and message content around it
+            if ('response.output_item.added' === $type && \is_array($event['item'] ?? null) && 'function_call' === ($event['item']['type'] ?? null)) {
+                /** @var FunctionCall $item */
+                $item = $event['item'];
+                $id = $item['call_id'] ?? $item['id'] ?? null;
+                $name = $item['name'] ?? null;
+
+                if (null !== $id && '' !== $id && null !== $name) {
+                    if (isset($item['id']) && '' !== $item['id']) {
+                        $announcedToolCalls[$item['id']] = ['id' => $id, 'name' => $name];
+                    }
+
+                    yield new ToolCallStart($id, $name);
+                }
+            }
+
+            // Argument deltas address the output item, not the call, so they are mapped back
+            // onto the announced call id; unannounced items stay silent until output_item.done
+            if ('response.function_call_arguments.delta' === $type && \is_string($event['delta'] ?? null)) {
+                $announced = $announcedToolCalls[$event['item_id'] ?? ''] ?? null;
+
+                if (null !== $announced) {
+                    yield new ToolInputDelta($announced['id'], $announced['name'], $event['delta']);
+                }
+            }
+
+            if ('response.output_item.done' === $type && \is_array($event['item'] ?? null) && 'function_call' === ($event['item']['type'] ?? null)) {
+                /** @var FunctionCall $item */
+                $item = $event['item'];
+                $toolCall = $this->convertFunctionCall($item);
+                $toolCalls[$toolCall->getId()] = $toolCall;
+            }
+
+            // The full reasoning item (including encrypted_content when requested
+            // via include: ["reasoning.encrypted_content"]) is emitted as the
+            // thinking signature so that requests using "store" => false can
+            // replay it on subsequent turns.
+            if ('response.output_item.done' === $type && \is_array($event['item'] ?? null) && 'reasoning' === ($event['item']['type'] ?? null)) {
+                yield new ThinkingSignature(json_encode($event['item'], \JSON_THROW_ON_ERROR));
+            }
+
+            if ('response.completed' !== $type) {
                 continue;
             }
 
+            $sawResponseCompleted = true;
             [$toolCallResult] = $this->extractFunctionCalls($event['response'][self::KEY_OUTPUT] ?? []);
 
-            if ($toolCallResult && 'response.completed' === $type) {
-                yield $toolCallResult;
+            if ($toolCallResult) {
+                $sawToolCallComplete = true;
+                yield new ToolCallComplete($toolCallResult->getContent());
+            } elseif ([] !== $toolCalls) {
+                $sawToolCallComplete = true;
+                yield new ToolCallComplete(array_values($toolCalls));
             }
+        }
+
+        if ($sawResponseEvent && !$sawResponseCompleted) {
+            throw new IncompleteStreamException('Responses API stream ended before response.completed.');
+        }
+
+        // A stream that reaches response.completed always finished cleanly: response.incomplete and
+        // response.failed throw above. Only the tool-call case needs to be told apart from a plain stop.
+        if ($sawResponseCompleted) {
+            yield new MetadataDelta('finish_reason', FinishReasonMapper::map('completed', $sawToolCallComplete));
         }
     }
 
     /**
-     * @param array<OutputMessage|FunctionCall|Reasoning> $output
+     * @param array<OutputItem> $output
      *
-     * @return list<ToolCallResult|array<OutputMessage|Reasoning>|null>
+     * @return list<ToolCallResult|array<OutputItem>|null>
      */
     private function extractFunctionCalls(array $output): array
     {
@@ -163,7 +622,7 @@ final class ResultConverter implements ResultConverterInterface
         }
 
         $toolCallResult = $functionCalls ? new ToolCallResult(
-            ...array_map($this->convertFunctionCall(...), $functionCalls)
+            array_map($this->convertFunctionCall(...), $functionCalls)
         ) : null;
 
         return [$toolCallResult, $output];
@@ -171,41 +630,140 @@ final class ResultConverter implements ResultConverterInterface
 
     /**
      * @param OutputMessage $output
+     *
+     * @return \Generator<TextResult>
      */
-    private function convertOutputMessage(array $output): ?TextResult
+    private function convertOutputMessage(array $output): \Generator
     {
         $content = $output['content'] ?? [];
         if ([] === $content) {
-            return null;
+            return;
         }
 
         $content = array_pop($content);
         if ('refusal' === $content['type']) {
-            return new TextResult(\sprintf('Model refused to generate output: %s', $content['refusal']));
+            yield new TextResult(\sprintf('Model refused to generate output: %s', $content['refusal']));
+
+            return;
         }
 
-        return new TextResult($content['text']);
+        $result = new TextResult($content['text']);
+
+        $citations = $this->extractCitations($content['annotations'] ?? []);
+        if ([] !== $citations) {
+            $result->getMetadata()->add('citations', $citations);
+        }
+
+        yield $result;
+    }
+
+    /**
+     * @param Annotation[] $annotations
+     *
+     * @return list<string>
+     */
+    private function extractCitations(array $annotations): array
+    {
+        $urls = [];
+        foreach ($annotations as $annotation) {
+            if ('url_citation' === ($annotation['type'] ?? null)) {
+                $urls[$annotation['url']] = true;
+            }
+        }
+
+        return array_keys($urls);
     }
 
     /**
      * @param FunctionCall $toolCall
      *
-     * @throws \JsonException
+     * @throws MalformedToolCallException
      */
     private function convertFunctionCall(array $toolCall): ToolCall
     {
-        $arguments = json_decode($toolCall['arguments'], true, flags: \JSON_THROW_ON_ERROR);
+        try {
+            $arguments = json_decode($toolCall['arguments'], true, flags: \JSON_THROW_ON_ERROR);
+        } catch (\JsonException $e) {
+            throw new MalformedToolCallException(\sprintf('OpenResponses returned malformed JSON arguments for the "%s" tool: "%s"', $toolCall['name'], $e->getMessage()), 0, $e);
+        }
 
-        return new ToolCall($toolCall['id'], $toolCall['name'], $arguments);
+        // The Responses API addresses tool results by "call_id"; some providers (e.g. Scaleway)
+        // only send "call_id" and leave "id" empty, so prefer it and fall back to "id".
+        $id = $toolCall['call_id'] ?? $toolCall['id'] ?? null;
+        if (null === $id) {
+            throw new RuntimeException('Function call is missing both "call_id" and "id".');
+        }
+
+        return new ToolCall($id, $toolCall['name'], $arguments);
     }
 
     /**
-     * @param Reasoning $item
+     * @param Thinking $item
+     *
+     * @return \Generator<ThinkingResult>
      */
-    private function convertReasoning(array $item): ?ResultInterface
+    private function convertReasoning(array $item): \Generator
     {
-        $summary = $item['summary']['text'] ?? null;
+        // The serialized reasoning item doubles as the thinking signature so
+        // that requests using "store" => false can replay it on subsequent
+        // turns. It is attached to the first emitted result to avoid replay
+        // duplication.
+        $signature = json_encode($item, \JSON_THROW_ON_ERROR);
 
-        return $summary ? new TextResult($summary) : null;
+        foreach ($item['summary'] ?? [] as $entry) {
+            if ('' !== ($entry['text'] ?? '')) {
+                yield new ThinkingResult($entry['text'], $signature);
+                $signature = null;
+            }
+        }
+
+        if (null !== $signature && isset($item['encrypted_content'])) {
+            yield new ThinkingResult(null, $signature);
+        }
+    }
+
+    /**
+     * @param Error $error
+     */
+    private function generateErrorMessage(array $error): string
+    {
+        return \sprintf('Error "%s"-%s (%s): "%s".', $error['code'] ?? '-', $error['type'] ?? '-', $error['param'] ?? '-', $error['message'] ?? '-');
+    }
+
+    /**
+     * @param Error $error
+     */
+    private function isRateLimitError(array $error): bool
+    {
+        return \in_array($error['code'], ['rate_limit_exceeded', 'rate_limit_error', 'too_many_requests'], true)
+            || \in_array($error['type'], ['rate_limit_exceeded', 'rate_limit_error', 'too_many_requests'], true);
+    }
+
+    /**
+     * @param Error $error
+     */
+    private function isServerError(array $error): bool
+    {
+        return \in_array($error['code'], ['server_error', 'internal_error', 'server_is_overloaded'], true)
+            || \in_array($error['type'], ['server_error', 'internal_error', 'service_unavailable_error'], true);
+    }
+
+    /**
+     * @param array<string, mixed> $event
+     *
+     * @return Error
+     */
+    private function extractStreamError(array $event): array
+    {
+        if (\is_array($event['error'] ?? null)) {
+            $event = $event['error'];
+        }
+
+        return [
+            'code' => \is_string($event['code'] ?? null) ? $event['code'] : null,
+            'type' => \is_string($event['type'] ?? null) && 'error' !== $event['type'] ? $event['type'] : null,
+            'param' => \is_string($event['param'] ?? null) ? $event['param'] : null,
+            'message' => \is_string($event['message'] ?? null) ? $event['message'] : null,
+        ];
     }
 }

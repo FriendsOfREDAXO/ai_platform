@@ -4,7 +4,7 @@
 
 namespace Composer\Autoload;
 
-class ComposerStaticInita2468993b9624631610b23a6e08c4641
+class ComposerStaticInitc90d8c3746bf6b14c49bc742dcf90d7d
 {
     public static $files = array (
         '6e3fae29631ef280660b3cdad06f25a8' => __DIR__ . '/..' . '/symfony/deprecation-contracts/function.php',
@@ -51,10 +51,17 @@ class ComposerStaticInita2468993b9624631610b23a6e08c4641
             'Symfony\\Component\\HttpClient\\' => 29,
             'Symfony\\Component\\EventDispatcher\\' => 34,
             'Symfony\\Component\\Clock\\' => 24,
+            'Symfony\\AI\\Platform\\Bridge\\Scaleway\\' => 36,
+            'Symfony\\AI\\Platform\\Bridge\\Replicate\\' => 37,
+            'Symfony\\AI\\Platform\\Bridge\\OpenRouter\\' => 38,
             'Symfony\\AI\\Platform\\Bridge\\OpenResponses\\' => 41,
             'Symfony\\AI\\Platform\\Bridge\\OpenAi\\' => 34,
             'Symfony\\AI\\Platform\\Bridge\\Ollama\\' => 34,
+            'Symfony\\AI\\Platform\\Bridge\\Mistral\\' => 35,
+            'Symfony\\AI\\Platform\\Bridge\\Meta\\' => 32,
+            'Symfony\\AI\\Platform\\Bridge\\Generic\\' => 35,
             'Symfony\\AI\\Platform\\Bridge\\Gemini\\' => 34,
+            'Symfony\\AI\\Platform\\Bridge\\Cerebras\\' => 36,
             'Symfony\\AI\\Platform\\Bridge\\Anthropic\\' => 37,
             'Symfony\\AI\\Platform\\' => 20,
             'Symfony\\AI\\Agent\\' => 17,
@@ -172,6 +179,18 @@ class ComposerStaticInita2468993b9624631610b23a6e08c4641
         array (
             0 => __DIR__ . '/..' . '/symfony/clock',
         ),
+        'Symfony\\AI\\Platform\\Bridge\\Scaleway\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/symfony/ai-scaleway-platform',
+        ),
+        'Symfony\\AI\\Platform\\Bridge\\Replicate\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/symfony/ai-replicate-platform',
+        ),
+        'Symfony\\AI\\Platform\\Bridge\\OpenRouter\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/symfony/ai-open-router-platform',
+        ),
         'Symfony\\AI\\Platform\\Bridge\\OpenResponses\\' =>
         array (
             0 => __DIR__ . '/..' . '/symfony/ai-open-responses-platform',
@@ -184,9 +203,25 @@ class ComposerStaticInita2468993b9624631610b23a6e08c4641
         array (
             0 => __DIR__ . '/..' . '/symfony/ai-ollama-platform',
         ),
+        'Symfony\\AI\\Platform\\Bridge\\Mistral\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/symfony/ai-mistral-platform',
+        ),
+        'Symfony\\AI\\Platform\\Bridge\\Meta\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/symfony/ai-meta-platform',
+        ),
+        'Symfony\\AI\\Platform\\Bridge\\Generic\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/symfony/ai-generic-platform',
+        ),
         'Symfony\\AI\\Platform\\Bridge\\Gemini\\' =>
         array (
             0 => __DIR__ . '/..' . '/symfony/ai-gemini-platform',
+        ),
+        'Symfony\\AI\\Platform\\Bridge\\Cerebras\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/symfony/ai-cerebras-platform',
         ),
         'Symfony\\AI\\Platform\\Bridge\\Anthropic\\' =>
         array (
@@ -261,15 +296,16 @@ class ComposerStaticInita2468993b9624631610b23a6e08c4641
         'ReflectionConstant' => __DIR__ . '/..' . '/symfony/polyfill-php84/Resources/stubs/ReflectionConstant.php',
         'RoundingMode' => __DIR__ . '/..' . '/symfony/polyfill-php84/Resources/stubs/RoundingMode.php',
         'SQLite3Exception' => __DIR__ . '/..' . '/symfony/polyfill-php83/Resources/stubs/SQLite3Exception.php',
+        'rex_api_ai_change_file' => __DIR__ . '/../..' . '/lib/rex_api_ai_change_file.php',
         'rex_api_ai_test' => __DIR__ . '/../..' . '/lib/rex_api_ai_test.php',
     );
 
     public static function getInitializer(ClassLoader $loader)
     {
         return \Closure::bind(function () use ($loader) {
-            $loader->prefixLengthsPsr4 = ComposerStaticInita2468993b9624631610b23a6e08c4641::$prefixLengthsPsr4;
-            $loader->prefixDirsPsr4 = ComposerStaticInita2468993b9624631610b23a6e08c4641::$prefixDirsPsr4;
-            $loader->classMap = ComposerStaticInita2468993b9624631610b23a6e08c4641::$classMap;
+            $loader->prefixLengthsPsr4 = ComposerStaticInitc90d8c3746bf6b14c49bc742dcf90d7d::$prefixLengthsPsr4;
+            $loader->prefixDirsPsr4 = ComposerStaticInitc90d8c3746bf6b14c49bc742dcf90d7d::$prefixDirsPsr4;
+            $loader->classMap = ComposerStaticInitc90d8c3746bf6b14c49bc742dcf90d7d::$classMap;
 
         }, null, ClassLoader::class);
     }
