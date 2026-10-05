@@ -369,6 +369,16 @@ Empfohlener Ablauf, wenn der MCP-Server in Produktion gehen soll:
 
 Geschuetzte Tools koennen erst genutzt werden, sobald ein User per OAuth eingeloggt hat. Im Browser geht das ueber den Login-Screen unter `/oauth/authorize`, automatisierte Tests muessen den Flow durchspielen (siehe `.claude/tests/oauth-authorize-test.sh` im Repo als Referenz).
 
+#### Die Anmeldung laeuft immer ueber YCom
+
+**Eine bestehende YCom-Session wird akzeptiert, egal woher sie stammt.** Wer schon angemeldet ist — per SAML, CAS, YComs eigenem OAuth2, Login-Token oder normalem Formular —, sieht unter `/oauth/authorize` sofort den Zustimmungsdialog.
+
+Fehlt die Session, wird auf die **Anmeldeseite von YCom** weitergeleitet und nach dem Login automatisch in den OAuth-Ablauf zurueckgeholt. Damit greift alles, was dort eingerichtet ist: Passwort, SAML, CAS, OAuth2 — und auch YCom-Injections wie OTP, erzwungener Passwortwechsel oder die Zustimmung zu Nutzungsbedingungen laufen, bevor ein Token entsteht.
+
+Welche Seite das ist, entscheidet **YCom** ueber seine Einstellung `article_id_login`; dieses AddOn hat dafuer bewusst kein eigenes Feld. Unter **KI Platform > MCP Server > Einstellungen** wird der Artikel nur angezeigt. Hat YCom keine gueltige Anmeldeseite hinterlegt, warnt die Seite dort, und `/oauth/authorize` antwortet mit einem Fehler statt mit einer leeren Seite — ohne Anmeldeseite kann sich niemand fuer geschuetzte Tools anmelden.
+
+> Frueher brachte das AddOn an dieser Stelle eine eigene Maske mit E-Mail und Passwort mit. Sie ist entfernt: fuer per SAML oder CAS angelegte Nutzer gab es dort kein Passwort einzugeben, und sie ging an YComs Injections vorbei — ein MCP-Token konnte so ohne zweiten Faktor entstehen, waehrend das Frontend geschuetzt blieb.
+
 ### Eingebautes Tool: redaxo_status
 
 Das AddOn registriert automatisch das Tool `redaxo_status` (public), das folgende Informationen ueber die REDAXO-Instanz liefert:

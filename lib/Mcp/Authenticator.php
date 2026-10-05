@@ -69,10 +69,18 @@ final class Authenticator
      */
     public static function buildChallengeHeader(?string $error = null, ?string $errorDescription = null): string
     {
-        $resource = Router::baseUrl() . '/.well-known/oauth-protected-resource';
+        // Points at the document for /mcp, not at the bare one: the client reads
+        // `resource` there and checks it against the endpoint it is calling. The
+        // bare document speaks for the site, so sending a client there to learn
+        // about /mcp makes the two disagree and the flow stops before any login.
+        $resource = Router::baseUrl() . '/.well-known/oauth-protected-resource' . Router::mcpPath();
         $parts = [
             'realm="MCP"',
-            'resource="' . $resource . '"',
+            // RFC 9728 §5.1 names this parameter `resource_metadata`, and the MCP
+            // spec points clients at it to find the authorization server. `resource`
+            // is a different thing entirely (RFC 8707 resource indicators), so a
+            // client looking for the metadata URL found nothing here.
+            'resource_metadata="' . $resource . '"',
         ];
         if (null !== $error) {
             $parts[] = 'error="' . $error . '"';

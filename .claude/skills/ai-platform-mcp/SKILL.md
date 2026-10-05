@@ -41,6 +41,46 @@ Lokaler Spickzettel zum MCP-Stack dieses Addons. Quelle der Wahrheit bleibt der 
 - Scopes kommen ausschliesslich aus AddOns via `AI_PLATFORM_OAUTH_SCOPES`, werden YCom-Gruppen zugeordnet (`rex_ai_scope_mapping`), pro User via `resolveScopesForYcomUser()` aggregiert.
 - → **Gruppen-Differenzierung**: Tool A braucht `scopeA` (Gruppe X), Tool B braucht `scopeB` (Gruppe Y) → unterschiedliche Logins sehen unterschiedliche Tool-Listen am selben Server.
 
+### Wie sich der Besucher anmeldet
+
+**Der Endpunkt fragt nur, *ob* `rex_ycom_auth::getUser()` jemanden liefert — nie, woher.**
+Eine bestehende YCom-Session wird also akzeptiert, egal was sie erzeugt hat: SAML, CAS,
+YComs eigenes OAuth2, ein Login-Token, das normale Formular. Unterschiedlich sind die
+Wege nur, wenn *keine* Session da ist.
+
+Fehlt sie, wird auf **YComs Anmeldeseite** (`article_id_login`) umgeleitet und per
+`returnTo` zurückgesprungen. Damit gilt alles, was dort eingerichtet ist — Passwort,
+SAML, CAS, OAuth2 — und jede Injection läuft, bevor es eine Session gibt.
+
+**Die Seite ist YComs Einstellung, nicht unsere.** Ein eigenes Feld daneben wäre eine
+zweite Antwort auf dieselbe Frage, und die beiden liefen irgendwann auseinander. Die
+Backend-Seite zeigt den Artikel deshalb nur **an** und warnt, wenn YCom keinen hat.
+
+**Früher stand hier eine eigene Passwortmaske.** Sie ist aus zwei Gründen weg, die man
+kennen sollte, weil sie beide nicht offensichtlich waren:
+
+1. **Externe Anmeldequellen waren von dort nicht erreichbar.** Wer per SAML oder CAS
+   angelegt wurde, hat kein lokales Passwort — die Maske war eine Sackgasse, die
+   funktionsfähig aussah.
+2. **YComs Injections liefen nicht.** Sie werden in `rex_ycom_auth::init()` ausgewertet,
+   das ein Redirect-Ziel zurückgibt — und dieser Endpunkt ruft `init()` nur wegen der
+   Session auf und **verwirft den Rückgabewert bewusst**, weil ein OAuth-Endpunkt sich
+   nicht mitten im Ablauf wegleiten lassen darf. `rex_ycom_auth::login()` selbst kennt
+   keine Injections. OTP, erzwungener Passwortwechsel und Nutzungsbedingungen wurden also
+   übersprungen, und der MCP-Token entstand ohne sie: der zweite Faktor schützte das
+   Frontend, aber nicht den MCP-Zugang.
+
+Zwei Feinheiten in `redirectToLogin()`:
+
+* **Kein YCom oder keine brauchbare Anmeldeseite → 500 mit benanntem Grund**, keine leere
+  Seite und keine Weiterleitung in einen 404. Beides ist ein Einrichtungsfehler auf der
+  Serverseite, gegen den der Besucher nichts tun kann — dann ist es besser zu sagen,
+  welcher.
+* **`_action` und `decision` fliegen aus `returnTo` raus**, und die Query wird aus den
+  Parametern neu gebaut statt aus dem Request kopiert, weil ein POST keine eigene mehr
+  hat. Was in diese URL wandert, wird an eine andere Seite gereicht und protokolliert —
+  also die OAuth-Parameter und sonst nichts.
+
 ### OAuth-UI als ueberschreibbare Fragmente
 
 Login-, Consent- und Error-Maske von `/oauth/authorize` liegen in Fragmenten unter `fragments/ai_platform/oauth/`:

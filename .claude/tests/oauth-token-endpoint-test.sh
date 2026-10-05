@@ -17,7 +17,15 @@ FAIL=0
 
 # Derive the DB connection from REDAXO's own config so no credentials are
 # hardcoded here. Override via env (DB_HOST/DB_USER/DB_PASS/DB_NAME) if needed.
-REX_CONFIG="../../../data/core/config.yml"
+# Where the config lives depends on the layout: a standard install keeps data/
+# next to src/, a project with its own path provider usually moves it to var/data.
+REX_CONFIG=""
+for rex_config_candidate in "../../../data/core/config.yml" "../../../var/data/core/config.yml"; do
+    if [[ -f "$rex_config_candidate" ]]; then
+        REX_CONFIG="$rex_config_candidate"
+        break
+    fi
+done
 cfg_db() {  # $1 = key (host|login|password|name) of DB connection "1"
     local v
     v=$(awk -v key="$1:" '
@@ -70,6 +78,24 @@ CODE="test_authcode_$$"
 CODE_HASH=$(printf '%s' "$CODE" | shasum -a 256 | awk '{print $1}')
 REDIRECT_URI="https://example.org/cb"
 
+# Reads one value out of a JSON document on stdin: `json_get data status` walks
+# into $doc['data']['status']. PHP rather than python3 because PHP is what this
+# addon runs on -- it is guaranteed to be present wherever the suite makes sense,
+# and whoever maintains the addon reads it. A missing key prints nothing, so the
+# caller's assertion fails on the value instead of on a stack trace.
+json_get() {
+    php -r '
+        $data = json_decode(stream_get_contents(STDIN), true);
+        foreach (array_slice($argv, 1) as $key) {
+            if (!is_array($data) || !array_key_exists($key, $data)) {
+                exit;
+            }
+            $data = $data[$key];
+        }
+        echo is_bool($data) ? ($data ? "1" : "0") : (is_scalar($data) ? $data : json_encode($data));
+    ' "$@"
+}
+
 cleanup() {
     "${MYSQL[@]}" -e "
         DELETE FROM rex_ai_oauth_token WHERE client_id = '$CLIENT_ID';
@@ -105,11 +131,11 @@ RESP=$(curl -sk -X POST "$BASE/oauth/token" \
     -d "client_id=$CLIENT_ID" \
     -d "code_verifier=$VERIFIER")
 
-ACCESS=$(echo "$RESP" | python3 -c "import sys,json; print(json.loads(sys.stdin.read()).get('access_token',''))")
-REFRESH=$(echo "$RESP" | python3 -c "import sys,json; print(json.loads(sys.stdin.read()).get('refresh_token',''))")
-TOKEN_TYPE=$(echo "$RESP" | python3 -c "import sys,json; print(json.loads(sys.stdin.read()).get('token_type',''))")
-EXPIRES=$(echo "$RESP" | python3 -c "import sys,json; print(json.loads(sys.stdin.read()).get('expires_in',''))")
-SCOPE=$(echo "$RESP" | python3 -c "import sys,json; print(json.loads(sys.stdin.read()).get('scope',''))")
+ACCESS=$(echo "$RESP" | json_get access_token)
+REFRESH=$(echo "$RESP" | json_get refresh_token)
+TOKEN_TYPE=$(echo "$RESP" | json_get token_type)
+EXPIRES=$(echo "$RESP" | json_get expires_in)
+SCOPE=$(echo "$RESP" | json_get scope)
 
 assert "$TOKEN_TYPE" "Bearer" "token_type is Bearer"
 assert "$EXPIRES" "3600" "expires_in is 3600"
@@ -124,7 +150,7 @@ RESP=$(curl -sk -X POST "$BASE/oauth/token" \
     -d "redirect_uri=$REDIRECT_URI" \
     -d "client_id=$CLIENT_ID" \
     -d "code_verifier=$VERIFIER")
-ERR=$(echo "$RESP" | python3 -c "import sys,json; print(json.loads(sys.stdin.read()).get('error',''))")
+ERR=$(echo "$RESP" | json_get error)
 assert "$ERR" "invalid_grant" "replayed code returns invalid_grant"
 
 # --- 3. bad PKCE verifier rejected ---
@@ -139,7 +165,7 @@ RESP=$(curl -sk -X POST "$BASE/oauth/token" \
     -d "redirect_uri=$REDIRECT_URI" \
     -d "client_id=$CLIENT_ID" \
     -d "code_verifier=wrong_verifier_definitely_not_43_chars_or_more_long")
-ERR=$(echo "$RESP" | python3 -c "import sys,json; print(json.loads(sys.stdin.read()).get('error',''))")
+ERR=$(echo "$RESP" | json_get error)
 assert "$ERR" "invalid_grant" "wrong PKCE verifier returns invalid_grant"
 
 # --- 4. unknown client ---
@@ -155,12 +181,12 @@ assert "$RESP" "401" "unknown client_id returns 401"
 RESP=$(curl -sk -X POST "$BASE/oauth/token" \
     -d "grant_type=password" \
     -d "client_id=$CLIENT_ID")
-ERR=$(echo "$RESP" | python3 -c "import sys,json; print(json.loads(sys.stdin.read()).get('error',''))")
+ERR=$(echo "$RESP" | json_get error)
 assert "$ERR" "unsupported_grant_type" "unsupported grant_type rejected"
 
 # --- 6. missing grant_type ---
 RESP=$(curl -sk -X POST "$BASE/oauth/token" -d "client_id=$CLIENT_ID")
-ERR=$(echo "$RESP" | python3 -c "import sys,json; print(json.loads(sys.stdin.read()).get('error',''))")
+ERR=$(echo "$RESP" | json_get error)
 assert "$ERR" "invalid_request" "missing grant_type returns invalid_request"
 
 # --- 7. GET /oauth/token returns 405 ---
@@ -180,16 +206,20 @@ HDRS=$(curl -sk -X POST -D - -o /dev/null "$BASE/mcp" \
     -H "Content-Type: application/json" \
     -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}')
 assert_contains "$HDRS" "401" "invalid token returns 401"
-assert_contains "$HDRS" "WWW-Authenticate: Bearer" "401 carries WWW-Authenticate"
-assert_contains "$HDRS" 'error="invalid_token"' "WWW-Authenticate signals invalid_token"
+# Lowercased before comparing: over HTTP/2 -- which any reverse proxy or tunnel
+# in front of the site will speak -- header names arrive in lower case, and the
+# test would fail on the spelling rather than on the header being absent.
+HDRS_LC=$(printf '%s' "$HDRS" | tr 'A-Z' 'a-z')
+assert_contains "$HDRS_LC" "www-authenticate: bearer" "401 carries WWW-Authenticate"
+assert_contains "$HDRS_LC" 'error="invalid_token"' "WWW-Authenticate signals invalid_token"
 
 # --- 10. refresh_token rotation issues new pair ---
 RESP=$(curl -sk -X POST "$BASE/oauth/token" \
     -d "grant_type=refresh_token" \
     -d "refresh_token=$REFRESH" \
     -d "client_id=$CLIENT_ID")
-NEW_ACCESS=$(echo "$RESP" | python3 -c "import sys,json; print(json.loads(sys.stdin.read()).get('access_token',''))")
-NEW_REFRESH=$(echo "$RESP" | python3 -c "import sys,json; print(json.loads(sys.stdin.read()).get('refresh_token',''))")
+NEW_ACCESS=$(echo "$RESP" | json_get access_token)
+NEW_REFRESH=$(echo "$RESP" | json_get refresh_token)
 [[ -n "$NEW_ACCESS" && "$NEW_ACCESS" != "$ACCESS" ]] && assert "true" "true" "refresh issues NEW access_token" || assert "false" "true" "refresh issues NEW access_token"
 [[ -n "$NEW_REFRESH" && "$NEW_REFRESH" != "$REFRESH" ]] && assert "true" "true" "refresh issues NEW refresh_token" || assert "false" "true" "refresh issues NEW refresh_token"
 
@@ -198,7 +228,7 @@ RESP=$(curl -sk -X POST "$BASE/oauth/token" \
     -d "grant_type=refresh_token" \
     -d "refresh_token=$REFRESH" \
     -d "client_id=$CLIENT_ID")
-ERR=$(echo "$RESP" | python3 -c "import sys,json; print(json.loads(sys.stdin.read()).get('error',''))")
+ERR=$(echo "$RESP" | json_get error)
 assert "$ERR" "invalid_grant" "old refresh token rejected after rotation"
 
 # --- 12. old access token is revoked after refresh rotation ---

@@ -98,6 +98,8 @@ ai_platform_mcp_tool_name = Tool-Name
 ai_platform_mcp_tool_description = Beschreibung
 ai_platform_mcp_tool_auth = Auth
 ai_platform_mcp_tool_active = Aktiv
+ai_platform_mcp_tool_always = Immer verfuegbar
+ai_platform_mcp_tool_always_notice = Mit "Immer verfuegbar" ist ein geschuetztes Tool fuer jede angemeldete Person nutzbar, auch ohne passenden Scope. Die Anmeldung bleibt noetig; nur die Scope-Pruefung entfaellt. Nuetzlich in Installationen ohne YCom-Gruppen, in denen sonst gar keine Scopes vergeben werden koennen.
 ai_platform_mcp_tool_public = oeffentlich
 ai_platform_mcp_tool_protected = geschuetzt
 ai_platform_mcp_tools_notice = Deaktivierte Tools werden MCP-Clients weder angezeigt (tools/list) noch ausgefuehrt (tools/call). Neu registrierte Tools sind standardmaessig aktiv.
@@ -107,13 +109,8 @@ ai_platform_mcp_example = Beispiel: Tool registrieren
 
 # OAuth flow pages
 ai_platform_oauth_error_title = Authorisierung nicht moeglich
-ai_platform_oauth_login_title = Anmelden
-ai_platform_oauth_login_intro = Bitte melde Dich mit Deinem YCom-Account an, um den Zugriff fuer diese Anwendung zu pruefen.
-ai_platform_oauth_login_label = E-Mail
-ai_platform_oauth_password_label = Passwort
-ai_platform_oauth_login_submit = Anmelden
-ai_platform_oauth_login_missing = E-Mail und Passwort sind erforderlich.
-ai_platform_oauth_login_failed = Anmeldung fehlgeschlagen. Bitte E-Mail und Passwort pruefen.
+ai_platform_oauth_login_no_ycom = Fuer die Anmeldung wird YCom benoetigt, es ist aber nicht installiert oder nicht aktiv.
+ai_platform_oauth_login_no_article = In YCom ist keine Anmeldeseite hinterlegt (Artikel-ID unter YCom > Einstellungen), oder der eingetragene Artikel existiert nicht. Ohne sie kann sich niemand fuer den MCP-Zugriff anmelden.
 ai_platform_oauth_consent_title = Zugriff erlauben
 ai_platform_oauth_consent_intro = Die Anwendung "{0}" moechte Zugriff auf Dein REDAXO-Konto.
 ai_platform_oauth_logged_as = Angemeldet als {0}
@@ -140,6 +137,12 @@ ai_platform_oauth_client_expired = abgelaufen
 ai_platform_oauth_client_never_expires = laeuft nie ab
 ai_platform_oauth_client_lifetime = OAuth-Client-Lebensdauer (Tage)
 ai_platform_oauth_client_lifetime_notice = Nach wie vielen Tagen eine Client-Registrierung ablaeuft. 0 = laeuft nie ab. Abgelaufene Clients werden bei /oauth/authorize und /oauth/token abgewiesen; MCP-Clients registrieren sich dann automatisch per DCR neu (erzwingt regelmaessige Neu-Anmeldung).
+ai_platform_oauth_fallback_scope = Ersatz-Scope
+ai_platform_oauth_fallback_scope_notice = Name des Scopes, der angekuendigt und vergeben wird, solange kein AddOn eigene Scopes anmeldet. Er steht fuer "darf den MCP-Server nutzen" und raeumt keine Rechte ein - welches Tool erreichbar ist, entscheidet das Tool selbst. Noetig, weil Clients abbrechen, wenn die Liste der Scopes leer ist; sichtbar wird der Name im Zustimmungsdialog. Ohne Eingabe gilt "{0}". Leerzeichen und Anfuehrungszeichen sind nicht erlaubt.
+ai_platform_oauth_login_article = Anmeldung
+ai_platform_oauth_login_article_notice = Wer sich fuer geschuetzte Tools anmelden muss, wird auf die Anmeldeseite von YCom geleitet und danach zurueckgeholt. Damit gilt alles, was dort eingerichtet ist - Passwort, SAML, CAS, OAuth2 - samt YCom-Injections wie OTP. Eingestellt wird die Seite in YCom, nicht hier.
+ai_platform_oauth_login_article_ycom = YCom-Anmeldeseite: Artikel {0}.
+ai_platform_oauth_login_article_missing = In YCom ist keine gueltige Anmeldeseite hinterlegt. Bis das eingerichtet ist, kann sich niemand fuer geschuetzte Tools anmelden - /oauth/authorize antwortet dann mit einem Fehler.
 ai_platform_oauth_client_delete_confirm = Diesen Client wirklich loeschen? Alle laufenden Tokens werden invalidiert.
 ai_platform_oauth_client_deleted = Client geloescht. Tokens wurden revoked.
 ai_platform_oauth_client_created = Client angelegt. Notiere ggf. das Secret jetzt, es wird nicht erneut angezeigt.

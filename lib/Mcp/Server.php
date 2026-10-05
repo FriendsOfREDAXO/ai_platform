@@ -133,7 +133,7 @@ final class Server
             if (!self::isToolEnabled($tool->getName())) {
                 continue;
             }
-            if (!$tool->isCallableBy($context)) {
+            if (!self::mayUse($tool, $context)) {
                 continue;
             }
             $toolList[] = $tool->toListEntry();
@@ -171,7 +171,7 @@ final class Server
             throw new AuthRequiredException('Authentication required for tool: ' . $toolName);
         }
 
-        if (!$tool->isCallableBy($context)) {
+        if (!self::mayUse($tool, $context)) {
             return [
                 'content' => [
                     ['type' => 'text', 'text' => 'Error: Missing required scope for tool: ' . $toolName],
@@ -183,12 +183,18 @@ final class Server
         try {
             $result = $tool->execute($arguments, $context);
 
+            // `content` is a *list of content blocks* in the protocol, so an array
+            // may only be passed through when it already is one. Anything else --
+            // typically the associative result a tool assembled -- is encoded as
+            // JSON text. Passing it through unchanged used to put a JSON object
+            // where clients expect a list, which they drop without a word: the
+            // call looked successful and the answer never arrived.
             if (is_string($result)) {
                 $content = [['type' => 'text', 'text' => $result]];
-            } elseif (is_array($result)) {
+            } elseif (self::isContentBlockList($result)) {
                 $content = $result;
             } else {
-                $content = [['type' => 'text', 'text' => json_encode($result, JSON_THROW_ON_ERROR)]];
+                $content = [['type' => 'text', 'text' => json_encode($result, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)]];
             }
 
             return [
@@ -219,6 +225,46 @@ final class Server
         ));
 
         return $tools;
+    }
+
+    /**
+     * Tool names the admin has released to every signed-in user, regardless of
+     * the scopes the tool itself demands.
+     *
+     * Scopes reach a user through YCom groups, and an installation that works
+     * without groups can hand out none at all -- a protected tool would then be
+     * unreachable for everyone, with nothing in the backend to say why. This
+     * switch is the way out: the sign-in still has to happen, only the scope
+     * check is waived. Stored as a JSON list under `mcp_always_available_tools`
+     * (opt-in: a tool keeps its own rules until someone says otherwise).
+     *
+     * @return list<string>
+     */
+    public static function alwaysAvailableTools(): array
+    {
+        $raw = rex_config::get('ai_platform', 'mcp_always_available_tools', '');
+        if (!is_string($raw) || '' === $raw) {
+            return [];
+        }
+        $decoded = json_decode($raw, true);
+        if (!is_array($decoded)) {
+            return [];
+        }
+
+        return array_values(array_filter($decoded, static fn ($name): bool => is_string($name) && '' !== $name));
+    }
+
+    /**
+     * Whether the caller may use this tool: either by the tool's own rules, or
+     * because it was released to everyone signed in.
+     */
+    public static function mayUse(Tool $tool, Context $context): bool
+    {
+        if ($tool->isCallableBy($context)) {
+            return true;
+        }
+
+        return $context->isAuthenticated() && in_array($tool->getName(), self::alwaysAvailableTools(), true);
     }
 
     /**
@@ -317,5 +363,26 @@ final class Server
         header('Content-Type: text/plain');
         echo $message;
         exit;
+    }
+
+    /**
+     * Whether a tool result is already a list of content blocks, i.e. something
+     * `content` may carry verbatim: a list (not a map) whose every entry is an
+     * array with a `type`. A tool that builds its own blocks -- text plus an
+     * image, say -- is handed through; a plain result array is not.
+     */
+    private static function isContentBlockList(mixed $result): bool
+    {
+        if (!is_array($result) || [] === $result || !array_is_list($result)) {
+            return false;
+        }
+
+        foreach ($result as $block) {
+            if (!is_array($block) || !isset($block['type'])) {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

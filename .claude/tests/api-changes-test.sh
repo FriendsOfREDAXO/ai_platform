@@ -98,6 +98,24 @@ SQL
 
 FULL_ID=$("${MYSQL[@]}" -N -B -e "SELECT id FROM ${PREFIX}api_token WHERE name='AI_CHANGES_TEST_full'")
 
+# Reads one value out of a JSON document on stdin: `json_get data status` walks
+# into $doc['data']['status']. PHP rather than python3 because PHP is what this
+# addon runs on -- it is guaranteed to be present wherever the suite makes sense,
+# and whoever maintains the addon reads it. A missing key prints nothing, so the
+# caller's assertion fails on the value instead of on a stack trace.
+json_get() {
+    php -r '
+        $data = json_decode(stream_get_contents(STDIN), true);
+        foreach (array_slice($argv, 1) as $key) {
+            if (!is_array($data) || !array_key_exists($key, $data)) {
+                exit;
+            }
+            $data = $data[$key];
+        }
+        echo is_bool($data) ? ($data ? "1" : "0") : (is_scalar($data) ? $data : json_encode($data));
+    ' "$@"
+}
+
 cleanup() {
     "${MYSQL[@]}" <<SQL >/dev/null 2>&1
 DELETE FROM ${PREFIX}ai_change_request WHERE source_key = 'api-token:${FULL_ID}';
@@ -179,13 +197,12 @@ assert_contains "$body" '"executes_php"' "and whether its slice values run as PH
 # read -r, not `set -- $counts`: this file runs under bash, but the shell these
 # tests are usually driven from is zsh, which does no word splitting on an
 # unquoted expansion — the same snippet silently yields one argument there.
-counts=$(python3 -c "
-import json,sys
-d=json.loads(sys.argv[1])['data']
-mods=d.get('slice',{}).get('modules',{})
-narrow=[m for m in mods.values() if 0 < len(m['slots']) <= 4]
-print('%d %d' % (len(mods), len(narrow)))
-" "$body")
+counts=$(php -r '
+    $data = json_decode($argv[1], true)["data"] ?? [];
+    $modules = $data["slice"]["modules"] ?? [];
+    $narrow = array_filter($modules, static fn ($m) => count($m["slots"]) > 0 && count($m["slots"]) <= 4);
+    echo count($modules), " ", count($narrow);
+' "$body")
 read -r MOD_TOTAL MOD_NARROW <<< "$counts"
 assert "$([ "${MOD_TOTAL:-0}" -ge 1 ] && echo yes || echo no)" "yes" "at least one module is listed"
 assert "$([ "${MOD_NARROW:-0}" -ge 1 ] && echo yes || echo no)" "yes" "and its slot list is the module's own, not all twenty"
@@ -252,18 +269,19 @@ section "Offering a media file"
 # A tiny PNG, generated here so the test carries no binary. The bytes are the
 # point: this is the only route that accepts any.
 PNGFILE="$(mktemp -t ai-upload).png"
-python3 - "$PNGFILE" <<'PYPNG'
-import struct, sys, zlib
-w = h = 8
-raw = b''.join(b'\x00' + bytes([40, 90, 160] * w) for _ in range(h))
-def chunk(t, d):
-    return struct.pack('>I', len(d)) + t + d + struct.pack('>I', zlib.crc32(t + d))
-open(sys.argv[1], 'wb').write(
-    b'\x89PNG\r\n\x1a\n'
-    + chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 2, 0, 0, 0))
-    + chunk(b'IDAT', zlib.compress(raw))
-    + chunk(b'IEND', b''))
-PYPNG
+php -r '
+    // A solid 8x8 RGB PNG, assembled by hand rather than drawn with GD: the suite
+    // then needs no image extension to be compiled in.
+    $w = $h = 8;
+    $raw = str_repeat("\x00" . str_repeat("\x28\x5a\xa0", $w), $h);
+    $chunk = static fn (string $type, string $data): string =>
+        pack("N", strlen($data)) . $type . $data . pack("N", crc32($type . $data));
+    file_put_contents($argv[1],
+        "\x89PNG\r\n\x1a\n"
+        . $chunk("IHDR", pack("NNCCCCC", $w, $h, 8, 2, 0, 0, 0))
+        . $chunk("IDAT", gzcompress($raw))
+        . $chunk("IEND", ""));
+' "$PNGFILE"
 
 UPNAME="ai-rest-${RUNTAG}.png"
 
@@ -279,7 +297,7 @@ assert "$code" "201" "a PNG is staged"
 assert_contains "$body" '"in_media_pool":false' "and the response says plainly that nothing was added yet"
 assert_contains "$body" "\"filename\":\"${UPNAME}\"" "the reserved filename is returned"
 
-HANDLE=$(echo "$body" | python3 -c "import json,sys;print(json.load(sys.stdin)['data']['upload'])")
+HANDLE=$(echo "$body" | json_get data upload)
 assert_contains "$HANDLE" "up_" "a handle was issued"
 
 # The reservation is the reason this route exists separately: without it the
@@ -308,7 +326,7 @@ resp=$("${CURL[@]}" -w '\n%{http_code}' -X POST -H "Authorization: Bearer ${FULL
 code=$(echo "$resp" | tail -1)
 body=$(echo "$resp" | sed '$d')
 assert "$code" "201" "a media create referencing the handle is accepted"
-MEDIA_REQ=$(echo "$body" | python3 -c "import json,sys;print(json.load(sys.stdin)['data']['id'])")
+MEDIA_REQ=$(echo "$body" | json_get data id)
 
 # Wrong name for the right handle: the diff must not promise one name while
 # another gets written.
@@ -488,7 +506,7 @@ c1=$("${CURL[@]}" -X POST -H "Authorization: Bearer ${FULL_TOKEN}" -H 'Content-T
     "$BASE/api/ai_platform/changes"
 
 st=$("${CURL[@]}" -H "Authorization: Bearer ${FULL_TOKEN}" "$BASE/api/ai_platform/changes/${c1}" \
-    | python3 -c "import json,sys;print(json.load(sys.stdin)['data']['status'])")
+    | json_get data status)
 assert "$st" "pending" "the first create survives a second create in the same place"
 
 # The update case must still supersede — that is what the mechanism is for.
@@ -499,7 +517,7 @@ u1=$("${CURL[@]}" -X POST -H "Authorization: Bearer ${FULL_TOKEN}" -H 'Content-T
     -d "{\"type\":\"article\",\"operation\":\"update\",\"target\":{\"article_id\":${ART2},\"clang_id\":1},\"fields\":{\"priority\":12},\"reason\":\"second correction replaces the first\"}" \
     "$BASE/api/ai_platform/changes"
 st=$("${CURL[@]}" -H "Authorization: Bearer ${FULL_TOKEN}" "$BASE/api/ai_platform/changes/${u1}" \
-    | python3 -c "import json,sys;print(json.load(sys.stdin)['data']['status'])")
+    | json_get data status)
 assert "$st" "superseded" "an update for the same target still supersedes the older one"
 
 # --- batch -------------------------------------------------------------------
@@ -604,13 +622,16 @@ fi
 section "YForm field names: discovery and acceptance agree"
 
 YTABLE=$("${CURL[@]}" -H "Authorization: Bearer ${FULL_TOKEN}" "$BASE/api/ai_platform/changes/describe" \
-    | python3 -c "
-import json,sys
-f = json.load(sys.stdin)['data'].get('yform',{}).get('writable_fields') or {}
-names = list(f.keys()) if isinstance(f, dict) else list(f)
-q = [n for n in names if '.' in n]
-print(q[0] if q else '')
-")
+    | php -r '
+    $fields = json_decode(stream_get_contents(STDIN), true)["data"]["yform"]["writable_fields"] ?? [];
+    $names = array_is_list($fields) ? $fields : array_keys($fields);
+    foreach ($names as $name) {
+        if (str_contains((string) $name, ".")) {
+            echo $name;
+            break;
+        }
+    }
+')
 
 if [[ -z "$YTABLE" ]]; then
     echo "  SKIP  no YForm table is allowed for change requests"
@@ -860,7 +881,7 @@ assert "$via" "api" "reviewed_via records that no human decided this"
 by=$("${MYSQL[@]}" -N -B -e "SELECT IFNULL(reviewed_by,'NULL') FROM ${PREFIX}ai_change_request WHERE id=${CAT_ID}")
 assert "$by" "NULL" "reviewed_by stays empty rather than naming a user who did nothing"
 apivia=$("${CURL[@]}" -H "Authorization: Bearer ${FULL_TOKEN}" "$BASE/api/ai_platform/changes/${CAT_ID}" \
-    | python3 -c "import json,sys;print(json.load(sys.stdin)['data'].get('reviewed_via'))")
+    | json_get data reviewed_via)
 assert "$apivia" "api" "and the API reports the channel back"
 st=$("${MYSQL[@]}" -N -B -e "SELECT status FROM ${PREFIX}ai_change_request WHERE id=${CAT_ID}")
 assert "$st" "applied" "the request ends up applied, and the row is still there — nothing is deleted"
@@ -907,12 +928,12 @@ assert_contains "$note" "already correct" "the given reason is kept on the row"
 # Withdrawing frees the quota, because the request is no longer open. An agent
 # that cleans up after itself should get that room back.
 quota_before=$("${CURL[@]}" -H "Authorization: Bearer ${FULL_TOKEN}" --get -d 'per_page=1' \
-    "$BASE/api/ai_platform/changes" | python3 -c "import json,sys;print(json.load(sys.stdin)['meta']['open'])")
+    "$BASE/api/ai_platform/changes" | json_get meta open)
 W2=$(propose_id "{\"type\":\"article\",\"operation\":\"update\",\"target\":{\"article_id\":${ART2},\"clang_id\":1},\"fields\":{\"priority\":22},\"reason\":\"quota check\"}")
 "${CURL[@]}" -o /dev/null -X POST -H "Authorization: Bearer ${FULL_TOKEN}" -H 'Content-Type: application/json' \
     -d "{\"id\":${W2}}" "$BASE/api/ai_platform/changes/withdrawals"
 quota_after=$("${CURL[@]}" -H "Authorization: Bearer ${FULL_TOKEN}" --get -d 'per_page=1' \
-    "$BASE/api/ai_platform/changes" | python3 -c "import json,sys;print(json.load(sys.stdin)['meta']['open'])")
+    "$BASE/api/ai_platform/changes" | json_get meta open)
 assert "$quota_after" "$quota_before" "a withdrawn request is no longer counted as open"
 
 # Twice is refused rather than silently accepted: the second call has nothing to do.

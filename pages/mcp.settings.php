@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use FriendsOfRedaxo\AiPlatform\OAuth\ScopeRegistry;
 use FriendsOfRedaxo\AiPlatform\Mcp\Server;
 
 $addon = rex_addon::get('ai_platform');
@@ -14,6 +15,7 @@ if ('post' === rex_request::requestMethod() && $csrfToken->isValid()) {
     rex_config::set('ai_platform', 'mcp_description', rex_post('mcp_description', 'string', ''));
     rex_config::set('ai_platform', 'mcp_require_auth', rex_post('mcp_require_auth', 'int', 0));
     rex_config::set('ai_platform', 'oauth_client_lifetime_days', max(0, rex_post('oauth_client_lifetime_days', 'int', 0)));
+    rex_config::set('ai_platform', ScopeRegistry::CONFIG_FALLBACK_SCOPE, rex_post('mcp_fallback_scope', 'string', ''));
 
     echo rex_view::success(rex_i18n::msg('ai_platform_settings_saved'));
 }
@@ -26,6 +28,11 @@ if ('post' === rex_request::requestMethod() && $csrfTools->isValid()) {
     $disabled = array_values(array_diff($allToolNames, $enabled));
     rex_config::set('ai_platform', 'mcp_disabled_tools', json_encode($disabled, JSON_THROW_ON_ERROR));
 
+    // Opt-in, deshalb umgekehrt zur Aktiv-Spalte: gespeichert wird, was
+    // angehakt ankommt, eingegrenzt auf tatsächlich registrierte Tools.
+    $always = array_values(array_intersect($allToolNames, array_keys(rex_post('tool_always', 'array', []))));
+    rex_config::set('ai_platform', 'mcp_always_available_tools', json_encode($always, JSON_THROW_ON_ERROR));
+
     echo rex_view::success(rex_i18n::msg('ai_platform_mcp_tools_saved'));
 }
 
@@ -33,6 +40,18 @@ $mcpEnabled = (int) rex_config::get('ai_platform', 'mcp_enabled', 0);
 $mcpDescription = rex_config::get('ai_platform', 'mcp_description', '');
 $mcpRequireAuth = (int) rex_config::get('ai_platform', 'mcp_require_auth', 0);
 $oauthClientLifetimeDays = (int) rex_config::get('ai_platform', 'oauth_client_lifetime_days', 0);
+$fallbackScope = ScopeRegistry::fallbackScope();
+// Where sign-in happens is not a setting of this addon -- it is YCom's login
+// article, and a second field next to YCom's own would be a second answer to one
+// question. What belongs here is the *state*: which article that is, so nobody has
+// to go and look it up, and a warning when it is missing, because then nobody can
+// sign in for protected tools at all and /oauth/authorize answers with an error.
+$ycomLoginArticleId = class_exists('rex_ycom_config') ? (int) rex_ycom_config::get('article_id_login') : 0;
+$ycomLoginArticleOk = $ycomLoginArticleId > 0 && null !== rex_article::get($ycomLoginArticleId);
+
+$oauthLoginStatus = $ycomLoginArticleOk
+    ? '<p class="form-control-static">' . rex_i18n::msg('ai_platform_oauth_login_article_ycom', $ycomLoginArticleId) . '</p>'
+    : rex_view::warning(rex_i18n::msg('ai_platform_oauth_login_article_missing'));
 
 // Endpoint URLs — canonical /mcp plus the OAuth discovery endpoints
 $base = rtrim(rex::getServer(), '/');
@@ -75,6 +94,22 @@ $content = '
             <div class="col-sm-9">
                 <input type="number" min="0" step="1" class="form-control" id="oauth-client-lifetime" name="oauth_client_lifetime_days" value="' . $oauthClientLifetimeDays . '">
                 <p class="help-block">' . rex_i18n::msg('ai_platform_oauth_client_lifetime_notice') . '</p>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="control-label col-sm-3">' . rex_i18n::msg('ai_platform_oauth_login_article') . '</label>
+            <div class="col-sm-9">
+                ' . $oauthLoginStatus . '
+                <p class="help-block">' . rex_i18n::msg('ai_platform_oauth_login_article_notice') . '</p>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="control-label col-sm-3" for="mcp-fallback-scope">' . rex_i18n::msg('ai_platform_oauth_fallback_scope') . '</label>
+            <div class="col-sm-9">
+                <input class="form-control" type="text" id="mcp-fallback-scope" name="mcp_fallback_scope" value="' . rex_escape($fallbackScope) . '">
+                <p class="help-block">' . rex_i18n::msg('ai_platform_oauth_fallback_scope_notice', ScopeRegistry::SCOPE_FALLBACK_DEFAULT) . '</p>
             </div>
         </div>
 
@@ -132,9 +167,11 @@ echo $phaseBanner;
 // Registered tools — each row can be activated / deactivated for the MCP server
 if (count($tools) > 0) {
     $disabledTools = Server::disabledTools();
+    $alwaysTools = Server::alwaysAvailableTools();
 
     $toolContent = '<table class="table table-striped"><thead><tr>'
         . '<th>' . rex_i18n::msg('ai_platform_mcp_tool_active') . '</th>'
+        . '<th>' . rex_i18n::msg('ai_platform_mcp_tool_always') . '</th>'
         . '<th>' . rex_i18n::msg('ai_platform_mcp_tool_name') . '</th>'
         . '<th>' . rex_i18n::msg('ai_platform_mcp_tool_description') . '</th>'
         . '<th>' . rex_i18n::msg('ai_platform_mcp_tool_auth') . '</th>'
@@ -151,9 +188,18 @@ if (count($tools) > 0) {
             }
         }
         $checked = in_array($toolName, $disabledTools, true) ? '' : ' checked';
-        $fieldId = 'tool-enabled-' . preg_replace('/[^A-Za-z0-9_-]/', '_', $toolName);
+        $slug = preg_replace('/[^A-Za-z0-9_-]/', '_', $toolName);
+        $fieldId = 'tool-enabled-' . $slug;
+        $alwaysId = 'tool-always-' . $slug;
+        // Für öffentliche Tools ohne Belang: die sind ohne Anmeldung erreichbar,
+        // da gibt es keine Scope-Hürde, die man aufheben könnte.
+        $alwaysField = $tool->isPublic()
+            ? '<span class="text-muted">&ndash;</span>'
+            : '<input type="checkbox" id="' . rex_escape($alwaysId) . '" name="tool_always[' . rex_escape($toolName) . ']" value="1"'
+                . (in_array($toolName, $alwaysTools, true) ? ' checked' : '') . '>';
         $toolContent .= '<tr>'
             . '<td><input type="checkbox" id="' . rex_escape($fieldId) . '" name="tool_enabled[' . rex_escape($toolName) . ']" value="1"' . $checked . '></td>'
+            . '<td>' . $alwaysField . '</td>'
             . '<td><label for="' . rex_escape($fieldId) . '"><code>' . rex_escape($toolName) . '</code></label></td>'
             . '<td>' . rex_escape($tool->getDescription()) . '</td>'
             . '<td>' . $authLabel . '</td>'
@@ -170,7 +216,7 @@ if (count($tools) > 0) {
     $fragment->setVar('buttons', $toolsSave, false);
     $toolsSection = $fragment->parse('core/page/section.php');
 
-    echo '<p>' . rex_i18n::msg('ai_platform_mcp_tools_notice') . '</p>';
+    echo '<p>' . rex_i18n::msg('ai_platform_mcp_tools_notice') . ' ' . rex_i18n::msg('ai_platform_mcp_tool_always_notice') . '</p>';
     echo '<form method="post" action="' . rex_url::currentBackendPage() . '">'
         . $csrfTools->getHiddenField()
         . $toolsSection

@@ -92,6 +92,12 @@ final class DcrEndpoint
             'token_endpoint_auth_method' => $authMethod,
             'grant_types' => ['authorization_code', 'refresh_token'],
             'response_types' => ['code'],
+            // RFC 7591 §3.2.1: the granted scope belongs in the response whenever
+            // it may differ from what was asked for. Leaving it out is not a
+            // detail -- a client that asked for a scope and gets no answer has
+            // none to put into the authorize URL, and stops right there, after a
+            // registration that looked successful.
+            'scope' => implode(' ', ScopeRegistry::filterRequested((string) ($params['scope'] ?? ''))),
         ];
         // For confidential clients the secret is returned exactly once (RFC 7591
         // §3.2.1). client_secret_expires_at = 0 means it does not expire.

@@ -6,6 +6,7 @@ namespace FriendsOfRedaxo\AiPlatform\Mcp;
 
 use FriendsOfRedaxo\AiPlatform\OAuth\AuthorizationEndpoint;
 use FriendsOfRedaxo\AiPlatform\OAuth\DcrEndpoint;
+use FriendsOfRedaxo\AiPlatform\OAuth\ScopeRegistry;
 use FriendsOfRedaxo\AiPlatform\OAuth\TokenEndpoint;
 use rex;
 use rex_response;
@@ -19,7 +20,7 @@ use rex_response;
  * Routes:
  *
  *   POST     /mcp                                    → MCP JSON-RPC
- *   GET      /.well-known/oauth-protected-resource   → discovery JSON
+ *   GET      /.well-known/oauth-protected-resource[/mcp] → discovery JSON
  *   GET      /.well-known/oauth-authorization-server → discovery JSON
  *   GET/POST /oauth/authorize                        → OAuth login + consent
  *   POST     /oauth/token                            → token endpoint (code + refresh)
@@ -31,6 +32,13 @@ use rex_response;
 final class Router
 {
     private const MCP_PATH = '/mcp';
+
+    /** The path the MCP endpoint is served under, for callers that build URLs against it. */
+    public static function mcpPath(): string
+    {
+        return self::MCP_PATH;
+    }
+
     private const DISCOVERY_PROTECTED_RESOURCE = '/.well-known/oauth-protected-resource';
     private const DISCOVERY_AUTH_SERVER = '/.well-known/oauth-authorization-server';
     private const OAUTH_AUTHORIZE = '/oauth/authorize';
@@ -55,8 +63,18 @@ final class Router
             self::dispatchMcp($method);
         }
 
+        // RFC 9728 §3.1 hangs the resource path off the well-known prefix, so the
+        // document for /mcp lives at /.well-known/oauth-protected-resource/mcp.
+        // Both are served: the path-bound one describes /mcp, the bare one the
+        // site itself -- a client compares the `resource` it finds against the
+        // URL it is talking to, and gets the wrong answer if one document
+        // answers for both.
         if (self::DISCOVERY_PROTECTED_RESOURCE === $path) {
-            self::dispatchProtectedResourceMetadata();
+            self::dispatchProtectedResourceMetadata('');
+        }
+
+        if (self::DISCOVERY_PROTECTED_RESOURCE . self::MCP_PATH === $path) {
+            self::dispatchProtectedResourceMetadata(self::MCP_PATH);
         }
 
         if (self::DISCOVERY_AUTH_SERVER === $path) {
@@ -151,7 +169,10 @@ final class Router
         $server->handle();
     }
 
-    private static function dispatchProtectedResourceMetadata(): never
+    /**
+     * @param string $resourcePath the path this document speaks for, '' for the site itself
+     */
+    private static function dispatchProtectedResourceMetadata(string $resourcePath): never
     {
         rex_response::cleanOutputBuffers();
         header('Content-Type: application/json');
@@ -159,8 +180,10 @@ final class Router
 
         $base = self::baseUrl();
         echo json_encode([
-            'resource' => $base . self::MCP_PATH,
-            'authorization_servers' => [$base . '/'],
+            'resource' => $base . $resourcePath,
+            // Must be the same string the authorization-server metadata reports as issuer.
+            'authorization_servers' => [$base],
+            'scopes_supported' => ScopeRegistry::advertisedScopes(),
             'bearer_methods_supported' => ['header'],
             'resource_documentation' => $base . '/redaxo/index.php?page=ai_platform/docs/addon',
         ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
@@ -175,17 +198,24 @@ final class Router
 
         $base = self::baseUrl();
         echo json_encode([
-            'issuer' => $base . '/',
+            // No trailing slash: RFC 8414 §3.3 has the client compare this value
+            // with the issuer it derived the well-known URI from, and that one
+            // carries none. A stricter client rejects the metadata outright over
+            // the extra character -- and then never starts the flow at all.
+            'issuer' => $base,
             'authorization_endpoint' => $base . '/oauth/authorize',
             'token_endpoint' => $base . '/oauth/token',
             'registration_endpoint' => $base . '/oauth/register',
             'response_types_supported' => ['code'],
             'grant_types_supported' => ['authorization_code', 'refresh_token'],
+            'scopes_supported' => ScopeRegistry::advertisedScopes(),
+            'response_modes_supported' => ['query'],
             'code_challenge_methods_supported' => ['S256'],
             'token_endpoint_auth_methods_supported' => ['none', 'client_secret_post'],
         ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
         exit;
     }
+
 
     /**
      * Builds the base URL that backs OAuth discovery / redirect challenges.

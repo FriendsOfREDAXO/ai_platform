@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace FriendsOfRedaxo\AiPlatform\OAuth;
 
+use rex_article;
 use rex_fragment;
 use rex_i18n;
 use rex_response;
 use rex_ycom_auth;
+use rex_ycom_config;
 use rex_ycom_user;
 
 /**
@@ -16,7 +18,9 @@ use rex_ycom_user;
  * Drives the user-facing leg of the OAuth 2.1 Authorization-Code-with-PKCE
  * flow. Runs in three phases for the same URL:
  *
- *  1. GET  with no YCom session  →  render login form, preserve OAuth params
+ *  1. GET  with no YCom session  →  redirect to YCom's login article and let
+ *                                   YCom handle the sign-in entirely (see
+ *                                   `redirectToLogin()`)
  *  2. POST `_action=login`       →  rex_ycom_auth::login(...) attempt; on
  *                                   success fall through to consent; on
  *                                   failure re-render the login form with
@@ -90,32 +94,16 @@ final class AuthorizationEndpoint
         $requestedScopes = self::parseScopes((string) ($params['scope'] ?? ''));
 
         // --- User session
+        //
+        // Signing in is YCom's job, not this endpoint's. All that is checked here
+        // is whether a session exists; how it came about is deliberately none of
+        // our business, so SAML, CAS, YCom's own OAuth2, a login token and the
+        // ordinary form all work without this class knowing about any of them.
         $user = self::currentYcomUser();
         $action = (string) ($params['_action'] ?? '');
-        $loginError = null;
-
-        if (null === $user && 'POST' === ($_SERVER['REQUEST_METHOD'] ?? 'GET') && 'login' === $action) {
-            $login = trim((string) ($params['login'] ?? ''));
-            $password = (string) ($params['password'] ?? '');
-            if ('' === $login || '' === $password) {
-                $loginError = rex_i18n::msg('ai_platform_oauth_login_missing');
-            } else {
-                rex_ycom_auth::login([
-                    'loginName' => $login,
-                    'loginPassword' => $password,
-                    'loginStay' => false,
-                    'filter' => [],
-                    'ignorePassword' => false,
-                ]);
-                $user = self::currentYcomUser();
-                if (null === $user) {
-                    $loginError = rex_i18n::msg('ai_platform_oauth_login_failed');
-                }
-            }
-        }
 
         if (null === $user) {
-            self::renderLogin($params, $loginError);
+            self::redirectToLogin($params);
         }
 
         // --- Effective scopes (intersection of requested ↔ user-granted)
@@ -208,9 +196,9 @@ final class AuthorizationEndpoint
         exit;
     }
 
-    private static function renderError(string $code, string $message): never
+    private static function renderError(string $code, string $message, int $status = 400): never
     {
-        http_response_code(400);
+        http_response_code($status);
         header('Content-Type: text/html; charset=utf-8');
 
         $fragment = new rex_fragment();
@@ -222,19 +210,69 @@ final class AuthorizationEndpoint
     }
 
     /**
+     * Sends an anonymous visitor to YCom's login article and comes back when
+     * there is a session.
+     *
+     * **Signing in belongs to YCom, and this endpoint owns none of it.** There used
+     * to be a password form here, calling `rex_ycom_auth::login()` with a name and a
+     * password — the database check and nothing else. Two things were wrong with
+     * that. An installation authenticating against SAML, CAS or an external OAuth2
+     * provider has no local password to type, so the form was a dead end that looked
+     * functional. And `rex_ycom_auth::login()` does not run YCom's injections: those
+     * are evaluated in `init()`, whose return value this endpoint discards on purpose
+     * because an OAuth endpoint must not be redirected away mid-flow. OTP, a forced
+     * password change and a terms-of-use screen were therefore all skipped, and the
+     * MCP token was issued without them — the second factor protected the frontend
+     * but not the MCP access.
+     *
+     * The article is YCom's own `article_id_login`. It is deliberately **not** a
+     * setting of this addon: a second field next to YCom's would be a second answer
+     * to one question, and the two would eventually disagree.
+     *
+     * The return trip rides on `returnTo`, which is what `ycom_auth_returnto` reads
+     * (`rex_request('returnTo', 'string')`), and YCom validates it against the
+     * yrewrite domains in `rex_ycom_auth::getReturnTo()`. The path comes from the
+     * actual request rather than a constant, so it stays right if the endpoint is
+     * ever reached under a different prefix; the query is rebuilt from the parameters
+     * because a POST has none of its own left in the URL.
+     *
      * @param array<string, mixed> $params
      */
-    private static function renderLogin(array $params, ?string $error): never
+    private static function redirectToLogin(array $params): never
     {
-        http_response_code(200);
-        header('Content-Type: text/html; charset=utf-8');
+        // Without YCom there is no identity to authorize against at all, and without
+        // a login article there is nowhere to send the visitor. Both are setup
+        // mistakes on the server side, so they are reported as such instead of
+        // silently failing: a 500 and a message naming what is missing beats a blank
+        // screen or a redirect into a 404.
+        if (!class_exists('rex_ycom_auth')) {
+            self::renderError('login_unavailable', rex_i18n::rawMsg('ai_platform_oauth_login_no_ycom'), 500);
+        }
 
-        $fragment = new rex_fragment();
-        $fragment->setVar('error', $error, false);
-        $fragment->setVar('hiddenFields', self::hiddenInputs($params, ['login', 'password', '_action']), false);
+        $articleId = (int) rex_ycom_config::get('article_id_login');
+        if ($articleId <= 0 || null === rex_article::get($articleId)) {
+            self::renderError('login_unavailable', rex_i18n::rawMsg('ai_platform_oauth_login_no_article'), 500);
+        }
 
-        echo self::renderPage(rex_i18n::msg('ai_platform_oauth_login_title'), $fragment->parse('ai_platform/oauth/login.php'));
-        exit;
+        $path = parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH);
+        if (!is_string($path) || '' === $path) {
+            $path = '/oauth/authorize';
+        }
+
+        // The form's own control fields have no business in a URL that is handed to
+        // another page and written to an access log.
+        $carry = $params;
+        foreach (['_action', 'decision'] as $drop) {
+            unset($carry[$drop]);
+        }
+        $carry = array_filter($carry, static fn ($value): bool => is_scalar($value));
+
+        // Explicit "&": the web SAPI's arg_separator.output may be "&amp;", which
+        // would turn state= into amp;state= on the way back.
+        $query = http_build_query($carry, '', '&');
+        $returnTo = $path . ('' !== $query ? '?' . $query : '');
+
+        self::redirect(rex_getUrl($articleId, '', ['returnTo' => $returnTo], '&'));
     }
 
     /**
@@ -264,7 +302,7 @@ final class AuthorizationEndpoint
     /**
      * Renders the OAuth query params as hidden form inputs so the form
      * submission preserves them. Skips the named keys that are set
-     * explicitly by the form template (decision, _action, login, password).
+     * explicitly by the form template (decision, _action).
      *
      * @param array<string, mixed> $params
      * @param list<string> $skip

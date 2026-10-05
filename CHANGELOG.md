@@ -5,6 +5,29 @@ Alle nennenswerten Änderungen an diesem AddOn.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/1.1.0/),
 Versionierung nach [Semantic Versioning](https://semver.org/lang/de/).
 
+## [Unreleased]
+
+### Geändert
+
+- **Die Anmeldung für den MCP-Zugriff läuft jetzt immer über YCom.** `/oauth/authorize` leitet einen nicht angemeldeten Besucher auf YComs Anmeldeseite (`article_id_login`) und holt ihn danach in den OAuth-Ablauf zurück. Damit funktionieren SAML, CAS und OAuth2, und YCom-Injections wie OTP oder ein erzwungener Passwortwechsel laufen, bevor ein Token entsteht.
+
+### Hinzugefügt
+
+- **Feld „Ersatz-Scope“** unter *MCP Server > Einstellungen*. Solange kein AddOn eigene Scopes anmeldet, wird dieser eine veröffentlicht und vergeben — nötig, weil Clients abbrechen, wenn die Scope-Liste leer ist, und sichtbar im Zustimmungsdialog, weshalb der Name wählbar sein sollte. Ohne Eingabe gilt `mcp`; ein Wert, der kein gültiges Scope-Token ist (RFC 6749 §3.3 erlaubt weder Leerzeichen noch Anführungszeichen), fällt auf die Vorgabe zurück.
+- **Schalter „Immer verfügbar" je Tool** unter *MCP Server > Einstellungen*. Ein geschütztes Tool ist damit für jede angemeldete Person nutzbar, auch ohne passenden Scope — die Anmeldung bleibt nötig, nur die Scope-Prüfung entfällt. Scopes erreichen einen Nutzer über YCom-Gruppen; eine Installation ohne Gruppen konnte bisher keinen einzigen vergeben, womit jedes geschützte Tool für alle unerreichbar war, ohne dass im Backend etwas darauf hinwies.
+
+### Behoben
+
+- **`tools/call` lieferte eine Antwort, die Clients verwerfen, sobald ein Tool ein Array zurückgab.** `content` ist im Protokoll eine *Liste von Content-Blöcken*; durchgereicht wurde aber jedes Array, also auch das assoziative Ergebnis, das ein Tool zusammenstellt. Beim Aufrufer kam dort ein JSON-Objekt an, wo eine Liste stehen muss — kommentarlos verworfen, der Aufruf sah erfolgreich aus und die Antwort fehlte. Jetzt wird nur durchgereicht, was schon eine Blockliste ist; alles andere wird als JSON-Text verpackt.
+- **`/oauth/authorize` antwortete mit 500, wenn die angemeldete Person in keiner YCom-Gruppe ist.** Die Scope-Auflösung baute aus der leeren Gruppenliste `... WHERE ycom_group_id IN ()` — ein SQL-Syntaxfehler, direkt nach erfolgreicher Anmeldung. Eine Installation ohne Gruppen traf das bei jedem Versuch. Der Testlauf deckt den Fall jetzt ab; bisher hatte der Testnutzer immer eine Gruppe, weshalb die Suite grün blieb.
+- **Das Resource-Metadatendokument sprach unter jedem Pfad für `/mcp`.** RFC 9728 §3.1 hängt den Ressourcenpfad an den Well-known-Präfix: Unter `/.well-known/oauth-protected-resource/mcp` steht die Angabe für `/mcp`, unter `/.well-known/oauth-protected-resource` die für die Site. Ausgeliefert wurde beides Mal `<base>/mcp`, und die 401-Challenge verwies auf die Variante ohne Pfad. Ein Client vergleicht das gefundene `resource` mit der URL, die er anspricht, und steigt bei Abweichung aus — mit dem offiziellen SDK nachgestellt: „Protected resource … does not match expected …", noch bevor eine Anmeldeseite erscheinen konnte. Beide Dokumente werden jetzt getrennt beantwortet, die Challenge zeigt auf das pfadbezogene.
+- **Clients brachen nach der Registrierung ab, ohne je eine Anmeldeseite zu zeigen.** Drei Abweichungen von den Spezifikationen kamen zusammen: Der `issuer` trug einen Schrägstrich zu viel, den RFC 8414 §3.3 beim Vergleich nicht erlaubt; die 401-Challenge nannte `resource` statt `resource_metadata` (RFC 9728 §5.1); und weder kündigten die Discovery-Dokumente `scopes_supported` an noch gab die Registrierung das gewährte `scope` zurück (RFC 7591 §3.2.1) — ein Client, der nach einem Scope fragt und keine Antwort bekommt, hat nichts, was er in die Authorize-URL schreiben könnte. Hat eine Installation keine eigenen Scopes angekündigt, wird jetzt ein neutraler Marker veröffentlicht und auch tatsächlich gewährt.
+- **Die OAuth-Tests liefen nur im Standard-Layout.** Sie suchten den Core über eine feste Zahl von Verzeichnisebenen und die Konfiguration unter `data/core/config.yml`. Ein Projekt mit eigenem Path-Provider legt `src/` an die Projektwurzel und die Daten nach `var/data` — dort scheiterten sie vor dem ersten Test. Der Core wird jetzt durch Aufwärtssuche gefunden, die Konfiguration über beide üblichen Orte.
+
+### Entfernt
+
+- **Die eigene Passwortmaske unter `/oauth/authorize`.** Sie prüfte nur Name und Passwort gegen die Datenbank: für per SAML oder CAS angelegte Nutzer gab es dort nichts einzugeben, und sie ging an YComs Injections vorbei — ein MCP-Token konnte ohne zweiten Faktor entstehen, während das Frontend geschützt blieb. Ist in YCom keine Anmeldeseite hinterlegt, antwortet `/oauth/authorize` mit einem benannten Fehler, und die Einstellungsseite warnt.
+
 ## [1.0.0] – 2026-09-06
 
 ### Hinzugefügt

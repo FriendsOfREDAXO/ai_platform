@@ -258,7 +258,7 @@ Implements a JSON-RPC 2.0 / Streamable-HTTP MCP server (protocol version `2025-0
 | `FriendsOfRedaxo\AiPlatform\Mcp\Authenticator` | Resolves the auth context: no Authorization header → anonymous; valid OAuth bearer → authenticated context with `ycomUserId` + `scopes` from `rex_ai_oauth_token`; invalid token → `FriendsOfRedaxo\AiPlatform\Mcp\InvalidTokenException` (server converts to 401 + `error="invalid_token"`). |
 | `FriendsOfRedaxo\AiPlatform\Mcp\Context` | Value object: `getYcomUser()`, `hasScope()`, `hasAllScopes()`, `getAuthMode()`, `getClientId()`. |
 | `FriendsOfRedaxo\AiPlatform\Mcp\Tool` | Tool definition with `public` + `requiredScopes` parameters and a `(array $arguments, FriendsOfRedaxo\AiPlatform\Mcp\Context $context)` handler signature. |
-| `FriendsOfRedaxo\AiPlatform\OAuth\AuthorizationEndpoint` | `/oauth/authorize`. One method, three states: login form → consent screen → redirect with code (or `access_denied`). Calls `rex_ycom_auth::init()` explicitly because YCom's own init runs on the same `PACKAGES_INCLUDED` event and order isn't stable. The HTML (shell, login, consent, error) lives in overridable fragments under `fragments/ai_platform/oauth/` — the endpoint only sets data and calls `$fragment->parse()`; a project overrides the look via `project/fragments/ai_platform/oauth/*.php`. In those fragments do NOT re-escape `rex_i18n::msg()` output (already `html_simplified`-escaped), only raw data. |
+| `FriendsOfRedaxo\AiPlatform\OAuth\AuthorizationEndpoint` | `/oauth/authorize`. One method, three states: login form → consent screen → redirect with code (or `access_denied`). The first state is a redirect to YCom's own login article (`redirectToLogin()`); this addon has no password form of its own. Calls `rex_ycom_auth::init()` explicitly because YCom's own init runs on the same `PACKAGES_INCLUDED` event and order isn't stable. The HTML (shell, login, consent, error) lives in overridable fragments under `fragments/ai_platform/oauth/` — the endpoint only sets data and calls `$fragment->parse()`; a project overrides the look via `project/fragments/ai_platform/oauth/*.php`. In those fragments do NOT re-escape `rex_i18n::msg()` output (already `html_simplified`-escaped), only raw data. |
 | `FriendsOfRedaxo\AiPlatform\OAuth\TokenEndpoint` | `/oauth/token`. `grant_type=authorization_code` validates redirect_uri match, client_id match, and PKCE S256 challenge. `grant_type=refresh_token` rotates and revokes both old tokens jointly via `parent_token_id`. Standard OAuth error envelope with 400 / 401 statuses. |
 | `FriendsOfRedaxo\AiPlatform\OAuth\DcrEndpoint` | `/oauth/register`. RFC-7591 Dynamic Client Registration. Auto-approves public clients (PKCE only, no secret). Validates absolute URIs and that `token_endpoint_auth_method` is `"none"`. |
 | `FriendsOfRedaxo\AiPlatform\OAuth\ClientStore` | CRUD for clients: create (public/confidential), findByClientId, findAll, deleteById, verifySecret (`password_verify`), redirectUriMatches (exact-match list). |
@@ -273,7 +273,48 @@ The legacy `?rex-api-call=ai_mcp` endpoint (class `rex_api_ai_mcp`) was removed 
 - Tools without `public: true` → require an authenticated context. Invalid / missing tokens trigger a 401 + `WWW-Authenticate: Bearer realm="MCP", resource="…", error="invalid_token"` so MCP clients automatically pick up the OAuth flow.
 - Scopes resolve via `YCom user → YCom groups → rex_ai_scope_mapping`. There are no built-in scopes; tools are gated only by their `public` flag and their own `requiredScopes`. Consumer addons announce scopes via `AI_PLATFORM_OAUTH_SCOPES` and declare them on tools via `requiredScopes`.
 
+**Signing in is YCom's job, and this addon owns none of it.** The endpoint only ever
+asks whether `rex_ycom_auth::getUser()` returns someone — never how that session came
+about. So a session is accepted whatever produced it: SAML, CAS, YCom's own OAuth2, a
+login token, the ordinary form. When there is none, the visitor is redirected to YCom's
+login article and comes back through `returnTo`.
+
+There used to be a password form here, calling `rex_ycom_auth::login()` with a name and a
+password. It was removed, for two reasons that are worth keeping written down:
+
+1. **External auth sources were unreachable from it.** A user provisioned through SAML or
+   CAS has no local password to type, so the form was a dead end that looked functional.
+2. **YCom's injections did not run.** They are evaluated in `rex_ycom_auth::init()`, which
+   returns a redirect target — and this endpoint calls `init()` for its session side
+   effect and *discards* that return value on purpose, because an OAuth endpoint must not
+   be redirected away mid-flow. `login()` itself knows nothing about injections. So OTP, a
+   forced password change or a terms-of-use screen were all skipped, and the MCP token was
+   issued without them: the second factor protected the frontend but not the MCP access.
+
+**The article is YCom's own `article_id_login`, not a setting of this addon.** A field
+here next to YCom's would be a second answer to one question, and the two would eventually
+disagree — the same reasoning that removed the six change-request settings further down.
+The backend page under *MCP Server > Settings* therefore shows the article as **state**,
+and warns when YCom has none, because then nobody can sign in for protected tools at all.
+
+Two details in `redirectToLogin()` that are load-bearing:
+
+- **No YCom, or no usable login article → 500 with a named reason**, not a blank page and
+  not a redirect into a 404. Both are server-side setup mistakes, and the visitor cannot
+  do anything about either, so saying which one it is beats failing silently.
+- **`_action` and `decision` are stripped from `returnTo`**, and the query is rebuilt from
+  the parameters rather than copied from the request, because a POST has no query of its
+  own left. What goes into that URL is handed to another page and written to an access
+  log, so it carries the OAuth parameters and nothing else.
+
 **Tools** come from `AI_PLATFORM_MCP_TOOLS` with subject `array<string, FriendsOfRedaxo\AiPlatform\Mcp\Tool>`. `tools/list` filters by `isCallableBy($context)` so anonymous callers only see public tools. `AI_PLATFORM_AGENT_TOOLS` feeds `FriendsOfRedaxo\AiPlatform\Service::createAgent()`; subjects there are **Symfony AI Tool objects**, not `FriendsOfRedaxo\AiPlatform\Mcp\Tool` — the two systems are intentionally separate because their tool-object shapes differ.
+
+A tool handler returns a string, an array of content blocks, or anything else.
+Only the middle one reaches `content` verbatim, and it has to look the part: a
+list whose entries carry a `type`. Everything else is encoded as JSON text, which
+is what a handler assembling a result array wants anyway — returning such an array
+used to land a JSON object where the protocol requires a list, and clients drop
+that without a word.
 
 ### Change requests (`lib/Change/`)
 
@@ -1048,13 +1089,15 @@ das liest, sucht am falschen Ende.
 - The MCP router runs on `PACKAGES_INCLUDED` and `exit`s on match. That bypasses REDAXO's normal request lifecycle. If you add a new route, always `rex_response::cleanOutputBuffers()` before sending anything, never call `rex_response::sendContent()`, and remember the router fires on every frontend request — keep the path table minimal.
 - The OAuth tables (`rex_ai_oauth_*`, `rex_ai_scope_mapping`) are created in `install.php` via `rex_sql_table::ensure*`. Adding a column → add an `ensureColumn()` line and reinstall the addon (`bin/console package:install ai_platform`, choose reinstall).
 - `FriendsOfRedaxo\AiPlatform\OAuth\TokenStore` rotates refresh tokens with joint revocation: when `rotateRefreshToken()` succeeds, **both** the old refresh and its parent access token are revoked. Don't change that — it's the replay protection.
+- **The harness is PHP and shell, and nothing else.** The `.sh` tests used to pull values out of JSON with `python3 -c` one-liners; they now use a `json_get` helper built on `php -r`, and the two larger helpers (`parse-login-form.php`, the 8×8 PNG the upload route is fed) are PHP too. PHP is what this addon runs on, so it is guaranteed to be present wherever the suite makes sense, and whoever maintains the addon reads it — a third language bought nothing.
 - Reproducible test harness in `.claude/tests/` (committed; DB creds derived from `data/core/config.yml`, `BASE` overridable via env):
   - `provider-registry-test.php` — 182 asserts: every provider in `ProviderRegistry` against the real REDAXO boot (so a label coming out as `[translate:…]` fails) and through a `MockHttpClient` (base-URL normalisation, bearer header, Ollama's native `/api/chat`, the two key-prefix validators), plus the assertion that every default model is offered by its catalog
   - `model-picker-test.mjs` — 19 asserts, plain `node` against a hand-rolled minimal DOM: the custom entry, credential-field visibility, the `selectpicker('refresh')` calls, the wrapper-not-select toggle, and a stored model name surviving being opened. Its provider payload is a fixture on purpose — the picker must not start failing because Symfony AI added a model
   - `agent-test.php` — 6 asserts: `Service::createAgent()` against a fixture profile on the generic provider (builds without a request), the `#[AsTool]` attribute being read into the toolbox, and one call against `InMemoryPlatform`. Small, and the only coverage of the `symfony/ai-agent` seam — the 0.13 `AgentProcessor` removal broke `createAgent()` with every other test still green
   - `oauth-storage-test.php` — 44 storage asserts, runs via REDAXO bootstrap + addon init
   - `oauth-token-endpoint-test.sh` — 20 token-endpoint asserts, seeds via mysql client, drives via curl
-  - `oauth-authorize-test.sh` — 29 end-to-end asserts incl. browser-style login + consent + token exchange, uses `oauth-authorize-test-seed.php` for YCom user/group setup
+  - `oauth-authorize-test.sh` — 34 end-to-end asserts: the redirect to YCom (OAuth parameters surviving the detour, no password form rendered by this addon, a 500 when YCom has no login article), then a real sign-in **through YCom's own form** — the test follows the redirect, parses the form YCom serves and posts it back, which is what exercises the `returnTo` round trip — and from the consent screen on to the code, the token exchange and a call against `/mcp`. Uses `oauth-authorize-test-seed.php` for the YCom user/group and for pointing `article_id_login` elsewhere, which it restores in a trap: leaving that wrong would break every frontend login on the installation
+  - `parse-login-form.php` — not a test: reads YCom's login page on stdin and prints the form action plus one `name=value` per line, so the shell test can post it back. Parses by shape (one text field, one password field, hidden fields ride along) rather than by YForm's `FORM[x][n]` numbering, which differs per installation, and **HTML-decodes the values** — YCom renders `returnTo` with `&amp;`, and posting that verbatim makes the next parameter arrive as `amp;client_id`
   - `change-storage-test.php` — 83 asserts: payload guards, typed round-trips, stale detection, supersede (including that creates do *not* supersede each other), changesets, the YForm allow list, the PHP-module refusal, permission separation
   - `change-handlers-test.php` — 67 asserts: one real read→propose→approve→verify→restore cycle per handler against the live DB, plus the media-create cycle (stage a generated PNG, reserve its name, propose, approve, verify the bytes reached `media/`, restore) and the cronjob's abandoned-upload sweep
   - `change-situations-test.php` — 42 asserts: one section per way the world can move under a pending request — referenced media deleted, link target deleted, target deleted, text edited by hand, article gained slices, YForm dataset edited, YForm instance-pool staleness, module removed
