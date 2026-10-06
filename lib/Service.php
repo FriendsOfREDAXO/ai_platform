@@ -19,6 +19,8 @@ use Symfony\AI\Platform\Message\Content\Image;
 use Symfony\AI\Platform\Message\Content\ImageUrl;
 use Symfony\AI\Agent\Agent;
 use Symfony\AI\Agent\Toolbox\Toolbox;
+use Symfony\Component\HttpClient\HttpClient;
+use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 class Service
 {
@@ -148,10 +150,31 @@ class Service
             throw new rex_exception('AI profile not found: ' . $profileId);
         }
 
-        $platform = ProviderRegistry::createPlatform($profile);
+        $platform = ProviderRegistry::createPlatform($profile, self::createHttpClient());
 
         $this->platformCache[$profileId] = $platform;
         return $platform;
+    }
+
+    /**
+     * Build the HTTP client handed to the provider bridge.
+     *
+     * Without this the bridge builds a default client whose idle timeout is too
+     * short for long, non-streaming completions: the API holds the connection
+     * while it generates and sends nothing until done, so a long translation or
+     * answer trips "Idle timeout reached". `timeout` is the inactivity window (in
+     * seconds), `max_duration` the total cap (0 = unlimited). Both are
+     * configurable via rex_config.
+     */
+    private static function createHttpClient(): HttpClientInterface
+    {
+        $timeout = (int) rex_config::get('ai_platform', 'http_timeout', 300);
+        $maxDuration = (int) rex_config::get('ai_platform', 'http_max_duration', 0);
+
+        return HttpClient::create([
+            'timeout' => $timeout > 0 ? $timeout : 300,
+            'max_duration' => max(0, $maxDuration),
+        ]);
     }
 
     /**
