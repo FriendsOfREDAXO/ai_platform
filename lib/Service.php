@@ -309,8 +309,47 @@ class Service
         }
         $messages[] = Message::ofUser($prompt);
 
-        $result = $platform->invoke($model, new MessageBag(...$messages), $options);
-        return $result->asText();
+        return $this->invokeWithTemperatureFallback($platform, $model, new MessageBag(...$messages), $options);
+    }
+
+    /**
+     * Invoke the platform, retrying once without the `temperature` option when the model
+     * rejects it. Newer models (e.g. OpenAI reasoning models) deprecate `temperature` and
+     * answer with "temperature is deprecated for this model" / "unsupported parameter"; a
+     * stored profile value would otherwise break every call for a setting the model ignores.
+     *
+     * The result is read inside the try/catch on purpose: Symfony AI's invoke() returns a
+     * deferred result whose HTTP request (and error) only runs on asText(), so wrapping just
+     * invoke() would never see the model's rejection.
+     *
+     * @param array<string, mixed> $options
+     */
+    private function invokeWithTemperatureFallback(PlatformInterface $platform, string $model, MessageBag $messages, array $options): string
+    {
+        try {
+            return $platform->invoke($model, $messages, $options)->asText();
+        } catch (\Throwable $e) {
+            if (isset($options['temperature']) && self::isUnsupportedTemperatureError($e)) {
+                unset($options['temperature']);
+                return $platform->invoke($model, $messages, $options)->asText();
+            }
+            throw $e;
+        }
+    }
+
+    /**
+     * Whether the throwable reports that the model does not accept the `temperature` option.
+     */
+    private static function isUnsupportedTemperatureError(\Throwable $e): bool
+    {
+        $message = strtolower($e->getMessage());
+        if (!str_contains($message, 'temperature')) {
+            return false;
+        }
+        return str_contains($message, 'deprecat')
+            || str_contains($message, 'unsupported')
+            || str_contains($message, 'not support')
+            || str_contains($message, 'only the default');
     }
 
     /**
@@ -333,8 +372,7 @@ class Service
             Message::ofUser($prompt, Image::fromFile($imagePath)),
         );
 
-        $result = $platform->invoke($model, $messages, $options);
-        return $result->asText();
+        return $this->invokeWithTemperatureFallback($platform, $model, $messages, $options);
     }
 
     /**
