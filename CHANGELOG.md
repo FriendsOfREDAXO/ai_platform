@@ -10,6 +10,7 @@ Versionierung nach [Semantic Versioning](https://semver.org/lang/de/).
 ### Geändert
 
 - **Symfony AI auf 0.14 angehoben** (`symfony/ai-*` von `^0.13` auf `^0.14`, installiert 0.14.0/0.14.1). Die Provider-Registry und der Agent-Pfad laufen unverändert (beide Testsuiten grün: 182 bzw. 6 Assertions); die aktualisierten Modell-Kataloge bringen neuere Modelle mit. `vendor/` und `composer.lock` sind mitgepflegt.
+- **Übrige Abhängigkeiten auf aktuelle Patch-/Minor-Stände gehoben** (`symfony/http-client`, `symfony/serializer`, `symfony/string`, `symfony/uid`, die `symfony/polyfill-*`-Pakete u. a.). Keine Breaking Changes, beide Testsuiten weiter grün.
 - **Die Anmeldung für den MCP-Zugriff läuft jetzt immer über YCom.** `/oauth/authorize` leitet einen nicht angemeldeten Besucher auf YComs Anmeldeseite (`article_id_login`) und holt ihn danach in den OAuth-Ablauf zurück. Damit funktionieren SAML, CAS und OAuth2, und YCom-Injections wie OTP oder ein erzwungener Passwortwechsel laufen, bevor ein Token entsteht.
 
 ### Hinzugefügt
