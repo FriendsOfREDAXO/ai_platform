@@ -7,6 +7,8 @@ Versionierung nach [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-14
+
 ### Geändert
 
 - **Symfony AI auf 0.14 angehoben** (`symfony/ai-*` von `^0.13` auf `^0.14`, installiert 0.14.0/0.14.1). Die Provider-Registry und der Agent-Pfad laufen unverändert (beide Testsuiten grün: 182 bzw. 6 Assertions); die aktualisierten Modell-Kataloge bringen neuere Modelle mit. `vendor/` und `composer.lock` sind mitgepflegt.
