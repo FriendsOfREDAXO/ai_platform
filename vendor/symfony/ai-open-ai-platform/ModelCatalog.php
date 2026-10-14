@@ -192,11 +192,35 @@ final class ModelCatalog extends AbstractModelCatalog
                     Capability::OUTPUT_STRUCTURED,
                 ],
             ],
+            'gpt-4o-mini-realtime-preview' => [
+                'class' => Realtime::class,
+                'capabilities' => [
+                    Capability::REALTIME_SESSION,
+                ],
+            ],
+            'gpt-realtime-mini' => [
+                'class' => Realtime::class,
+                'capabilities' => [
+                    Capability::REALTIME_SESSION,
+                ],
+            ],
             'gpt-4o-mini-tts' => [
                 'class' => TextToSpeech::class,
                 'capabilities' => [
                     Capability::INPUT_TEXT,
                     Capability::OUTPUT_AUDIO,
+                ],
+            ],
+            'gpt-4o-realtime-preview' => [
+                'class' => Realtime::class,
+                'capabilities' => [
+                    Capability::REALTIME_SESSION,
+                ],
+            ],
+            'gpt-realtime' => [
+                'class' => Realtime::class,
+                'capabilities' => [
+                    Capability::REALTIME_SESSION,
                 ],
             ],
             'gpt-5' => [
@@ -524,6 +548,19 @@ final class ModelCatalog extends AbstractModelCatalog
                 ],
             ],
             'gpt-5.6-terra' => [
+                'class' => Gpt::class,
+                'capabilities' => [
+                    Capability::INPUT_MESSAGES,
+                    Capability::OUTPUT_TEXT,
+                    Capability::OUTPUT_STREAMING,
+                    Capability::TOOL_CALLING,
+                    Capability::OUTPUT_STRUCTURED,
+                    Capability::THINKING,
+                    Capability::INPUT_IMAGE,
+                    Capability::INPUT_PDF,
+                ],
+            ],
+            'gpt-6-astra' => [
                 'class' => Gpt::class,
                 'capabilities' => [
                     Capability::INPUT_MESSAGES,

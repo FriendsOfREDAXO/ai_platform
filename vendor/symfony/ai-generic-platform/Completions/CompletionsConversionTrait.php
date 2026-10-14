@@ -78,8 +78,10 @@ trait CompletionsConversionTrait
             }
 
             if (isset($data['usage'])) {
-                yield $this->convertStreamUsage($data['usage']);
+                yield $this->convertStreamUsage($data['usage'], $data['model'] ?? null);
             }
+
+            yield from $this->yieldChunkMetadata($data);
 
             if ($this->streamIsToolCall($data)) {
                 yield from $this->yieldToolCallDeltas($toolCalls, $data);
@@ -135,11 +137,27 @@ trait CompletionsConversionTrait
     }
 
     /**
+     * Extension point for the provider-specific payload a stream chunk carries beyond the
+     * OpenAI-compatible schema, e.g. Albert reporting the carbon footprint of the call.
+     *
+     * What is yielded here is promoted to result metadata and skipped from the visible stream
+     * by {@see \Symfony\AI\Platform\Metadata\StreamListener}.
+     *
+     * @param array<string, mixed> $data The decoded chunk
+     *
+     * @return \Generator<MetadataDelta>
+     */
+    protected function yieldChunkMetadata(array $data): \Generator
+    {
+        yield from [];
+    }
+
+    /**
      * @param array<string, mixed> $usage
      */
-    protected function convertStreamUsage(array $usage): TokenUsage
+    protected function convertStreamUsage(array $usage, ?string $model = null): TokenUsage
     {
-        return (new TokenUsageExtractor())->extractFromArray($usage);
+        return (new TokenUsageExtractor())->extractFromArray($usage, $model);
     }
 
     /**
@@ -215,7 +233,7 @@ trait CompletionsConversionTrait
      */
     protected function isToolCallsStreamFinished(array $data): bool
     {
-        return isset($data['choices'][0]['finish_reason']) && 'tool_calls' === $data['choices'][0]['finish_reason'];
+        return null !== ($data['choices'][0]['finish_reason'] ?? null);
     }
 
     /**
@@ -223,8 +241,8 @@ trait CompletionsConversionTrait
      *     index: int,
      *     message: array{
      *         role: 'assistant',
-     *         content: ?string,
-     *         tool_calls: list<array{
+     *         content?: ?string,
+     *         tool_calls?: list<array{
      *             id: string,
      *             type: 'function',
      *             function: array{
@@ -240,12 +258,18 @@ trait CompletionsConversionTrait
      */
     protected function convertChoice(array $choice): ToolCallResult|TextResult
     {
-        if ('tool_calls' === $choice['finish_reason']) {
+        if ([] !== ($choice['message']['tool_calls'] ?? [])) {
             return $this->withFinishReason(new ToolCallResult(array_map([$this, 'convertToolCall'], $choice['message']['tool_calls'])), FinishReasonMapper::map($choice['finish_reason']));
         }
 
-        if (\in_array($choice['finish_reason'], ['stop', 'length'], true)) {
+        // LiteLLM-style gateways report structured output as finish_reason "tool_calls" but place the
+        // payload in message.content; the branch above already ruled out an actual tool call.
+        if ('tool_calls' === $choice['finish_reason'] && isset($choice['message']['content'])) {
             return $this->withFinishReason(new TextResult($choice['message']['content']), FinishReasonMapper::map($choice['finish_reason']));
+        }
+
+        if (\in_array($choice['finish_reason'], ['stop', 'length'], true)) {
+            return $this->withFinishReason(new TextResult($choice['message']['content'] ?? ''), FinishReasonMapper::map($choice['finish_reason']));
         }
 
         throw new RuntimeException(\sprintf('Unsupported finish reason "%s".', $choice['finish_reason']));

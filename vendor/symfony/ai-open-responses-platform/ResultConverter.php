@@ -15,6 +15,7 @@ use Symfony\AI\Platform\Exception\AuthenticationException;
 use Symfony\AI\Platform\Exception\BadRequestException;
 use Symfony\AI\Platform\Exception\ContentFilterException;
 use Symfony\AI\Platform\Exception\ExceedContextSizeException;
+use Symfony\AI\Platform\Exception\ExceptionInterface;
 use Symfony\AI\Platform\Exception\IncompleteStreamException;
 use Symfony\AI\Platform\Exception\MalformedToolCallException;
 use Symfony\AI\Platform\Exception\MaxOutputTokensException;
@@ -45,6 +46,7 @@ use Symfony\AI\Platform\Result\Stream\Delta\ThinkingStart;
 use Symfony\AI\Platform\Result\Stream\Delta\ToolCallComplete;
 use Symfony\AI\Platform\Result\Stream\Delta\ToolCallStart;
 use Symfony\AI\Platform\Result\Stream\Delta\ToolInputDelta;
+use Symfony\AI\Platform\Result\Stream\Delta\WebSearchComplete;
 use Symfony\AI\Platform\Result\StreamResult;
 use Symfony\AI\Platform\Result\TextResult;
 use Symfony\AI\Platform\Result\ThinkingResult;
@@ -65,11 +67,11 @@ use Symfony\Contracts\HttpClient\ResponseInterface;
  * @phpstan-type FunctionCall array{id?: string|null, arguments: string, call_id?: string|null, name: string, type: 'function_call'}
  * @phpstan-type Thinking array{summary: list<array{type: string, text?: string}>, id: string, encrypted_content?: string|null}
  * @phpstan-type Error array{code?: string|null, type?: string|null, param?: string|null, message?: string|null}
- * @phpstan-type WebSearchCall array{type: 'web_search_call', id?: string, status?: string, action?: array{type?: string, query?: string, queries?: list<string>}}
+ * @phpstan-type WebSearchCall array{type: 'web_search_call', id?: string, status?: string, action?: array<string, mixed>}
  * @phpstan-type FileSearchCall array{type: 'file_search_call', id?: string, status?: string, queries?: list<string>, results?: list<array<string, mixed>>|null}
  * @phpstan-type CodeInterpreterCall array{type: 'code_interpreter_call', id?: string, status?: string, code?: string|null, outputs?: list<array{type?: string, logs?: string, url?: string}>|null}
  * @phpstan-type ImageGenerationCall array{type: 'image_generation_call', id?: string, status?: string, result?: string|null}
- * @phpstan-type McpCall array{type: 'mcp_call', id?: string, status?: string, server_label?: string, name?: string, arguments?: string, output?: string|null, error?: string|null}
+ * @phpstan-type McpCall array{type: 'mcp_call', id?: string, status?: string, server_label?: string, name?: string, arguments?: string, output?: string|null, error?: string|array{type?: string, code?: int|string, message?: string}|null}
  * @phpstan-type McpListTools array{type: 'mcp_list_tools', id?: string, server_label?: string, tools?: list<array<string, mixed>>}
  * @phpstan-type McpApprovalRequest array{type: 'mcp_approval_request', id?: string, server_label?: string, name?: string, arguments?: string}
  * @phpstan-type ComputerCall array{type: 'computer_call', id?: string, status?: string, call_id?: string, action?: array<string, mixed>, pending_safety_checks?: list<array{id: string, code?: string|null, message?: string|null}>}
@@ -127,8 +129,18 @@ class ResultConverter implements ResultConverterInterface
             return new StreamResult($this->convertStream($result));
         }
 
-        $data = $result->getData();
+        return $this->convertData($result->getData());
+    }
 
+    /**
+     * Converts an already decoded response body, e.g. one line of a finished batch's result file.
+     *
+     * @param array<string, mixed> $data
+     *
+     * @throws ExceptionInterface
+     */
+    public function convertData(array $data): ResultInterface
+    {
         if (isset($data['error']['code']) && 'content_filter' === $data['error']['code']) {
             throw new ContentFilterException($data['error']['message']);
         }
@@ -303,7 +315,13 @@ class ResultConverter implements ResultConverterInterface
         $queries = $action['queries'] ?? [];
         $query = $action['query'] ?? ($queries[0] ?? null);
 
-        return [new WebSearchResult($query, $item['id'] ?? null, $item['status'] ?? null, $queries)];
+        return [new WebSearchResult(
+            $query,
+            $item['id'] ?? null,
+            $item['status'] ?? null,
+            $queries,
+            json_encode($item, \JSON_THROW_ON_ERROR),
+        )];
     }
 
     /**
@@ -399,12 +417,17 @@ class ResultConverter implements ResultConverterInterface
      */
     private function convertMcpCall(array $item): array
     {
+        $error = $item['error'] ?? null;
+        if (\is_array($error)) {
+            $error = $error['message'] ?? json_encode($error, \JSON_THROW_ON_ERROR);
+        }
+
         return [new McpCallResult(
             $item['server_label'] ?? '',
             $item['name'] ?? '',
             $item['arguments'] ?? null,
             $item['output'] ?? null,
-            $item['error'] ?? null,
+            $error,
             $item['id'] ?? null,
             $item['status'] ?? null,
         )];
@@ -569,6 +592,12 @@ class ResultConverter implements ResultConverterInterface
                 $item = $event['item'];
                 $toolCall = $this->convertFunctionCall($item);
                 $toolCalls[$toolCall->getId()] = $toolCall;
+            }
+
+            if ('response.output_item.done' === $type && \is_array($event['item'] ?? null) && 'web_search_call' === ($event['item']['type'] ?? null)) {
+                /** @var WebSearchCall $item */
+                $item = $event['item'];
+                yield new WebSearchComplete($this->convertWebSearchCall($item)[0]);
             }
 
             // The full reasoning item (including encrypted_content when requested

@@ -35,10 +35,13 @@ To use a specific AI platform, install the corresponding bridge package:
 | Deepgram            | `symfony/ai-deepgram-platform`            |
 | DeepSeek            | `symfony/ai-deep-seek-platform`           |
 | Docker Model Runner | `symfony/ai-docker-model-runner-platform` |
+| Eden AI             | `symfony/ai-eden-ai-platform`             |
 | ElevenLabs          | `symfony/ai-eleven-labs-platform`         |
 | Failover            | `symfony/ai-failover-platform`            |
+| Fireworks           | `symfony/ai-fireworks-platform`           |
 | Generic             | `symfony/ai-generic-platform`             |
 | Google Gemini       | `symfony/ai-gemini-platform`              |
+| Higgsfield          | `symfony/ai-higgsfield-platform`          |
 | Hugging Face        | `symfony/ai-hugging-face-platform`        |
 | LM Studio           | `symfony/ai-lm-studio-platform`           |
 | Meta Llama          | `symfony/ai-meta-platform`                |
@@ -53,7 +56,10 @@ To use a specific AI platform, install the corresponding bridge package:
 | Perplexity          | `symfony/ai-perplexity-platform`          |
 | Replicate           | `symfony/ai-replicate-platform`           |
 | Scaleway            | `symfony/ai-scaleway-platform`            |
+| Together            | `symfony/ai-together-platform`            |
 | TransformersPHP     | `symfony/ai-transformers-php-platform`    |
+| TypeSafe            | `symfony/ai-type-safe-platform`           |
+| Venice              | `symfony/ai-venice-platform`              |
 | Google Vertex AI    | `symfony/ai-vertex-ai-platform`           |
 | Voyage              | `symfony/ai-voyage-platform`              |
 

@@ -35,6 +35,13 @@ trait TypedResultTrait
      */
     public function asText(): string
     {
+        $result = $this->getResult();
+
+        // A model may split its answer over several text parts
+        if ($result instanceof MultiPartResult && 1 < \count(array_filter($result->getContent(), static fn (ResultInterface $part) => $part instanceof TextResult))) {
+            return $result->asText();
+        }
+
         return $this->as(TextResult::class)->getContent();
     }
 
@@ -91,6 +98,16 @@ trait TypedResultTrait
     public function asMultiPart(): array
     {
         return $this->as(MultiPartResult::class)->getContent();
+    }
+
+    /**
+     * @return iterable<BatchItem> one-shot traversal, read from the provider's result file as it is iterated
+     *
+     * @throws ExceptionInterface
+     */
+    public function asBatch(): iterable
+    {
+        return $this->as(BatchResult::class)->getContent();
     }
 
     /**

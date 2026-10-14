@@ -1,6 +1,19 @@
 CHANGELOG
 =========
 
+0.14
+----
+
+ * Add `Execution::cancel()` to stop an active execution and cancel its active HTTP response
+ * `MultiAgent` and `SpeechAgent` now forward the `Progress` updates of the executions they delegate to, and `MultiAgent` reports its routing as a `Progress` update of the `handoff` stage carrying the orchestrator's `MultiAgent\Handoff\Decision` as payload
+ * [BC BREAK] `Bridge\SimilaritySearch\SimilaritySearch::getUsedDocuments()` returns `Store\Document\VectorDocumentInterface[]` instead of `Store\Document\VectorDocument[]`, following the retriever it reads from
+ * Add an optional `Stopwatch` to `Toolbox\TraceableToolbox` and `TraceableAgent`, timing each tool execution and the consumption of each agent execution
+ * Add `Execution\Execution::isStreamed()`
+ * Add `Toolbox\FiberToolExecutor` to run tool calls concurrently through PHP Fibers, together with a `Toolbox\SuspendableTrait` for cooperative tools
+ * Add `Toolbox\AbstractToolbox` holding the shared part of executing a tool call - looking the tool up, the tool call events and the error handling - so a toolbox in front of a remote tool protocol only implements how a call is turned into a value
+ * Add `Toolbox\ChainToolbox` offering the tools of several toolboxes to one agent
+ * Add `#[MapToolArguments]` to map a flat tool-call payload onto a single DTO parameter while exposing the DTO properties as the tool schema root
+
 0.13
 ----
 
