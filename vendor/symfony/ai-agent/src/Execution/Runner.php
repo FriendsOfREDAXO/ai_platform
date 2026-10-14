@@ -15,6 +15,7 @@ use Symfony\AI\Agent\Exception\MaxIterationsExceededException;
 use Symfony\AI\Agent\Execution\Update\Progress;
 use Symfony\AI\Agent\Execution\Update\Result as ResultUpdate;
 use Symfony\AI\Agent\Toolbox\Event\ToolCallsExecuted;
+use Symfony\AI\Agent\Toolbox\Exception\ToolNotFoundException;
 use Symfony\AI\Agent\Toolbox\Source\SourceCollection;
 use Symfony\AI\Agent\Toolbox\ToolboxInterface;
 use Symfony\AI\Agent\Toolbox\ToolExecutorInterface;
@@ -34,6 +35,7 @@ use Symfony\AI\Platform\Result\Stream\Delta\ToolCallComplete;
 use Symfony\AI\Platform\Result\StreamResult;
 use Symfony\AI\Platform\Result\TextResult;
 use Symfony\AI\Platform\Result\ThinkingResult;
+use Symfony\AI\Platform\Result\ToolCall;
 use Symfony\AI\Platform\Result\ToolCallResult;
 use Symfony\AI\Platform\StructuredOutput\Streaming\PartialObjectStreamListener;
 use Symfony\AI\Platform\Tool\Tool;
@@ -69,9 +71,9 @@ final class Runner
      *
      * @return \Generator<int, UpdateInterface, mixed, void>
      */
-    public function run(string $model, MessageBag $messages, array $options): \Generator
+    public function run(string $model, MessageBag $messages, array $options, ?Cancellation $cancellation = null): \Generator
     {
-        $options = $this->exposeTools($options);
+        [$options, $allowedTools] = $this->exposeTools($options);
         $messages = $this->excludeToolMessages ? clone $messages : $messages;
 
         $sources = new SourceCollection();
@@ -79,13 +81,33 @@ final class Runner
         $iterations = 0;
 
         while (true) {
-            yield new Progress('model_request', 'Invoking model.', $model);
+            $deferredResult = $this->platform->invoke($model, $messages, $options);
+            $cancellation?->activate($deferredResult->getRawResult());
 
-            $result = $this->platform->invoke($model, $messages, $options)->getResult();
+            try {
+                yield new Progress('model_request', 'Invoking model.', $model);
 
-            $assistantMessage = null;
-            if ($result instanceof StreamResult) {
-                [$result, $assistantMessage] = yield from $this->consumeStream($result);
+                if ($cancellation?->isRequested()) {
+                    return;
+                }
+
+                $result = $deferredResult->getResult();
+
+                $assistantMessage = null;
+                if ($result instanceof StreamResult) {
+                    $streamedResult = yield from $this->consumeStream($result, $cancellation);
+                    if (null === $streamedResult) {
+                        return;
+                    }
+
+                    [$result, $assistantMessage] = $streamedResult;
+                }
+            } finally {
+                $cancellation?->deactivate();
+            }
+
+            if ($cancellation?->isRequested()) {
+                return;
             }
 
             $toolCallResult = $this->extractToolCallResult($result);
@@ -101,6 +123,7 @@ final class Runner
             }
 
             $toolCalls = array_values($toolCallResult->getContent());
+            $this->denyRestrictedToolCalls($toolCalls, $allowedTools);
             $toolResults = yield from $this->toolExecutor->execute($toolCalls);
 
             $messages->add($assistantMessage ?? Message::ofAssistant($result));
@@ -122,7 +145,9 @@ final class Runner
             }
         }
 
-        $result->getMetadata()->merge($metadata);
+        // Merged in order, so mergeable values like the token usage add up and the final result's own values win
+        $metadata->merge($result->getMetadata());
+        $result->getMetadata()->set($metadata->all());
 
         if ($this->includeSources) {
             $result->getMetadata()->add('sources', $sources);
@@ -137,9 +162,9 @@ final class Runner
      * The stream is drained completely even after a tool call was seen, since its metadata (e.g. token
      * usage) is only complete once the underlying generator is exhausted.
      *
-     * @return \Generator<int, UpdateInterface, mixed, array{ResultInterface, AssistantMessage}>
+     * @return \Generator<int, UpdateInterface, mixed, array{ResultInterface, AssistantMessage}|null>
      */
-    private function consumeStream(StreamResult $stream): \Generator
+    private function consumeStream(StreamResult $stream, ?Cancellation $cancellation): \Generator
     {
         $text = '';
         $toolCalls = [];
@@ -161,6 +186,14 @@ final class Runner
             }
 
             yield new Progress('delta', 'Received a streamed delta.', $delta);
+
+            if ($cancellation?->isRequested()) {
+                return null;
+            }
+        }
+
+        if ($cancellation?->isRequested()) {
+            return null;
         }
 
         $turn = $stream->getAssistantMessage();
@@ -217,37 +250,65 @@ final class Runner
     }
 
     /**
+     * Exposes the registered tools, narrowed down by the tool names given in the tools option.
+     *
      * @param array<string, mixed> $options
      *
-     * @return array<string, mixed>
+     * @return array{array<string, mixed>, list<string>|null} the options and the names of the tools allowed to be executed, null if unrestricted
      */
     private function exposeTools(array $options): array
     {
+        $allowedTools = null;
+        $serverTools = [];
+
+        if (isset($options['tools']) && \is_array($options['tools'])) {
+            $names = array_values(array_filter($options['tools'], static fn (mixed $tool): bool => \is_string($tool)));
+            $serverTools = array_values(array_filter($options['tools'], static fn (mixed $tool): bool => \is_array($tool)));
+
+            // only restrict tools if tool names are provided as option, an empty option allows no tool at all
+            if ([] !== $names || [] === $options['tools']) {
+                $allowedTools = $names;
+            }
+        }
+
         if (!$this->toolbox instanceof ToolboxInterface) {
-            return $options;
+            return [$options, $allowedTools];
         }
 
         $toolMap = $this->toolbox->getTools();
         if ([] === $toolMap) {
-            return $options;
+            return [$options, $allowedTools];
         }
 
-        // only filter tool map if a list of strings is provided as option
-        if (isset($options['tools']) && \is_array($options['tools']) && $this->isFlatStringArray($options['tools'])) {
-            $toolMap = array_values(array_filter($toolMap, static fn (Tool $tool): bool => \in_array($tool->getName(), $options['tools'], true)));
+        if (null !== $allowedTools) {
+            $toolMap = array_values(array_filter($toolMap, static fn (Tool $tool): bool => \in_array($tool->getName(), $allowedTools, true)));
         }
 
-        $options['tools'] = $toolMap;
+        $options['tools'] = [...$toolMap, ...$serverTools];
 
-        return $options;
+        return [$options, $allowedTools];
     }
 
     /**
-     * @param array<mixed> $tools
+     * Rejects calls of registered tools the tools option did not allow, unknown names are left to the toolbox.
+     *
+     * @param list<ToolCall>    $toolCalls
+     * @param list<string>|null $allowedTools
      */
-    private function isFlatStringArray(array $tools): bool
+    private function denyRestrictedToolCalls(array $toolCalls, ?array $allowedTools): void
     {
-        return array_reduce($tools, static fn (bool $carry, mixed $item): bool => $carry && \is_string($item), true);
+        if (null === $allowedTools || !$this->toolbox instanceof ToolboxInterface) {
+            return;
+        }
+
+        // listed again, since the tools of a toolbox can change during a run
+        $registeredTools = array_map(static fn (Tool $tool): string => $tool->getName(), $this->toolbox->getTools());
+
+        foreach ($toolCalls as $toolCall) {
+            if (\in_array($toolCall->getName(), $registeredTools, true) && !\in_array($toolCall->getName(), $allowedTools, true)) {
+                throw ToolNotFoundException::notFoundForToolCall($toolCall);
+            }
+        }
     }
 
     private function extractToolCallResult(ResultInterface $result): ?ToolCallResult
