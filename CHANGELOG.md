@@ -7,6 +7,13 @@ Versionierung nach [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+## [1.1.1] – 2026-10-18
+
+### Behoben
+
+- **Beim Update über den AddOn-Installer wurden fehlende Tabellen nicht angelegt.** REDAXO führt auf diesem Weg nur `update.php` aus, nie `install.php` — wo das gesamte Schema steht. Eine Installation, die von 1.0.0-beta3 oder 1.0.0 aktualisierte, bekam den neuen Code ohne die Tabellen der Änderungswünsche und lief in `Table 'rex_ai_change_request' doesn't exist`; von beta1 aus fehlten zusätzlich die OAuth-Tabellen. `update.php` bindet `install.php` jetzt ein. **Bereits aktualisierte Installationen holen das Schema mit einer Neuinstallation des AddOns nach** (*System > AddOns > ai_platform > Reinstall* oder `php redaxo/bin/console package:install ai_platform`); Daten gehen dabei nicht verloren.
+
+
 ## [1.1.0] - 2026-10-14
 
 ### Geändert
@@ -19,6 +26,7 @@ Versionierung nach [Semantic Versioning](https://semver.org/lang/de/).
 
 - **Feld „Ersatz-Scope“** unter *MCP Server > Einstellungen*. Solange kein AddOn eigene Scopes anmeldet, wird dieser eine veröffentlicht und vergeben — nötig, weil Clients abbrechen, wenn die Scope-Liste leer ist, und sichtbar im Zustimmungsdialog, weshalb der Name wählbar sein sollte. Ohne Eingabe gilt `mcp`; ein Wert, der kein gültiges Scope-Token ist (RFC 6749 §3.3 erlaubt weder Leerzeichen noch Anführungszeichen), fällt auf die Vorgabe zurück.
 - **Schalter „Immer verfügbar" je Tool** unter *MCP Server > Einstellungen*. Ein geschütztes Tool ist damit für jede angemeldete Person nutzbar, auch ohne passenden Scope — die Anmeldung bleibt nötig, nur die Scope-Prüfung entfällt. Scopes erreichen einen Nutzer über YCom-Gruppen; eine Installation ohne Gruppen konnte bisher keinen einzigen vergeben, womit jedes geschützte Tool für alle unerreichbar war, ohne dass im Backend etwas darauf hinwies.
+- **Zeitlimit für HTTP-Aufrufe an die Provider**, einstellbar über `rex_config`: `http_timeout` (Vorgabe 300 Sekunden) ist das Fenster ohne Antwort, `http_max_duration` (Vorgabe 0 = unbegrenzt) die Gesamtdauer. Nötig, weil eine lange, nicht gestreamte Antwort die Verbindung hält, ohne etwas zu senden — der Standardwert des HTTP-Clients brach eine umfangreiche Übersetzung mit „Idle timeout reached" ab.
 
 ### Behoben
 
@@ -28,6 +36,7 @@ Versionierung nach [Semantic Versioning](https://semver.org/lang/de/).
 - **Das Resource-Metadatendokument sprach unter jedem Pfad für `/mcp`.** RFC 9728 §3.1 hängt den Ressourcenpfad an den Well-known-Präfix: Unter `/.well-known/oauth-protected-resource/mcp` steht die Angabe für `/mcp`, unter `/.well-known/oauth-protected-resource` die für die Site. Ausgeliefert wurde beides Mal `<base>/mcp`, und die 401-Challenge verwies auf die Variante ohne Pfad. Ein Client vergleicht das gefundene `resource` mit der URL, die er anspricht, und steigt bei Abweichung aus — mit dem offiziellen SDK nachgestellt: „Protected resource … does not match expected …", noch bevor eine Anmeldeseite erscheinen konnte. Beide Dokumente werden jetzt getrennt beantwortet, die Challenge zeigt auf das pfadbezogene.
 - **Clients brachen nach der Registrierung ab, ohne je eine Anmeldeseite zu zeigen.** Drei Abweichungen von den Spezifikationen kamen zusammen: Der `issuer` trug einen Schrägstrich zu viel, den RFC 8414 §3.3 beim Vergleich nicht erlaubt; die 401-Challenge nannte `resource` statt `resource_metadata` (RFC 9728 §5.1); und weder kündigten die Discovery-Dokumente `scopes_supported` an noch gab die Registrierung das gewährte `scope` zurück (RFC 7591 §3.2.1) — ein Client, der nach einem Scope fragt und keine Antwort bekommt, hat nichts, was er in die Authorize-URL schreiben könnte. Hat eine Installation keine eigenen Scopes angekündigt, wird jetzt ein neutraler Marker veröffentlicht und auch tatsächlich gewährt.
 - **Die OAuth-Tests liefen nur im Standard-Layout.** Sie suchten den Core über eine feste Zahl von Verzeichnisebenen und die Konfiguration unter `data/core/config.yml`. Ein Projekt mit eigenem Path-Provider legt `src/` an die Projektwurzel und die Daten nach `var/data` — dort scheiterten sie vor dem ersten Test. Der Core wird jetzt durch Aufwärtssuche gefunden, die Konfiguration über beide üblichen Orte.
+- **Die `.rex-docs`-Styles des AddOns färbten im Dark Mode in die Doku-Seiten anderer AddOns ab.** Sie sind entfernt.
 
 ### Entfernt
 

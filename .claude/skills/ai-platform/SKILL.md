@@ -229,13 +229,35 @@ jedes Default-Modell noch im Katalog steht; den zweiten gibt es, weil der
 entfernte `AgentProcessor` `createAgent()` zerlegt hat, während alle anderen
 Tests grün blieben.
 
-**Und: ein Versionssprung kann gespeicherte Profilwerte ungültig machen.** Dann
-gehört eine Migration dazu — `update-image-models.php` ist das Muster. Sie wird
-von `update.php` (Weg über den AddOn-Installer) und von `install.php` (Weg über
-Reinstallation) eingebunden und ist **reines SQL**: bei einem Installer-Update
-läuft `update.php` aus dem neuen Paket, während noch die alten Dateien
-installiert sind — neue Klassen und der neue `vendor/`-Baum sind da nicht
-geladen.
+### Schema-Änderungen: `install.php` allein erreicht niemanden
+
+**REDAXO führt beim Update über den AddOn-Installer `install.php` nicht aus.** Es
+inkludiert `update.php`, schiebt dann die neuen Dateien an ihren Platz, kopiert
+die Assets und schreibt die Version — ein `install()`-Aufruf kommt auf diesem Weg
+nirgends vor. Eine neue Tabelle oder Spalte nur in `install.php` zu ergänzen
+versorgt also frische Installationen und **keine einzige bestehende**.
+
+Genau so ist 1.0.0 ausgeliefert worden: Die Tabellen der Änderungswünsche kamen
+nach beta3 dazu und standen nur in `install.php`. Wer von beta3 updatete, bekam
+den neuen Code ohne die neuen Tabellen, und der Eingang starb mit
+`Table 'rex_ai_change_request' doesn't exist`.
+
+Deshalb bindet `update.php` heute `install.php` ein. Das trägt, solange zwei
+Eigenschaften erhalten bleiben:
+
+* **`install.php` bleibt wiederholbar** — `ensure*()`, `rex_config::has()`-Guards,
+  nichts, was Daten löscht.
+* **`install.php` benutzt nur Kernklassen.** Zu dem Zeitpunkt sind noch die
+  *alten* Dateien installiert: der neue `vendor/`-Baum ist nicht geladen und die
+  neuen Klassen des AddOns existieren für den Autoloader nicht. Eine Klasse aus
+  `lib/` fällt dort genau dann um, wenn die Migration gebraucht wird.
+
+`php .claude/tests/update-script-test.php` prüft den Weg, indem es eine Tabelle
+wegnimmt und `update.php` laufen lässt — nicht, indem es ein `require` sucht.
+
+**Gespeicherte Werte, die ein Versionssprung ungültig macht**, gehören ans Ende
+von `install.php`; `update-image-models.php` ist das Muster (dall-e →
+gpt-image). Dort gilt dieselbe Einschränkung: **reines SQL**, keine Klassen.
 
 ### Einen Provider hinzufügen
 
