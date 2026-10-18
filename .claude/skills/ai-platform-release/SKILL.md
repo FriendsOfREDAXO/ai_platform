@@ -17,8 +17,9 @@ Lokale Notizen zum Release-Pfad dieses Addons. Repo lebt auf `https://github.com
    php -r '$lock = json_decode(file_get_contents("composer.lock"), true); foreach ($lock["packages"] as $p) { if (preg_match("#^symfony/#", $p["name"])) echo str_pad($p["name"], 40) . " " . $p["version"] . "\n"; }'
    ```
 5. README, CLAUDE.md und Code: kein `/Users/<name>/...` und keine echten Tokens drin (globale Regel).
-6. Wenn der Release einen Symfony-AI-Sprung enthaelt: gibt es gespeicherte Werte, die dadurch ungueltig werden? Dann gehoert eine Migration dazu, eingebunden aus `update.php` **und** `install.php` -- Muster ist `update-image-models.php` (dall-e -> gpt-image). `update.php` laeuft beim Installer-Update aus dem neuen Paket, waehrend noch die alten Dateien installiert sind: dort **kein** Zugriff auf neue Klassen oder den neuen `vendor/`-Baum, nur SQL.
-7. Testsatz durch: `provider-registry-test.php`, `agent-test.php`, `model-picker-test.mjs`, die vier `change-*`, die drei `oauth-*` und `api-changes-test.sh`.
+6. **Neue Tabelle oder Spalte im Release? Dann pruefen, dass sie ueber `update.php` erreichbar ist.** REDAXO fuehrt beim Installer-Update `install.php` **nicht** aus -- `update.php` bindet es deshalb ein. Wer Schema nur in `install.php` ergaenzt, versorgt damit frische Installationen und keine einzige bestehende. Genau so ist 1.0.0 ausgeliefert worden: die Tabellen der Aenderungswuensche fehlten nach einem Update von beta3, und die Inbox starb mit `Table 'rex_ai_change_request' doesn't exist`. `php .claude/tests/update-script-test.php` prueft den Pfad.
+7. Gibt es gespeicherte Werte, die der Release ungueltig macht? Dann gehoert eine Migration dazu, ans Ende von `install.php` -- Muster ist `update-image-models.php` (dall-e -> gpt-image). Dort gilt: **kein** Zugriff auf neue Klassen oder den neuen `vendor/`-Baum, nur SQL. Beim Installer-Update laeuft die Datei aus dem neuen Paket, waehrend noch die alten Dateien installiert sind.
+8. Testsatz durch: `provider-registry-test.php`, `agent-test.php`, `model-picker-test.mjs`, die vier `change-*`, die drei `oauth-*` und `api-changes-test.sh`.
 
 ## Release schneiden
 
