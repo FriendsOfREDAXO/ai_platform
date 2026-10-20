@@ -15,9 +15,31 @@ if ('post' === rex_request::requestMethod() && $csrfToken->isValid()) {
     rex_config::set('ai_platform', 'mcp_description', rex_post('mcp_description', 'string', ''));
     rex_config::set('ai_platform', 'mcp_require_auth', rex_post('mcp_require_auth', 'int', 0));
     rex_config::set('ai_platform', 'oauth_client_lifetime_days', max(0, rex_post('oauth_client_lifetime_days', 'int', 0)));
-    rex_config::set('ai_platform', ScopeRegistry::CONFIG_FALLBACK_SCOPE, rex_post('mcp_fallback_scope', 'string', ''));
+    rex_config::set('ai_platform', ScopeRegistry::CONFIG_FALLBACK_DESCRIPTION, rex_post('mcp_fallback_scope_description', 'string', ''));
+
+    // The scope identifier is the one field here that cannot take any string, so
+    // it is the one field that has to say no. It used to be stored unchecked
+    // while ScopeRegistry quietly fell back to "mcp" — the value sat in the
+    // config, never applied, and the form showed the fallback on the next load.
+    // Entering a name with a space looked like the setting was simply ignored.
+    $submittedScope = trim(rex_post('mcp_fallback_scope', 'string', ''));
+    $scopeRejected = '' !== $submittedScope && !ScopeRegistry::isValidScopeToken($submittedScope);
+
+    if (!$scopeRejected) {
+        rex_config::set('ai_platform', ScopeRegistry::CONFIG_FALLBACK_SCOPE, $submittedScope);
+    }
 
     echo rex_view::success(rex_i18n::msg('ai_platform_settings_saved'));
+
+    if ($scopeRejected) {
+        // Named rather than generic: the reason is never guessable from the
+        // input, and the value that stays in force has to be visible.
+        echo rex_view::warning(rex_i18n::msg(
+            'ai_platform_oauth_fallback_scope_rejected',
+            rex_escape($submittedScope),
+            rex_escape(ScopeRegistry::fallbackScope()),
+        ));
+    }
 }
 
 // Handle tool activation form submission. Checkboxes only submit when checked,
@@ -41,6 +63,7 @@ $mcpDescription = rex_config::get('ai_platform', 'mcp_description', '');
 $mcpRequireAuth = (int) rex_config::get('ai_platform', 'mcp_require_auth', 0);
 $oauthClientLifetimeDays = (int) rex_config::get('ai_platform', 'oauth_client_lifetime_days', 0);
 $fallbackScope = ScopeRegistry::fallbackScope();
+$fallbackScopeDescription = ScopeRegistry::fallbackScopeDescription();
 // Where sign-in happens is not a setting of this addon -- it is YCom's login
 // article, and a second field next to YCom's own would be a second answer to one
 // question. What belongs here is the *state*: which article that is, so nobody has
@@ -110,6 +133,14 @@ $content = '
             <div class="col-sm-9">
                 <input class="form-control" type="text" id="mcp-fallback-scope" name="mcp_fallback_scope" value="' . rex_escape($fallbackScope) . '">
                 <p class="help-block">' . rex_i18n::msg('ai_platform_oauth_fallback_scope_notice', ScopeRegistry::SCOPE_FALLBACK_DEFAULT) . '</p>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="control-label col-sm-3" for="mcp-fallback-scope-description">' . rex_i18n::msg('ai_platform_oauth_fallback_scope_description') . '</label>
+            <div class="col-sm-9">
+                <input class="form-control" type="text" id="mcp-fallback-scope-description" name="mcp_fallback_scope_description" value="' . rex_escape($fallbackScopeDescription) . '">
+                <p class="help-block">' . rex_i18n::msg('ai_platform_oauth_fallback_scope_description_notice') . '</p>
             </div>
         </div>
 
