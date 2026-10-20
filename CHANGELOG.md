@@ -5,7 +5,15 @@ Alle nennenswerten Änderungen an diesem AddOn.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/1.1.0/),
 Versionierung nach [Semantic Versioning](https://semver.org/lang/de/).
 
-## [Unreleased]
+## [1.1.2] – 2026-10-20
+
+### Hinzugefügt
+
+- **Feld „Beschreibung im Zustimmungsdialog"** unter *MCP Server > Einstellungen*. Der Satz erscheint dort neben dem Ersatz-Scope und erklärt der Person, worüber sie entscheidet — „mcp" allein sagt ihr nichts. Leerzeichen, Umlaute und Satzzeichen sind erlaubt, weil der Text nur angezeigt und nie als Scope gesendet wird.
+
+### Behoben
+
+- **Ein ungültiger Ersatz-Scope wurde stillschweigend verworfen.** Der eingetragene Wert wurde ungeprüft gespeichert, beim Lesen aber durch `mcp` ersetzt: Das Feld zeigte nach dem Speichern wieder `mcp`, ohne Hinweis, und wer einen lesbaren Namen eintrug, hielt die Einstellung für wirkungslos. Ungültige Werte werden jetzt abgewiesen, der Grund benannt und auf das Beschreibungsfeld verwiesen. Der Hilfetext nennt außerdem, dass neben Leerzeichen und Anführungszeichen auch Umlaute ausgeschlossen sind — Scopes sind im Protokoll leerzeichengetrennt (RFC 6749 §3.3), weshalb ein Bezeichner keine davon enthalten kann.
 
 ## [1.1.1] – 2026-10-18
 

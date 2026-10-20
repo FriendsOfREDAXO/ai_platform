@@ -231,6 +231,8 @@ The backend form (`pages/profiles.php`) always renders **all** type fields; `ass
 | `mcp_require_auth`                    | 0/1 — when 1, `FriendsOfRedaxo\AiPlatform\Mcp\Server::handle()` challenges anonymous requests with 401 on every method (incl. `initialize`/`tools/list`), forcing the client's OAuth flow. Needed for protected tools to surface in clients that only start OAuth on a 401 (e.g. Claude Desktop). 0 = anonymous clients allowed (public tools only). |
 | `mcp_disabled_tools`                  | JSON list of tool names switched off in the backend. Opt-out: `FriendsOfRedaxo\AiPlatform\Mcp\Server::isToolEnabled()` hides them from `tools/list` and rejects them in `tools/call`. New tools default to enabled. |
 | `oauth_client_lifetime_days`           | Days after which an OAuth client registration expires (based on `createdate`). 0 = never. `FriendsOfRedaxo\AiPlatform\OAuth\ClientStore::isExpired()` is enforced in the authorize + token endpoints (expired → `invalid_client`, which makes MCP clients re-register via DCR). |
+| `mcp_fallback_scope`                   | Identifier of the scope announced while no addon announces its own. Defaults to `mcp` and rarely needs changing. **Must be a valid scope token** — the backend refuses anything else rather than storing it. |
+| `mcp_fallback_scope_description`        | The sentence shown beside it in the consent dialog. Free text: spaces, umlauts and punctuation are fine, because it is rendered and never sent. |
 
 The pre-1.0 `mcp_token` key was removed in 1.0.0-beta2; `install.php` actively deletes it on (re-)install. OAuth state lives in dedicated tables, not in `rex_config`.
 
@@ -263,9 +265,37 @@ Implements a JSON-RPC 2.0 / Streamable-HTTP MCP server (protocol version `2025-0
 | `FriendsOfRedaxo\AiPlatform\OAuth\DcrEndpoint` | `/oauth/register`. RFC-7591 Dynamic Client Registration. Auto-approves public clients (PKCE only, no secret). Validates absolute URIs and that `token_endpoint_auth_method` is `"none"`. |
 | `FriendsOfRedaxo\AiPlatform\OAuth\ClientStore` | CRUD for clients: create (public/confidential), findByClientId, findAll, deleteById, verifySecret (`password_verify`), redirectUriMatches (exact-match list). |
 | `FriendsOfRedaxo\AiPlatform\OAuth\TokenStore` | Issues + consumes authorization codes (single-use, expiry-aware), issues access+refresh pairs, rotates refresh tokens with joint revocation, revokes all tokens for a client. Lifetimes as class constants: `ACCESS_TOKEN_TTL=3600`, `REFRESH_TOKEN_TTL=30d`, `CODE_TTL=600`. |
-| `FriendsOfRedaxo\AiPlatform\OAuth\ScopeRegistry` | No built-in scopes (`builtInScopes()` returns `[]`; the `SCOPE_TOOLS_*` constants are deprecated, unenforced). All selectable scopes come from third addons via the `AI_PLATFORM_OAUTH_SCOPES` extension point. Group↔scope CRUD; `resolveScopesForYcomUser()` aggregates via `rex_ycom_user::getGroups()`. |
+| `FriendsOfRedaxo\AiPlatform\OAuth\ScopeRegistry` | No built-in scopes (`builtInScopes()` returns `[]`; the `SCOPE_TOOLS_*` constants are deprecated, unenforced). All selectable scopes come from third addons via the `AI_PLATFORM_OAUTH_SCOPES` extension point. Group↔scope CRUD; `resolveScopesForYcomUser()` aggregates via `rex_ycom_user::getGroups()`. Also owns the fallback scope — see below. |
 
 The legacy `?rex-api-call=ai_mcp` endpoint (class `rex_api_ai_mcp`) was removed — `/mcp` is the only MCP entry point now. Unknown `/oauth/*` paths return 404 via `FriendsOfRedaxo\AiPlatform\Mcp\Router::dispatchOauthUnknownEndpoint()`.
+
+**The fallback scope, and why it is two fields.** Discovery must not advertise an empty
+scope list: clients that find one stop before they ever send the user to a login page. So
+an installation that announced none of its own gets a neutral marker instead
+(`advertisedScopes()`), and that marker is also what `resolveScopesForYcomUser()` returns
+when nothing is mapped. It grants nothing — a tool gates itself through its `public` flag
+and its own `requiredScopes`.
+
+That marker appears in the consent dialog, which is where the two fields come from, and
+keeping them apart is the point:
+
+- **`mcp_fallback_scope` is an identifier** that travels over the protocol. RFC 6749 §3.3
+  defines `scope` as a *space-delimited list*, so a value containing a space would be two
+  scopes rather than one; `"` and `\` are out because it also rides through JSON and
+  headers. `ScopeRegistry::isValidScopeToken()` holds that rule
+  (`1*( %x21 / %x23-5B / %x5D-7E )`), which incidentally rules out umlauts — the part that
+  surprises people. Default `mcp`, and there is rarely a reason to change it.
+- **`mcp_fallback_scope_description` is a sentence** a person reads. Nothing is forbidden
+  in it, because it is rendered and never sent.
+
+**This was one field once, and it cost an installation a search.** The identifier was
+stored unchecked while `fallbackScope()` quietly fell back to `mcp` on every read: the
+typed value sat in the config, was never applied, and the form showed `mcp` again on the
+next load. Entering a readable name therefore looked like the setting was ignored. The
+backend now refuses an invalid identifier, names the reason and points at the description
+field; `ScopeRegistry::descriptions()` — not `allScopes()` — is what the consent dialog
+reads, because the fallback is deliberately absent from the group mapping (it is what
+applies when nothing was mapped) but has to carry its sentence into the dialog.
 
 **Auth model:**
 
@@ -1098,6 +1128,7 @@ das liest, sucht am falschen Ende.
   - `oauth-storage-test.php` — 44 storage asserts, runs via REDAXO bootstrap + addon init
   - `oauth-token-endpoint-test.sh` — 20 token-endpoint asserts, seeds via mysql client, drives via curl
   - `oauth-authorize-test.sh` — 34 end-to-end asserts: the redirect to YCom (OAuth parameters surviving the detour, no password form rendered by this addon, a 500 when YCom has no login article), then a real sign-in **through YCom's own form** — the test follows the redirect, parses the form YCom serves and posts it back, which is what exercises the `returnTo` round trip — and from the consent screen on to the code, the token exchange and a call against `/mcp`. Uses `oauth-authorize-test-seed.php` for the YCom user/group and for pointing `article_id_login` elsewhere, which it restores in a trap: leaving that wrong would break every frontend login on the installation
+  - `fallback-scope-test.php` — 23 asserts on the two fields above: which strings are scope tokens (a space, an umlaut, a quote and a backslash each refused, with the reason in the assertion name), that an unusable stored value falls back, that the description survives spaces and umlauts, and that `descriptions()`/`advertisedScopes()` carry the fallback **only** while no addon announces its own. Both branches are forced through the extension point rather than taken as the installation happens to be configured — on a machine with its own scopes the fallback branch would otherwise never run, and that is the branch the feature exists for
   - `update-script-test.php` — 16 asserts on the route a running installation actually takes: it takes a table away, runs `update.php` and checks the table came back with its columns, rather than asserting that one file includes another (which would still pass once the include stopped working). The table is renamed, not dropped, and restored in a `finally` plus a shutdown handler — this runs against the real database. Also pins that `update.php` references no addon class and `install.php` resolves no paths through `rex_addon`, the two properties that keep the route working
   - `parse-login-form.php` — not a test: reads YCom's login page on stdin and prints the form action plus one `name=value` per line, so the shell test can post it back. Parses by shape (one text field, one password field, hidden fields ride along) rather than by YForm's `FORM[x][n]` numbering, which differs per installation, and **HTML-decodes the values** — YCom renders `returnTo` with `&amp;`, and posting that verbatim makes the next parameter arrive as `amp;client_id`
   - `change-storage-test.php` — 83 asserts: payload guards, typed round-trips, stale detection, supersede (including that creates do *not* supersede each other), changesets, the YForm allow list, the PHP-module refusal, permission separation

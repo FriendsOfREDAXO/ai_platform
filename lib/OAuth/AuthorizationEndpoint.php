@@ -292,7 +292,10 @@ final class AuthorizationEndpoint
         $fragment->setVar('userEmail', (string) $user->getValue('email'), false);
         $fragment->setVar('effective', $effective, false);
         $fragment->setVar('omitted', array_values(array_diff($requested, $effective)), false);
-        $fragment->setVar('descriptions', ScopeRegistry::allScopes(), false);
+        // descriptions(), not allScopes(): the fallback scope is not assignable to
+        // a group and therefore absent from the latter, but it is exactly what a
+        // consent dialog shows when nothing else was announced.
+        $fragment->setVar('descriptions', ScopeRegistry::descriptions(), false);
         $fragment->setVar('hiddenFields', self::hiddenInputs($params, ['decision', '_action']), false);
 
         echo self::renderPage(rex_i18n::msg('ai_platform_oauth_consent_title'), $fragment->parse('ai_platform/oauth/consent.php'));

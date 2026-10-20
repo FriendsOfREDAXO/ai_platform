@@ -34,12 +34,44 @@ Lokaler Spickzettel zum MCP-Stack dieses Addons. Quelle der Wahrheit bleibt der 
 | `mcp_require_auth` | 0/1 — bei 1 bekommt JEDER anonyme Request 401 (auch `initialize`/`tools/list`) → erzwingt OAuth-Login. **Nötig, damit geschützte Tools in Claude Desktop überhaupt auftauchen** (s.u. Henne-Ei). |
 | `mcp_disabled_tools` | JSON-Liste deaktivierter Tool-Namen (Opt-out; via `FriendsOfRedaxo\AiPlatform\Mcp\Server::isToolEnabled()` in list+call) |
 | `oauth_client_lifetime_days` | Tage bis ein OAuth-Client ablaeuft (Basis `createdate`). 0 = nie. Enforced in authorize+token → `invalid_client` → DCR-Re-Registrierung |
+| `mcp_fallback_scope` | Bezeichner des Ersatz-Scopes. Vorgabe `mcp`, muss ein gueltiges Scope-Token sein — das Backend weist alles andere ab, statt es zu speichern |
+| `mcp_fallback_scope_description` | Der Satz daneben im Zustimmungsdialog. Freier Text, inklusive Leerzeichen und Umlauten |
 
 ### Scopes
 - **Keine built-in Scopes mehr.** `builtInScopes()` gibt `[]`. Die Konstanten `SCOPE_TOOLS_READ/CALL` sind `@deprecated`, unbenutzt.
 - Tool-Sichtbarkeit/-Aufruf: `public:true` ODER (authentifiziert UND hat alle eigenen `requiredScopes` des Tools). Es gibt KEIN globales tools-Scope-Gate (würde mit public Tools kollidieren).
 - Scopes kommen ausschliesslich aus AddOns via `AI_PLATFORM_OAUTH_SCOPES`, werden YCom-Gruppen zugeordnet (`rex_ai_scope_mapping`), pro User via `resolveScopesForYcomUser()` aggregiert.
 - → **Gruppen-Differenzierung**: Tool A braucht `scopeA` (Gruppe X), Tool B braucht `scopeB` (Gruppe Y) → unterschiedliche Logins sehen unterschiedliche Tool-Listen am selben Server.
+
+#### Der Ersatz-Scope: zwei Felder, und warum
+
+Eine leere Scope-Liste in der Discovery lässt Clients aussteigen, bevor je eine
+Anmeldeseite erscheint. Kündigt also kein AddOn eigene Scopes an, wird ein neutraler
+Marker veröffentlicht und vergeben. Er räumt nichts ein — ein Tool entscheidet weiter
+selbst über `public` und seine `requiredScopes`.
+
+Dieser Marker steht im Zustimmungsdialog, und genau deshalb gibt es **zwei** Felder:
+
+| Feld | Was | Erlaubt |
+|---|---|---|
+| `mcp_fallback_scope` | Bezeichner, geht über das Protokoll | Druckbares ASCII ohne Leerzeichen, `"` und `\` |
+| `mcp_fallback_scope_description` | Satz für Menschen im Dialog | alles, wird nur angezeigt |
+
+**Warum keine Leerzeichen im Bezeichner:** RFC 6749 §3.3 definiert `scope` als
+*leerzeichengetrennte Liste* — „Mein Zugriff" wären zwei Scopes, nicht einer.
+`ScopeRegistry::isValidScopeToken()` hält die Regel (`1*( %x21 / %x23-5B / %x5D-7E )`),
+womit nebenbei auch Umlaute rausfallen; das überrascht am meisten und steht deshalb im
+Hilfetext.
+
+**Das war einmal ein Feld, und es hat eine Installation Zeit gekostet.** Der Bezeichner
+wurde ungeprüft gespeichert, während `fallbackScope()` bei jedem Lesen still auf `mcp`
+zurückfiel: Der eingetragene Wert lag in der Config, wurde nie benutzt, und das Formular
+zeigte beim nächsten Laden wieder `mcp`. Wer einen lesbaren Namen eintrug, sah aus wie
+ignoriert. Heute weist das Backend ab, nennt den Grund und verweist aufs Beschreibungsfeld.
+
+**`descriptions()` statt `allScopes()`** liest der Dialog: Der Ersatz-Scope ist im
+Gruppen-Mapping absichtlich *nicht* enthalten — er gilt ja, wenn nichts zugeordnet ist —,
+muss seinen Satz aber in den Dialog tragen.
 
 ### Wie sich der Besucher anmeldet
 

@@ -8,6 +8,7 @@ use rex;
 use rex_config;
 use rex_extension;
 use rex_extension_point;
+use rex_i18n;
 use rex_sql;
 use rex_ycom_user;
 
@@ -38,6 +39,9 @@ final class ScopeRegistry
     /** Config key holding the installation's own name for that scope. */
     public const CONFIG_FALLBACK_SCOPE = 'mcp_fallback_scope';
 
+    /** Config key holding the sentence shown next to it in the consent dialog. */
+    public const CONFIG_FALLBACK_DESCRIPTION = 'mcp_fallback_scope_description';
+
     public const SCOPE_TOOLS_READ = 'mcp:tools:read';
     /** @deprecated since 1.0.0-beta3 — see {@see SCOPE_TOOLS_READ}. */
     public const SCOPE_TOOLS_CALL = 'mcp:tools:call';
@@ -64,20 +68,72 @@ final class ScopeRegistry
      * the user to a login page. Installations that announce scopes of their own
      * never see it.
      *
-     * Configurable because the name shows up in the consent dialog, where it is
-     * read by people: "mcp" fits a developer install, elsewhere the product name
-     * reads better. Falls back to the default when unset or when the value is no
-     * valid scope token (RFC 6749 §3.3 allows neither spaces nor quotes).
+     * Configurable for the rare case that `mcp` collides with something an
+     * installation already uses. **What a person reads in the consent dialog is
+     * not this** — that is `fallbackScopeDescription()`, which has no character
+     * restrictions, because it never travels over the protocol. Keeping the two
+     * apart is the point: this one is an identifier, that one is a sentence.
+     *
+     * Falls back to the default when unset or when the value is no valid scope
+     * token. The backend refuses an invalid value rather than storing it, so
+     * reaching that fallback means the configuration predates the check.
      */
     public static function fallbackScope(): string
     {
         $configured = trim((string) rex_config::get('ai_platform', self::CONFIG_FALLBACK_SCOPE, ''));
 
-        if ('' !== $configured && 1 === preg_match('/^[\x21\x23-\x5B\x5D-\x7E]+$/', $configured)) {
-            return $configured;
-        }
+        return self::isValidScopeToken($configured) ? $configured : self::SCOPE_FALLBACK_DEFAULT;
+    }
 
-        return self::SCOPE_FALLBACK_DEFAULT;
+    /**
+     * Whether a string may be used as an OAuth scope.
+     *
+     * RFC 6749 §3.3 defines `scope` as a **space-delimited list**, so a value
+     * containing a space would be two scopes rather than one with a space in it;
+     * `"` and `\` are out because the value travels through JSON and headers.
+     * What is left is printable ASCII — which also rules out umlauts, the part
+     * that surprises people most and the reason the field says so.
+     *
+     *     scope-token = 1*( %x21 / %x23-5B / %x5D-7E )
+     */
+    public static function isValidScopeToken(string $value): bool
+    {
+        return '' !== $value && 1 === preg_match('/^[\x21\x23-\x5B\x5D-\x7E]+$/', $value);
+    }
+
+    /**
+     * The sentence shown beside the fallback scope in the consent dialog.
+     *
+     * This is what an installation actually wants to word for itself: the dialog
+     * asks a person to hand access to an application, and "mcp" alone says
+     * nothing about what that means. Spaces, umlauts and punctuation are all
+     * fine here — the text is rendered, never sent as a scope.
+     */
+    public static function fallbackScopeDescription(): string
+    {
+        $configured = trim((string) rex_config::get('ai_platform', self::CONFIG_FALLBACK_DESCRIPTION, ''));
+
+        return '' !== $configured ? $configured : rex_i18n::rawMsg('ai_platform_oauth_fallback_scope_description_default');
+    }
+
+    /**
+     * Scope => description for display, including the fallback.
+     *
+     * Separate from {@see allScopes()} on purpose. That one answers "which
+     * scopes can be assigned to a group", and the fallback is not among them —
+     * it is what applies when nothing was assigned. This one answers "what do I
+     * show the person deciding", and there the fallback has to carry its
+     * description, or the dialog shows a bare identifier and nothing else.
+     *
+     * @return array<string, string>
+     */
+    public static function descriptions(): array
+    {
+        $scopes = self::allScopes();
+
+        return [] === $scopes
+            ? [self::fallbackScope() => self::fallbackScopeDescription()]
+            : $scopes;
     }
 
     /**
