@@ -9,7 +9,7 @@ use FriendsOfRedaxo\AiPlatform\Change\Support\MetaFieldRegistry;
 use FriendsOfRedaxo\AiPlatform\Change\Target\MetaTarget;
 use InvalidArgumentException;
 
-use function is_string;
+use function sprintf;
 use function str_starts_with;
 
 /**

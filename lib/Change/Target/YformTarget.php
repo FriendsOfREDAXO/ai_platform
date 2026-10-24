@@ -11,6 +11,8 @@ use rex_i18n;
 use rex_url;
 use rex_yform_manager_table;
 
+use function sprintf;
+
 /**
  * Points at a dataset in a YForm table, addressed by table name and id.
  *
@@ -26,8 +28,7 @@ final class YformTarget extends AbstractTarget
         private readonly ChangeOperation $operation,
         private readonly string $table,
         private readonly ?int $datasetId = null,
-    ) {
-    }
+    ) {}
 
     public static function changeType(): string
     {

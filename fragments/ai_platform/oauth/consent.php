@@ -31,7 +31,7 @@ $hiddenFields = (string) $this->getVar('hiddenFields', '');
 <?php else: ?>
     <ul class="scopes">
         <?php foreach ($effective as $scope): ?>
-            <?php $desc = (string) ($descriptions[$scope] ?? ''); ?>
+            <?php $desc = (string) ($descriptions[$scope] ?? '') ?>
             <li><code><?= rex_escape((string) $scope) ?></code><?= '' !== $desc ? ' &mdash; ' . rex_escape($desc) : '' ?></li>
         <?php endforeach ?>
     </ul>

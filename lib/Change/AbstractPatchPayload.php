@@ -11,6 +11,7 @@ use function is_bool;
 use function is_float;
 use function is_int;
 use function is_string;
+use function sprintf;
 
 /**
  * Base for all payloads. Holds only the fields that were explicitly set.

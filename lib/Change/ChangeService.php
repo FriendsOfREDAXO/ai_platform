@@ -6,6 +6,7 @@ namespace FriendsOfRedaxo\AiPlatform\Change;
 
 use FriendsOfRedaxo\AiPlatform\Change\Upload\PendingUploadStore;
 use rex;
+use rex_be_page;
 use rex_config;
 use rex_content_service;
 use rex_extension;
@@ -13,6 +14,7 @@ use rex_extension_point;
 use rex_i18n;
 use rex_sql;
 use rex_user;
+use rex_yform_manager_table;
 use RuntimeException;
 use Throwable;
 
@@ -21,7 +23,10 @@ use function count;
 use function in_array;
 use function is_array;
 use function is_string;
-use function strlen;
+use function sprintf;
+
+use const JSON_THROW_ON_ERROR;
+use const JSON_UNESCAPED_UNICODE;
 
 /**
  * The public API of the change request feature.
@@ -97,11 +102,10 @@ final class ChangeService
      *        submitter picks the name; it is scoped to the source, so two
      *        sources cannot land in each other's package.
      *
-     * @return int the new change request id
-     *
      * @throws ValidationException when the proposal cannot be written as described
      * @throws TargetGoneException when an update or delete points at nothing
      * @throws RuntimeException when the feature is off or a limit is hit
+     * @return int the new change request id
      */
     public function propose(
         TargetInterface $target,
@@ -127,7 +131,6 @@ final class ChangeService
         if ($payload->isEmpty() && ChangeOperation::Delete !== $operation) {
             throw new ValidationException('A change request must set at least one field.');
         }
-
 
         // Read the current state ourselves rather than trusting a caller to
         // hand it in. This closes the gap that actually matters: between the
@@ -908,7 +911,7 @@ final class ChangeService
         if (null === $values) {
             return 'absent';
         }
-        $normalised = array_map(static fn($v) => null === $v ? "\0null" : (string) $v, $values);
+        $normalised = array_map(static fn ($v) => null === $v ? "\0null" : (string) $v, $values);
         ksort($normalised);
 
         return hash('sha256', json_encode($normalised, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE));
@@ -952,8 +955,8 @@ final class ChangeService
      * hidden page is still reachable by URL, and a switched-off feature should
      * not leave a working settings form behind.
      *
-     * @param array<string, \rex_be_page> $pages
-     * @return array<string, \rex_be_page>
+     * @param array<string, rex_be_page> $pages
+     * @return array<string, rex_be_page>
      */
     public static function preparePages(array $pages): array
     {
@@ -969,7 +972,7 @@ final class ChangeService
         }
 
         $page = $pages['ai_changes'] ?? null;
-        if (!$page instanceof \rex_be_page) {
+        if (!$page instanceof rex_be_page) {
             return $pages;
         }
 
@@ -1030,7 +1033,6 @@ final class ChangeService
     {
         return 'warn' !== rex_config::get('ai_platform', 'changes_stale_policy', 'block');
     }
-
 
     /**
      * Whether a module may receive proposed slices.
@@ -1145,7 +1147,7 @@ final class ChangeService
         }
 
         $tables = [];
-        foreach (\rex_yform_manager_table::getAll() as $table) {
+        foreach (rex_yform_manager_table::getAll() as $table) {
             $tables[] = $table->getTableName();
         }
 

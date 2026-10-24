@@ -14,7 +14,6 @@ use FriendsOfRedaxo\AiPlatform\Change\Support\MetaFieldRegistry;
 use FriendsOfRedaxo\AiPlatform\Change\Target\MetaTarget;
 use FriendsOfRedaxo\AiPlatform\Change\TargetInterface;
 use FriendsOfRedaxo\AiPlatform\Change\ValidationException;
-use rex;
 use rex_article;
 use rex_article_cache;
 use rex_clang;
@@ -29,6 +28,7 @@ use rex_user;
 use Throwable;
 
 use function array_key_exists;
+use function sprintf;
 use function str_starts_with;
 
 /**
@@ -81,7 +81,7 @@ final class MetaHandler extends AbstractHandler
         }
 
         [$where, $params] = $target->getRowCondition();
-        $columns = implode(', ', array_map(static fn(string $name): string => '`' . $name . '`', array_keys($fields)));
+        $columns = implode(', ', array_map(static fn (string $name): string => '`' . $name . '`', array_keys($fields)));
 
         $rows = rex_sql::factory()->getArray(
             'SELECT ' . $columns . ' FROM ' . $target->getTable() . ' WHERE ' . $where,

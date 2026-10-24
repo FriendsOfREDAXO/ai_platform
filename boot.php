@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
+use FriendsOfRedaxo\AiPlatform\Api\ChangeRoutes;
 use FriendsOfRedaxo\AiPlatform\Change\Agent\DescribeChangeTypesTool;
 use FriendsOfRedaxo\AiPlatform\Change\Agent\ProposeChangeTool;
 use FriendsOfRedaxo\AiPlatform\Change\Agent\ReadCurrentTool;
-use FriendsOfRedaxo\AiPlatform\Change\ChangeRequestStore;
 use FriendsOfRedaxo\AiPlatform\Change\ChangeService;
 use FriendsOfRedaxo\AiPlatform\Change\Handler\ArticleHandler;
 use FriendsOfRedaxo\AiPlatform\Change\Handler\CategoryHandler;
@@ -13,9 +13,11 @@ use FriendsOfRedaxo\AiPlatform\Change\Handler\MediaHandler;
 use FriendsOfRedaxo\AiPlatform\Change\Handler\MetaHandler;
 use FriendsOfRedaxo\AiPlatform\Change\Handler\SliceHandler;
 use FriendsOfRedaxo\AiPlatform\Change\Handler\YformHandler;
+use FriendsOfRedaxo\AiPlatform\Cronjob\ThinChangeRequests;
 use FriendsOfRedaxo\AiPlatform\Mcp\Context;
 use FriendsOfRedaxo\AiPlatform\Mcp\Router;
 use FriendsOfRedaxo\AiPlatform\Mcp\Tool;
+use FriendsOfRedaxo\Api\RouteCollection;
 
 $addon = rex_addon::get('ai_platform');
 
@@ -77,7 +79,7 @@ rex_extension::register('AI_PLATFORM_MCP_TOOLS', static function (rex_extension_
         description: 'Returns the current status of this REDAXO CMS instance: URL, versions, number of articles, categories, media, users, languages, and a list of installed addons with their versions.',
         inputSchema: [
             'type' => 'object',
-            'properties' => new \stdClass(),
+            'properties' => new stdClass(),
         ],
         handler: static function (array $arguments, Context $context): string {
             $sql = rex_sql::factory();
@@ -216,7 +218,7 @@ if (
     class_exists(rex_cronjob_manager::class)
     && ChangeService::getInstance()->isEnabled()
 ) {
-    rex_cronjob_manager::registerType(FriendsOfRedaxo\AiPlatform\Cronjob\ThinChangeRequests::class);
+    rex_cronjob_manager::registerType(ThinChangeRequests::class);
 }
 
 // REST routes for change requests, registered with the api addon.
@@ -240,8 +242,8 @@ if (
 // 3. Nothing is registered while the master switch is off, so a disabled
 //    feature has no HTTP surface at all — not even one returning errors.
 if (
-    class_exists(FriendsOfRedaxo\Api\RouteCollection::class)
+    class_exists(RouteCollection::class)
     && ChangeService::getInstance()->isEnabled()
 ) {
-    (new FriendsOfRedaxo\AiPlatform\Api\ChangeRoutes())->loadRoutes();
+    (new ChangeRoutes())->loadRoutes();
 }

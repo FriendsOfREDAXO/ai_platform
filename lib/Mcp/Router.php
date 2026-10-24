@@ -12,6 +12,14 @@ use rex;
 use rex_config;
 use rex_response;
 
+use function is_array;
+use function is_string;
+use function strlen;
+
+use const JSON_THROW_ON_ERROR;
+use const JSON_UNESCAPED_SLASHES;
+use const PHP_URL_PATH;
+
 /**
  * Matches incoming frontend requests against the MCP / OAuth path table and
  * dispatches them. Bound to the PACKAGES_INCLUDED extension point so it
@@ -34,18 +42,18 @@ final class Router
 {
     private const MCP_PATH = '/mcp';
 
-    /** The path the MCP endpoint is served under, for callers that build URLs against it. */
-    public static function mcpPath(): string
-    {
-        return self::MCP_PATH;
-    }
-
     private const DISCOVERY_PROTECTED_RESOURCE = '/.well-known/oauth-protected-resource';
     private const DISCOVERY_AUTH_SERVER = '/.well-known/oauth-authorization-server';
     private const OAUTH_AUTHORIZE = '/oauth/authorize';
     private const OAUTH_TOKEN = '/oauth/token';
     private const OAUTH_REGISTER = '/oauth/register';
     private const OAUTH_PREFIX = '/oauth/';
+
+    /** The path the MCP endpoint is served under, for callers that build URLs against it. */
+    public static function mcpPath(): string
+    {
+        return self::MCP_PATH;
+    }
 
     public static function dispatch(): void
     {
@@ -242,7 +250,6 @@ final class Router
         ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
         exit;
     }
-
 
     /**
      * Builds the base URL that backs OAuth discovery / redirect challenges.

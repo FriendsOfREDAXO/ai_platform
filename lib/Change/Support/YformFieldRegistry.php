@@ -33,6 +33,22 @@ final class YformFieldRegistry
         'be_manager_relation',
     ];
 
+    /**
+     * Field types YForm fills in itself, or that only display something.
+     *
+     * `datestamp` is written on every save regardless of input, and `showvalue`
+     * has no input at all. Proposing a value for either is meaningless — YForm
+     * would overwrite it or ignore it — so they are refused rather than silently
+     * dropped, and they are not offered in the form.
+     *
+     * They stay in {@see forTable()} though: they have columns, and a snapshot
+     * that skipped them would miss changes to them.
+     */
+    private const AUTOMATIC_TYPES = [
+        'datestamp',
+        'showvalue',
+    ];
+
     /** @var array<string, array<string, rex_yform_manager_field>> */
     private static array $cache = [];
 
@@ -124,22 +140,6 @@ final class YformFieldRegistry
     }
 
     /**
-     * Field types YForm fills in itself, or that only display something.
-     *
-     * `datestamp` is written on every save regardless of input, and `showvalue`
-     * has no input at all. Proposing a value for either is meaningless — YForm
-     * would overwrite it or ignore it — so they are refused rather than silently
-     * dropped, and they are not offered in the form.
-     *
-     * They stay in {@see forTable()} though: they have columns, and a snapshot
-     * that skipped them would miss changes to them.
-     */
-    private const AUTOMATIC_TYPES = [
-        'datestamp',
-        'showvalue',
-    ];
-
-    /**
      * Fields a proposal may actually set.
      *
      * @return array<string, rex_yform_manager_field>
@@ -148,7 +148,7 @@ final class YformFieldRegistry
     {
         return array_filter(
             self::forTable($table),
-            static fn(rex_yform_manager_field $field): bool => !self::isAutomatic($field),
+            static fn (rex_yform_manager_field $field): bool => !self::isAutomatic($field),
         );
     }
 
@@ -193,7 +193,7 @@ final class YformFieldRegistry
             return [];
         }
 
-        return array_values(array_filter(array_map('trim', explode(',', $stored)), static fn(string $v): bool => '' !== $v));
+        return array_values(array_filter(array_map('trim', explode(',', $stored)), static fn (string $v): bool => '' !== $v));
     }
 
     /**

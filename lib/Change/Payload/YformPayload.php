@@ -13,6 +13,7 @@ use rex_yform_manager_field;
 use function is_array;
 use function is_int;
 use function is_string;
+use function sprintf;
 
 /**
  * Field values for a YForm dataset.

@@ -14,6 +14,9 @@ use rex_i18n;
 use rex_media;
 use rex_url;
 
+use function is_string;
+use function sprintf;
+
 /**
  * Points at the metainfo values of one carrier.
  *
@@ -49,8 +52,7 @@ final class MetaTarget extends AbstractTarget
         private readonly ?int $id = null,
         private readonly ?int $clangId = null,
         private readonly ?string $filename = null,
-    ) {
-    }
+    ) {}
 
     public static function changeType(): string
     {

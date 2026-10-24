@@ -11,7 +11,10 @@ use InvalidArgumentException;
 use function array_map;
 use function count;
 use function implode;
+use function in_array;
 use function is_int;
+use function is_string;
+use function sprintf;
 
 /**
  * Values for a content slice.
@@ -146,7 +149,7 @@ final class SlicePayload extends AbstractPatchPayload
     private static function joinStrings(array $values, string $what): string
     {
         foreach ($values as $value) {
-            if (!\is_string($value) || '' === $value) {
+            if (!is_string($value) || '' === $value) {
                 throw new InvalidArgumentException(sprintf('Entries of a %s must be non-empty strings.', $what));
             }
             if (str_contains($value, ',')) {
@@ -184,7 +187,7 @@ final class SlicePayload extends AbstractPatchPayload
      */
     public static function isSlot(string $name): bool
     {
-        return \in_array($name, self::allSlots(), true);
+        return in_array($name, self::allSlots(), true);
     }
 
     public function count(): int

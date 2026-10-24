@@ -13,6 +13,8 @@ use function is_array;
 use function is_int;
 use function is_string;
 
+use const PREG_SET_ORDER;
+
 /**
  * Optional, project-supplied names for a module's REX_VALUE slots.
  *

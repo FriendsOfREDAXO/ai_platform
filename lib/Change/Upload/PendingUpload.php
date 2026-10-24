@@ -6,6 +6,7 @@ namespace FriendsOfRedaxo\AiPlatform\Change\Upload;
 
 use rex_path;
 
+use function in_array;
 use function is_file;
 
 /**
@@ -30,8 +31,7 @@ final class PendingUpload
         public readonly ?int $requestId,
         public readonly ?string $expiresAt,
         public readonly ?string $consumedAt,
-    ) {
-    }
+    ) {}
 
     /** Absolute path of the staged file. */
     public function path(): string

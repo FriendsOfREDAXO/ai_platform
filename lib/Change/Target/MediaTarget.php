@@ -6,11 +6,14 @@ namespace FriendsOfRedaxo\AiPlatform\Change\Target;
 
 use FriendsOfRedaxo\AiPlatform\Change\AbstractTarget;
 use FriendsOfRedaxo\AiPlatform\Change\ChangeOperation;
+use FriendsOfRedaxo\AiPlatform\Change\Upload\PendingUploadStore;
 use InvalidArgumentException;
 use rex_i18n;
 use rex_media;
 use rex_media_category;
 use rex_url;
+
+use function sprintf;
 
 /**
  * Points at a media pool file — its core fields (title, category) only.
@@ -29,7 +32,7 @@ use rex_url;
  *
  * The bytes are not here. They are staged under
  * `data/addons/ai_platform/pending/` and the payload carries the handle —
- * see {@see \FriendsOfRedaxo\AiPlatform\Change\Upload\PendingUploadStore}.
+ * see {@see PendingUploadStore}.
  */
 final class MediaTarget extends AbstractTarget
 {
@@ -37,8 +40,7 @@ final class MediaTarget extends AbstractTarget
         private readonly ChangeOperation $operation,
         private readonly string $filename,
         private readonly ?int $categoryId = null,
-    ) {
-    }
+    ) {}
 
     public static function changeType(): string
     {

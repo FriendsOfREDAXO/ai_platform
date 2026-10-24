@@ -7,6 +7,10 @@ namespace FriendsOfRedaxo\AiPlatform\OAuth;
 use rex;
 use rex_sql;
 
+use function is_array;
+
+use const JSON_THROW_ON_ERROR;
+
 /**
  * Persistence layer for one-time authorization codes and the access/refresh
  * token pairs derived from them.

@@ -15,6 +15,9 @@ use Symfony\AI\Agent\Toolbox\Attribute\AsTool;
 use Throwable;
 
 use function is_array;
+use function sprintf;
+
+use const JSON_THROW_ON_ERROR;
 
 /**
  * Lets an agent running inside REDAXO file a change request.
@@ -52,8 +55,7 @@ final class ProposeChangeTool
     public function __construct(
         private readonly string $sourceKey = 'agent',
         private readonly string $sourceLabel = '',
-    ) {
-    }
+    ) {}
 
     public function __invoke(
         string $type,

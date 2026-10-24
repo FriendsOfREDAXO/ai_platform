@@ -24,8 +24,9 @@ use rex;
 use rex_clang;
 use rex_sql;
 
-use function is_array;
+use function count;
 use function is_scalar;
+use function sprintf;
 
 /**
  * Turns loose arrays into typed targets and payloads.
@@ -419,7 +420,7 @@ final class ChangePayloadBuilder
      */
     private static function splitList(string $value): array
     {
-        return array_values(array_filter(array_map('trim', explode(',', $value)), static fn(string $v): bool => '' !== $v));
+        return array_values(array_filter(array_map('trim', explode(',', $value)), static fn (string $v): bool => '' !== $v));
     }
 
     /**
@@ -485,7 +486,7 @@ final class ChangePayloadBuilder
             'target' => ['article_id (update/delete)', 'category_id (create)', 'clang_id'],
             'fields' => array_combine(
                 ArticlePayload::allFields(),
-                array_map(static fn(string $f): string => $f, ArticlePayload::allFields()),
+                array_map(static fn (string $f): string => $f, ArticlePayload::allFields()),
             ),
         ];
 
@@ -493,7 +494,7 @@ final class ChangePayloadBuilder
             'target' => ['category_id (update/delete)', 'parent_id (create)', 'clang_id'],
             'fields' => array_combine(
                 CategoryPayload::allFields(),
-                array_map(static fn(string $f): string => $f, CategoryPayload::allFields()),
+                array_map(static fn (string $f): string => $f, CategoryPayload::allFields()),
             ),
         ];
 
@@ -513,7 +514,7 @@ final class ChangePayloadBuilder
             'target' => ['filename', 'category_id (create only)'],
             'fields' => array_combine(
                 MediaPayload::allFields(),
-                array_map(static fn(string $f): string => $f, MediaPayload::allFields()),
+                array_map(static fn (string $f): string => $f, MediaPayload::allFields()),
             ),
         ];
 

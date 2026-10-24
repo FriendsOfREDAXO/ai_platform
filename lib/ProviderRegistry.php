@@ -8,29 +8,31 @@ use rex_exception;
 use rex_extension;
 use rex_extension_point;
 use rex_i18n;
-use Symfony\AI\Platform\Bridge\Anthropic\ModelCatalog as AnthropicCatalog;
 use Symfony\AI\Platform\Bridge\Anthropic\Factory as AnthropicFactory;
-use Symfony\AI\Platform\Bridge\Cerebras\ModelCatalog as CerebrasCatalog;
+use Symfony\AI\Platform\Bridge\Anthropic\ModelCatalog as AnthropicCatalog;
 use Symfony\AI\Platform\Bridge\Cerebras\Factory as CerebrasFactory;
-use Symfony\AI\Platform\Bridge\Gemini\ModelCatalog as GeminiCatalog;
+use Symfony\AI\Platform\Bridge\Cerebras\ModelCatalog as CerebrasCatalog;
 use Symfony\AI\Platform\Bridge\Gemini\Factory as GeminiFactory;
-use Symfony\AI\Platform\Bridge\Generic\FallbackModelCatalog as GenericCatalog;
+use Symfony\AI\Platform\Bridge\Gemini\ModelCatalog as GeminiCatalog;
 use Symfony\AI\Platform\Bridge\Generic\Factory as GenericFactory;
-use Symfony\AI\Platform\Bridge\Mistral\ModelCatalog as MistralCatalog;
+use Symfony\AI\Platform\Bridge\Generic\FallbackModelCatalog as GenericCatalog;
 use Symfony\AI\Platform\Bridge\Mistral\Factory as MistralFactory;
+use Symfony\AI\Platform\Bridge\Mistral\ModelCatalog as MistralCatalog;
 use Symfony\AI\Platform\Bridge\Ollama\Factory as OllamaFactory;
-use Symfony\AI\Platform\Bridge\OpenAi\ModelCatalog as OpenAiCatalog;
 use Symfony\AI\Platform\Bridge\OpenAi\Factory as OpenAiFactory;
-use Symfony\AI\Platform\Bridge\OpenRouter\ModelCatalog as OpenRouterCatalog;
+use Symfony\AI\Platform\Bridge\OpenAi\ModelCatalog as OpenAiCatalog;
 use Symfony\AI\Platform\Bridge\OpenRouter\Factory as OpenRouterFactory;
-use Symfony\AI\Platform\Bridge\Replicate\ModelCatalog as ReplicateCatalog;
+use Symfony\AI\Platform\Bridge\OpenRouter\ModelCatalog as OpenRouterCatalog;
 use Symfony\AI\Platform\Bridge\Replicate\Factory as ReplicateFactory;
-use Symfony\AI\Platform\Bridge\Scaleway\ModelCatalog as ScalewayCatalog;
+use Symfony\AI\Platform\Bridge\Replicate\ModelCatalog as ReplicateCatalog;
 use Symfony\AI\Platform\Bridge\Scaleway\Factory as ScalewayFactory;
+use Symfony\AI\Platform\Bridge\Scaleway\ModelCatalog as ScalewayCatalog;
 use Symfony\AI\Platform\Capability;
 use Symfony\AI\Platform\ModelCatalog\ModelCatalogInterface;
 use Symfony\AI\Platform\PlatformInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
+
+use function in_array;
 
 /**
  * The providers a profile can be built on — one entry each, and everything about
@@ -296,9 +298,8 @@ final class ProviderRegistry
     }
 
     /**
-     * @return array{label: string, fields: list<string>, defaults: array<string, string>, catalog: callable(): ModelCatalogInterface, factory: callable(array<string, mixed>, ?HttpClientInterface): PlatformInterface}
-     *
      * @throws rex_exception if no provider is registered under that key
+     * @return array{label: string, fields: list<string>, defaults: array<string, string>, catalog: callable(): ModelCatalogInterface, factory: callable(array<string, mixed>, ?HttpClientInterface): PlatformInterface}
      */
     public static function get(string $provider): array
     {

@@ -40,8 +40,7 @@ final class ApplyResult
         public readonly array $messages = [],
         public readonly ?string $error = null,
         public readonly ?array $valuesAfter = null,
-    ) {
-    }
+    ) {}
 
     /**
      * @param array<string, scalar|null> $createdIds

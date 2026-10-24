@@ -10,7 +10,10 @@ use rex_user;
 use rex_ycom_user;
 
 use function in_array;
+use function is_array;
 use function is_scalar;
+use function is_string;
+use function sprintf;
 
 /**
  * Where a change request came from.
@@ -215,9 +218,9 @@ final class Source
     {
         $meta = $data['meta'] ?? [];
         $cleanMeta = [];
-        if (\is_array($meta)) {
+        if (is_array($meta)) {
             foreach ($meta as $key => $value) {
-                if (\is_string($key) && (null === $value || is_scalar($value))) {
+                if (is_string($key) && (null === $value || is_scalar($value))) {
                     $cleanMeta[$key] = $value;
                 }
             }

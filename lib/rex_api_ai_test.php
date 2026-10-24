@@ -41,7 +41,7 @@ class rex_api_ai_test extends rex_api_function
         // Built here first so a broken profile reads "Platform error", not "test failed"
         try {
             $service->getPlatform($profileId);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             rex_response::sendJson(['success' => false, 'message' => 'Platform error: ' . $e->getMessage()]);
             exit;
         }
@@ -71,7 +71,7 @@ class rex_api_ai_test extends rex_api_function
                 ],
             ]);
             exit;
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             rex_response::sendJson([
                 'success' => false,
                 'message' => rex_i18n::msg('ai_platform_test_failed'),

@@ -9,6 +9,7 @@ use rex_extension_point;
 use RuntimeException;
 
 use function is_string;
+use function sprintf;
 
 /**
  * Collects change handlers via the AI_PLATFORM_CHANGE_HANDLERS extension

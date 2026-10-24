@@ -11,6 +11,4 @@ use RuntimeException;
  * does not resolve to a valid access token. The server catches this and
  * emits a 401 + WWW-Authenticate response per RFC 6750.
  */
-final class InvalidTokenException extends RuntimeException
-{
-}
+final class InvalidTokenException extends RuntimeException {}

@@ -11,16 +11,21 @@ use rex_extension;
 use rex_extension_point;
 use rex_i18n;
 use rex_sql;
-use Symfony\AI\Platform\PlatformInterface;
-use Symfony\AI\Platform\Result\TextResult;
-use Symfony\AI\Platform\Message\Message;
-use Symfony\AI\Platform\Message\MessageBag;
-use Symfony\AI\Platform\Message\Content\Image;
-use Symfony\AI\Platform\Message\Content\ImageUrl;
+use RuntimeException;
 use Symfony\AI\Agent\Agent;
 use Symfony\AI\Agent\Toolbox\Toolbox;
+use Symfony\AI\Platform\Message\Content\Image;
+use Symfony\AI\Platform\Message\Message;
+use Symfony\AI\Platform\Message\MessageBag;
+use Symfony\AI\Platform\PlatformInterface;
+use Symfony\AI\Platform\Result\TextResult;
 use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
+use Throwable;
+
+use function count;
+use function in_array;
+use function is_string;
 
 class Service
 {
@@ -32,9 +37,7 @@ class Service
     /** @var array<int, PlatformInterface> */
     private array $platformCache = [];
 
-    private function __construct()
-    {
-    }
+    private function __construct() {}
 
     public static function getInstance(): self
     {
@@ -320,7 +323,7 @@ class Service
      * the button used to call invoke() directly, and a model that rejects
      * `temperature` failed the test while working everywhere else (issue #21).
      *
-     * @throws \Throwable whatever the provider reports; the caller shows the message
+     * @throws Throwable whatever the provider reports; the caller shows the message
      */
     public function testConnection(int $profileId): string
     {
@@ -345,7 +348,7 @@ class Service
                     'auth_bearer' => $profile['api_key'],
                 ]);
                 if (200 !== $apiResponse->getStatusCode()) {
-                    throw new \RuntimeException('API-Key ungueltig oder Modell nicht verfuegbar (HTTP ' . $apiResponse->getStatusCode() . ')');
+                    throw new RuntimeException('API-Key ungueltig oder Modell nicht verfuegbar (HTTP ' . $apiResponse->getStatusCode() . ')');
                 }
                 return 'API-Key gueltig, Modell "' . $model . '" verfuegbar.';
 
@@ -377,7 +380,7 @@ class Service
     {
         try {
             return $platform->invoke($model, $messages, $options)->asText();
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             if (isset($options['temperature']) && self::isUnsupportedTemperatureError($e)) {
                 unset($options['temperature']);
                 return $platform->invoke($model, $messages, $options)->asText();
@@ -389,7 +392,7 @@ class Service
     /**
      * Whether the throwable reports that the model does not accept the `temperature` option.
      */
-    private static function isUnsupportedTemperatureError(\Throwable $e): bool
+    private static function isUnsupportedTemperatureError(Throwable $e): bool
     {
         $message = strtolower($e->getMessage());
         if (!str_contains($message, 'temperature')) {
@@ -459,7 +462,6 @@ class Service
 
         return $result->asDataUri();
     }
-
 
     /**
      * Generate an embedding vector for a given text.

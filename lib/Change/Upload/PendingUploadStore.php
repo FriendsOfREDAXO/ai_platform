@@ -17,7 +17,6 @@ use rex_sql;
 use Throwable;
 
 use function is_file;
-use function strlen;
 
 /**
  * Staging for files offered to the media pool.
@@ -281,7 +280,7 @@ final class PendingUploadStore
             . ' WHERE request_id IS NULL AND expires_at IS NOT NULL AND expires_at < NOW()',
         );
 
-        return array_map(static fn(array $row): PendingUpload => self::hydrate($row), $rows);
+        return array_map(static fn (array $row): PendingUpload => self::hydrate($row), $rows);
     }
 
     /**
@@ -304,7 +303,7 @@ final class PendingUploadStore
             [':pending' => 'pending', ':approved' => 'approved'],
         );
 
-        return array_map(static fn(array $row): PendingUpload => self::hydrate($row), $rows);
+        return array_map(static fn (array $row): PendingUpload => self::hydrate($row), $rows);
     }
 
     /**

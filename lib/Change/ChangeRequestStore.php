@@ -13,6 +13,11 @@ use RuntimeException;
 use function count;
 use function is_array;
 use function is_string;
+use function sprintf;
+
+use const JSON_THROW_ON_ERROR;
+use const JSON_UNESCAPED_SLASHES;
+use const JSON_UNESCAPED_UNICODE;
 
 /**
  * Persistence for change requests and changesets.

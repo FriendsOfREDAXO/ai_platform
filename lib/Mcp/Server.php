@@ -12,6 +12,14 @@ use rex_response;
 use stdClass;
 use Throwable;
 
+use function in_array;
+use function is_array;
+use function is_string;
+
+use const JSON_THROW_ON_ERROR;
+use const JSON_UNESCAPED_SLASHES;
+use const JSON_UNESCAPED_UNICODE;
+
 /**
  * MCP (Model Context Protocol) JSON-RPC 2.0 server.
  *
@@ -28,8 +36,7 @@ final class Server
 
     public function __construct(
         private readonly Authenticator $authenticator,
-    ) {
-    }
+    ) {}
 
     /**
      * Handles a single MCP JSON-RPC request. Always exits.
@@ -340,7 +347,7 @@ final class Server
     private function sendAuthChallenge(mixed $id, string $message, ?string $oauthError = null): never
     {
         header('Content-Type: application/json');
-        header('WWW-Authenticate: ' . Authenticator::buildChallengeHeader($oauthError, $oauthError !== null ? $message : null));
+        header('WWW-Authenticate: ' . Authenticator::buildChallengeHeader($oauthError, null !== $oauthError ? $message : null));
         http_response_code(401);
 
         echo json_encode([
@@ -354,9 +361,6 @@ final class Server
         exit;
     }
 
-    /**
-     * @param int $statusCode
-     */
     private function sendHttpError(int $statusCode, string $message): never
     {
         http_response_code($statusCode);

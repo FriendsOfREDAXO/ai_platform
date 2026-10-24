@@ -12,6 +12,4 @@ use RuntimeException;
  * Distinct from a stale target: there is nothing left to compare or write,
  * so the request is marked expired rather than offered for override.
  */
-final class TargetGoneException extends RuntimeException
-{
-}
+final class TargetGoneException extends RuntimeException {}

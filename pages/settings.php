@@ -52,7 +52,7 @@
  *   meant the proposal could not be made.
  * - **Retention (days)** — a number in a form enforced nothing; somebody still
  *   had to come back and press a button. Now a cronjob
- *   ({@see \FriendsOfRedaxo\AiPlatform\Cronjob\ThinChangeRequests}), where the
+ *   ({@see ThinChangeRequests}), where the
  *   period sits next to the schedule that actually makes it happen.
  * - **Entries per run** — capped how many one batch approval applied. What a
  *   batch can do is decided by its writes, not by their number.
@@ -83,6 +83,7 @@ declare(strict_types=1);
 use FriendsOfRedaxo\AiPlatform\Change\ChangeRequestStore;
 use FriendsOfRedaxo\AiPlatform\Change\ChangeStatus;
 use FriendsOfRedaxo\AiPlatform\Change\HandlerRegistry;
+use FriendsOfRedaxo\AiPlatform\Cronjob\ThinChangeRequests;
 use FriendsOfRedaxo\AiPlatform\Service;
 
 if (!rex::requireUser()->isAdmin()) {

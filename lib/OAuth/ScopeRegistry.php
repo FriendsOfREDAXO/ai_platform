@@ -12,6 +12,12 @@ use rex_i18n;
 use rex_sql;
 use rex_ycom_user;
 
+use function count;
+use function is_array;
+use function is_string;
+
+use const JSON_THROW_ON_ERROR;
+
 /**
  * Central registry for OAuth scopes.
  *

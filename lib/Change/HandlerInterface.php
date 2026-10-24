@@ -120,8 +120,8 @@ interface HandlerInterface
     /**
      * Field-by-field description of what would change, for the reviewer.
      *
-     * @param array<string, scalar|null>|null $currentValues Present state, when it
-     *        differs from the snapshot — enables the three-column conflict view.
+     * @param array<string, scalar|null>|null $currentValues present state, when it
+     *        differs from the snapshot — enables the three-column conflict view
      * @return list<DiffField>
      */
     public function diffFields(ChangeRequest $request, ?array $currentValues = null): array;

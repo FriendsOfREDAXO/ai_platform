@@ -132,7 +132,7 @@ final class MetaFieldRegistry
             return [];
         }
 
-        return array_values(array_filter(explode('|', $stored), static fn(string $v): bool => '' !== $v));
+        return array_values(array_filter(explode('|', $stored), static fn (string $v): bool => '' !== $v));
     }
 
     public static function clearCache(): void

@@ -12,6 +12,7 @@ use rex_sql;
 
 use function is_numeric;
 use function is_scalar;
+use function sprintf;
 
 /**
  * Shared plumbing for target value objects: reading persisted arrays back
