@@ -46,23 +46,27 @@ jobs:
                     php redaxo_cms/redaxo/bin/console config:set --type boolean debug.enabled true
                     php redaxo_cms/redaxo/bin/console config:set --type boolean debug.throw_always_exception true
 
+            # Caret constraints on purpose: '2.*' lets the next major's pre-releases
+            # through ('3.0-beta2' sorts below '3.0'), and rexstan 3 renamed the class
+            # .tools/rexstan.php calls. That is how the first run of this job failed.
+            #
             # The optional integrations (YCom for OAuth sign-in, the api addon for the
             # REST routes, cronjob for the cleanup job) are installed so their classes
             # resolve. vendor/ is copied because it is committed (see phpunit.yml).
             -   name: Copy and install addons
                 run: |
                     rsync -a --exclude='.tools/vendor' --exclude='.github' --exclude='.git' --exclude='redaxo_cms' './' 'redaxo_cms/redaxo/src/addons/ai_platform'
-                    redaxo_cms/redaxo/bin/console install:download 'rexstan' '2.*'
+                    redaxo_cms/redaxo/bin/console install:download 'rexstan' '^2.0'
                     redaxo_cms/redaxo/bin/console package:install 'rexstan'
                     redaxo_cms/redaxo/bin/console package:install 'cronjob'
                     redaxo_cms/redaxo/bin/console package:install 'phpmailer'
-                    redaxo_cms/redaxo/bin/console install:download 'yform' '5.*'
+                    redaxo_cms/redaxo/bin/console install:download 'yform' '^5.0'
                     redaxo_cms/redaxo/bin/console package:install 'yform'
-                    redaxo_cms/redaxo/bin/console install:download 'yrewrite' '2.*'
+                    redaxo_cms/redaxo/bin/console install:download 'yrewrite' '^2.0'
                     redaxo_cms/redaxo/bin/console package:install 'yrewrite'
-                    redaxo_cms/redaxo/bin/console install:download 'ycom' '4.*'
+                    redaxo_cms/redaxo/bin/console install:download 'ycom' '^4.0'
                     redaxo_cms/redaxo/bin/console package:install 'ycom'
-                    redaxo_cms/redaxo/bin/console install:download 'api' '1.*'
+                    redaxo_cms/redaxo/bin/console install:download 'api' '^1.0'
                     redaxo_cms/redaxo/bin/console package:install 'api'
                     redaxo_cms/redaxo/bin/console package:install 'ai_platform'
 
