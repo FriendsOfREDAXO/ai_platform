@@ -9,6 +9,7 @@ Versionierung nach [Semantic Versioning](https://semver.org/lang/de/).
 
 ### Behoben
 
+- **Der Verbindungstest scheiterte an Modellen ohne `temperature`** (#21). Modelle wie die GPT-5-Reihe lehnen den Parameter ab; der Test meldete dann „Unsupported parameter: 'temperature'“, obwohl dasselbe Profil im Betrieb funktionierte. Der Test läuft jetzt über denselben Rückfall wie `generateText()`: einmal erneut ohne `temperature`. Modelle, die den Parameter kennen, bekommen weiterhin den eingestellten Wert.
 - **Mit ausgeschaltetem MCP-Server lief der OAuth-Server weiter.** Der Schalter unter *MCP Server > Einstellungen* sperrte nur `/mcp`. Discovery, Client-Registrierung, Anmeldung und Token-Ausgabe antworteten weiter, ein Client konnte sich also registrieren und Tokens holen, mit denen er dann nichts anfangen konnte. Jetzt antworten bei ausgeschaltetem Server auch `/.well-known/oauth-*` und `/oauth/*` mit 503 — OAuth gibt es in diesem AddOn nur für den MCP-Server. Bereits ausgegebene Tokens bleiben gespeichert und gelten wieder, sobald der Server eingeschaltet wird.
 
 ## [1.1.2] – 2026-10-20

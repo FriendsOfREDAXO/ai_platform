@@ -313,6 +313,55 @@ class Service
     }
 
     /**
+     * Send the smallest request that proves a profile works, and return what came back.
+     *
+     * Backs the "Test connection" button. It lives here rather than in the endpoint so
+     * the text request goes through the same temperature fallback as generateText():
+     * the button used to call invoke() directly, and a model that rejects
+     * `temperature` failed the test while working everywhere else (issue #21).
+     *
+     * @throws \Throwable whatever the provider reports; the caller shows the message
+     */
+    public function testConnection(int $profileId): string
+    {
+        $profile = $this->getProfile($profileId);
+        if (null === $profile) {
+            throw new rex_exception('AI profile not found or inactive: ' . $profileId);
+        }
+
+        $platform = $this->getPlatform($profileId);
+        $model = (string) ($profile['model'] ?? '');
+        $options = $this->getProfileOptions($profileId);
+
+        switch ($profile['type'] ?? 'text') {
+            case 'image_generation':
+                // Generating an image costs money and time, so it is not part of a test.
+                // For OpenAI the key and the model can at least be checked.
+                if ('openai' !== $profile['provider']) {
+                    return 'Bildgenerierung kann nicht automatisch getestet werden. '
+                        . 'Bitte die API-Verbindung über ein Text-Profil mit dem gleichen API-Key testen.';
+                }
+                $apiResponse = HttpClient::create()->request('GET', 'https://api.openai.com/v1/models/' . $model, [
+                    'auth_bearer' => $profile['api_key'],
+                ]);
+                if (200 !== $apiResponse->getStatusCode()) {
+                    throw new \RuntimeException('API-Key ungueltig oder Modell nicht verfuegbar (HTTP ' . $apiResponse->getStatusCode() . ')');
+                }
+                return 'API-Key gueltig, Modell "' . $model . '" verfuegbar.';
+
+            case 'embedding':
+                $vectors = $platform->invoke($model, 'Connection test', $options)->asVectors();
+                $dimension = isset($vectors[0]) ? count($vectors[0]->getData()) : 0;
+                return 'Embedding erfolgreich generiert (Dimensionen: ' . $dimension . ').';
+
+            default:
+                // text and image_understanding: a plain text request is enough for both
+                $messages = new MessageBag(Message::ofUser('Reply with exactly: OK'));
+                return mb_substr($this->invokeWithTemperatureFallback($platform, $model, $messages, $options), 0, 200);
+        }
+    }
+
+    /**
      * Invoke the platform, retrying once without the `temperature` option when the model
      * rejects it. Newer models (e.g. OpenAI reasoning models) deprecate `temperature` and
      * answer with "temperature is deprecated for this model" / "unsupported parameter"; a

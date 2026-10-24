@@ -300,7 +300,10 @@ Die Definitionen werden bei **jedem** Aufruf neu gebaut. Sie statisch zu cachen
 würde die Menge einfrieren, die beim ersten Zugriff existierte — ein später in
 der Boot-Reihenfolge registrierter Provider wäre dann still verschwunden.
 
-Bleibt: ggf. `rex_api_ai_test` für den Verbindungstest anpassen.
+Bleibt: ggf. `Service::testConnection()` für den Verbindungstest anpassen. Der
+Endpoint `rex_api_ai_test` ist nur die JSON-Hülle darum. Ein Testaufruf muss
+denselben Weg nehmen wie ein echter, sonst fehlt ihm etwa der
+`temperature`-Rückfall (#21).
 
 **Nicht „aufräumen":** `getProfileOptions()` verzweigt bewusst zwischen
 `max_output_tokens` (OpenAIs Responses-API) und `max_tokens` (alle anderen). Das
