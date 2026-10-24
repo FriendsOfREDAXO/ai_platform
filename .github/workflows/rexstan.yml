@@ -49,6 +49,8 @@ jobs:
             # Caret constraints on purpose: '2.*' lets the next major's pre-releases
             # through ('3.0-beta2' sorts below '3.0'), and rexstan 3 renamed the class
             # .tools/rexstan.php calls. That is how the first run of this job failed.
+            # rexstan 1.x as in ycom and yform: 2.0.36 crashed its parallel workers on
+            # psr/log (its own 1.1.4 against REDAXO core's 3.x).
             #
             # The optional integrations (YCom for OAuth sign-in, the api addon for the
             # REST routes, cronjob for the cleanup job) are installed so their classes
@@ -56,7 +58,7 @@ jobs:
             -   name: Copy and install addons
                 run: |
                     rsync -a --exclude='.tools/vendor' --exclude='.github' --exclude='.git' --exclude='redaxo_cms' './' 'redaxo_cms/redaxo/src/addons/ai_platform'
-                    redaxo_cms/redaxo/bin/console install:download 'rexstan' '^2.0'
+                    redaxo_cms/redaxo/bin/console install:download 'rexstan' '^1.0'
                     redaxo_cms/redaxo/bin/console package:install 'rexstan'
                     redaxo_cms/redaxo/bin/console package:install 'cronjob'
                     redaxo_cms/redaxo/bin/console package:install 'phpmailer'
