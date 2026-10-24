@@ -5,7 +5,7 @@ Alle nennenswerten Änderungen an diesem AddOn.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/1.1.0/),
 Versionierung nach [Semantic Versioning](https://semver.org/lang/de/).
 
-## [Unveröffentlicht]
+## [1.2.0] – 2026-10-24
 
 ### Hinzugefügt
 
