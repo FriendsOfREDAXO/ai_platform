@@ -282,7 +282,9 @@ echo $result->getContent();
 
 ## MCP-Server
 
-Das AddOn stellt einen MCP-Server (Model Context Protocol) als HTTP-Endpoint bereit. Damit koennen KI-Tools wie Claude Desktop, Cursor, Windsurf oder andere MCP-Clients direkt auf REDAXO-Funktionen zugreifen.
+Das AddOn stellt einen MCP-Server (Model Context Protocol) als HTTP-Endpoint bereit. Damit koennen KI-Tools wie Claude Desktop, Cursor, Windsurf oder andere MCP-Clients auf die Inhalte und Werkzeuge zugreifen, die eine Website anbietet.
+
+> **Aenderungswuensche laufen nicht ueber MCP.** Der MCP-Server liefert die Inhalte eines Projekts und die Tools, die dieses Projekt anbietet, aber nicht die Steuerung von REDAXO selbst. Ein Agent, der Inhalte aendern soll, reicht Aenderungswuensche ueber die REST-API ein (siehe [Aenderungswuensche](#änderungswünsche-change-requests)). Ein eigenes MCP-Tool, das `ChangeService` aufruft, kann ein Projekt fuer sich selbst bauen; das AddOn bringt keines mit.
 
 ### MCP-Server aktivieren
 
@@ -299,6 +301,37 @@ Das Untermenue **MCP Server** ist im Backend in drei Tabs gegliedert:
 | **Einstellungen** | MCP aktivieren, Server-Beschreibung, Discovery-URLs, Liste der registrierten Tools mit Auth-Status und **Aktiv-Schalter pro Tool** (deaktivierte Tools werden Clients nicht angezeigt und nicht ausgefuehrt) |
 | **OAuth-Clients** | Liste aller (manuell oder via DCR) registrierten OAuth-Clients, Anlegen + Loeschen |
 | **Scope-Mapping** | Welche Scopes bekommen Nutzer aufgrund ihrer YCom-Gruppenmitgliedschaft |
+
+### Schnelltest ohne OAuth
+
+Ob Server und Tools laufen, laesst sich mit `curl` pruefen, ganz ohne Login, Zertifikat oder Client:
+
+1. Unter **MCP Server > Einstellungen** den Server aktivieren und **Authentifizierung erforderlich** auf „Nein" lassen.
+2. Gegen `/mcp` posten:
+
+```bash
+URL=https://redaxo.localhost/mcp   # -k bei selbstsigniertem Zertifikat
+
+curl -sk -X POST "$URL" -H "Content-Type: application/json" \
+    -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}'
+
+curl -sk -X POST "$URL" -H "Content-Type: application/json" \
+    -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
+
+curl -sk -X POST "$URL" -H "Content-Type: application/json" \
+    -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"redaxo_status","arguments":{}}}'
+```
+
+`tools/list` zeigt anonym nur `public` Tools. Was die Antworten bedeuten:
+
+| Antwort | Ursache |
+|---|---|
+| `503 MCP server is disabled` | Server unter *Einstellungen* ausgeschaltet. Dann antworten auch `/.well-known/oauth-*` und `/oauth/*` mit 503 |
+| `401` mit `"Authentication required"` | **Authentifizierung erforderlich** steht auf „Ja". Fuer den Schnelltest auf „Nein" stellen, fuer echte Clients so lassen (siehe [Authentifizierung](#authentifizierung)) |
+| HTML statt JSON | URL ohne `/mcp`, die Anfrage ging an die Startseite |
+| Mehrere Sekunden Wartezeit je Anfrage | Auf macOS: Domain endet auf `.local`. Solche Namen loest macOS zuerst per Bonjour auf, noch vor `/etc/hosts`. Fuer lokale Domains `.localhost` oder `.test` verwenden |
+
+Erst wenn das klappt, lohnt sich der Schritt zu OAuth und einem echten Client.
 
 ### Endpoint-Pfade
 
