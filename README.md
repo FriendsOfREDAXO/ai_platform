@@ -327,11 +327,13 @@ curl -sk -X POST "$URL" -H "Content-Type: application/json" \
 | Antwort | Ursache |
 |---|---|
 | `503 MCP server is disabled` | Server unter *Einstellungen* ausgeschaltet. Dann antworten auch `/.well-known/oauth-*` und `/oauth/*` mit 503 |
-| `401` mit `"Authentication required"` | **Authentifizierung erforderlich** steht auf „Ja". Fuer den Schnelltest auf „Nein" stellen, fuer echte Clients so lassen (siehe [Authentifizierung](#authentifizierung)) |
+| `401` mit `"Authentication required"` | Den Grund nennt `error.data.reason`: `server_requires_auth` heisst, **Authentifizierung erforderlich** steht auf „Ja". Fuer den Schnelltest auf „Nein" stellen, fuer echte Clients so lassen (siehe [Authentifizierung](#authentifizierung)). `tool_requires_auth` und `invalid_token` verlangen eine Anmeldung per OAuth |
 | HTML statt JSON | URL ohne `/mcp`, die Anfrage ging an die Startseite |
 | Mehrere Sekunden Wartezeit je Anfrage | Auf macOS: Domain endet auf `.local`. Solche Namen loest macOS zuerst per Bonjour auf, noch vor `/etc/hosts`. Fuer lokale Domains `.localhost` oder `.test` verwenden |
 
 Erst wenn das klappt, lohnt sich der Schritt zu OAuth und einem echten Client.
+
+Einstellungen, die einzeln stimmen und zusammen nicht funktionieren, meldet die Seite **MCP Server > Einstellungen** oben selbst: geschuetzte Tools bei optionaler Anmeldung, Pflicht-Anmeldung ohne YCom-Anmeldeseite, Pflicht-Anmeldung ohne geschuetztes Tool und Tools, deren Scopes keine YCom-Gruppe hat.
 
 ### Endpoint-Pfade
 

@@ -294,6 +294,28 @@ final class ScopeRegistry
     }
 
     /**
+     * Every scope at least one YCom group hands out -- what is reachable at all.
+     *
+     * @return list<string>
+     */
+    public static function mappedScopes(): array
+    {
+        $scopes = [];
+        $sql = rex_sql::factory();
+        $sql->setQuery('SELECT scopes FROM ' . rex::getTable('ai_scope_mapping'));
+        foreach ($sql as $row) {
+            $decoded = json_decode((string) $row->getValue('scopes'), true);
+            foreach (is_array($decoded) ? $decoded : [] as $scope) {
+                if (is_string($scope) && '' !== $scope) {
+                    $scopes[$scope] = true;
+                }
+            }
+        }
+
+        return array_keys($scopes);
+    }
+
+    /**
      * @return list<string>
      */
     public static function getScopesForGroup(int $ycomGroupId): array

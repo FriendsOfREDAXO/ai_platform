@@ -63,6 +63,12 @@ final class Authenticator
         return '' === $token ? null : $token;
     }
 
+    /** The protected-resource document for /mcp, where a client starts its OAuth flow. */
+    public static function resourceMetadataUrl(): string
+    {
+        return Router::baseUrl() . '/.well-known/oauth-protected-resource' . Router::mcpPath();
+    }
+
     /**
      * Builds the WWW-Authenticate header value that points MCP clients at
      * the OAuth protected-resource discovery endpoint.
@@ -75,7 +81,7 @@ final class Authenticator
         // `resource` there and checks it against the endpoint it is calling. The
         // bare document speaks for the site, so sending a client there to learn
         // about /mcp makes the two disagree and the flow stops before any login.
-        $resource = Router::baseUrl() . '/.well-known/oauth-protected-resource' . Router::mcpPath();
+        $resource = self::resourceMetadataUrl();
         $parts = [
             'realm="MCP"',
             // RFC 9728 §5.1 names this parameter `resource_metadata`, and the MCP
