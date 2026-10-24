@@ -7,6 +7,10 @@ Versionierung nach [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unveröffentlicht]
 
+### Geändert
+
+- **Code-Style, Unit-Tests und statische Analyse laufen jetzt in der CI**, eingerichtet wie bei YCom und YForm: PHP-CS-Fixer mit der REDAXO-Konfiguration, PHPUnit und rexstan (PHPStan Level 5). Der Code ist einmal komplett nach dem REDAXO-Stil formatiert. Die Entwicklungswerkzeuge liegen in `.tools/` und gehen nicht ins Installer-Paket.
+
 ### Behoben
 
 - **Änderungswünsche ließen sich im Backend nicht bearbeiten.** Das Korrigieren eines Vorschlags vor der Freigabe brach immer mit einem `TypeError` ab. Seit das Feld für den Entscheidungsweg (`reviewed_via`) hinzukam, übergaben zwei interne Kopiermethoden ihre Werte um eine Stelle verschoben. Gefunden hat das die neue statische Analyse.

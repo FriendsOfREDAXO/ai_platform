@@ -48,7 +48,21 @@ composer dump-autoload
 # backend (System > AddOns > ai_platform > Reinstall) so install.php runs again
 ```
 
-There is **no** test suite, linter, or `composer check` script in this addon. Static analysis and code style come from the outer REDAXO project's tooling (see the root CLAUDE.md): run `composer cs` / `composer phpstan` from the REDAXO project root.
+**Three CI checks, set up like ycom and yform** (`.github/workflows/`): `code-style.yml` (php-cs-fixer with `redaxo/php-cs-fixer-config`), `phpunit.yml` (`tests/unit/*_test.php` in a fresh REDAXO) and `rexstan.yml` (PHPStan level 5 via rexstan, with YCom, api and cronjob installed so their classes resolve). Locally:
+
+```bash
+cd .tools && composer install          # once; tools land in .tools/vendor (ignored)
+composer cs-dry                         # or cs-fix
+composer unit-test
+```
+
+**The dev tools have their own `composer.json` in `.tools/`, and that is not a matter of taste.** The addon's `vendor/` is committed and shipped (see below); a `require-dev` there means one `composer install` without `--no-dev` puts PHPUnit into the tree that goes to every installation. ycom keeps only its code-style tools in `.tools/` and runs PHPUnit from its root vendor, which it does not commit — the reason to deviate. For the same reason both workflows copy `vendor/` into the CI installation, where ycom's excludes it, and `package.yml` lists the dev files under `installer_ignore`.
+
+**rexstan locally overwrites rexstan's own settings.** `.tools/rexstan.php` calls `RexStanUserConfig::save()`, which replaces `data/addons/rexstan/user-config.neon` — whatever was configured on that installation is gone. Back it up first and restore it afterwards, then run `redaxo/bin/console rexstan:analyze` from the REDAXO root with `ADDON_KEY=ai_platform`.
+
+**rexstan found a real bug on its first run**, which is why it is worth keeping green: `ChangeRequest::withStatus()` and `withPayloadEdited()` pass every constructor argument by position, were not updated when `reviewedVia` was added, and every later field moved one slot. Editing a proposal in the backend died with a `TypeError` on every request, and the harness never noticed. Where a check stays on purpose -- runtime guards on values that arrive as decoded JSON, where the PHPDoc states intent but cannot guarantee it -- it carries an `@phpstan-ignore` with the reason, rather than a baseline nobody reads.
+
+`tests/unit/` is the part that runs in CI: no network, no configured profile, no YCom user. The end-to-end harness in `.claude/tests/` stays the place for everything that needs a live installation (HTTP, OAuth round trips, the REST routes).
 
 `vendor/` and `composer.lock` are committed — this is the FriendsOfREDAXO convention so the AddOn-Installer download is self-contained (end users don't run composer on their server). The publish workflow in `.github/workflows/publish-to-redaxo.yml` re-runs `composer install --no-dev` before packaging the release, so a forgotten lock refresh on `main` will still get the right vendor tree on release.
 
