@@ -81,5 +81,11 @@ jobs:
                 working-directory: redaxo_cms
                 run: php -f redaxo/src/addons/ai_platform/.tools/rexstan.php
 
+            -   name: Debug rexstan config
+                run: |
+                    cat redaxo_cms/redaxo/data/addons/rexstan/user-config.neon | grep -v "addons/.*/vendor/$" | head -40
+                    ls redaxo_cms/redaxo/src/addons/ai_platform/.tools/vendor/phpunit/phpunit/src | head -5
+                    cat redaxo_cms/redaxo/src/addons/rexstan/phpstan.neon | head -40
+
             -   name: Run rexstan
                 run: redaxo_cms/redaxo/bin/console rexstan:analyze
