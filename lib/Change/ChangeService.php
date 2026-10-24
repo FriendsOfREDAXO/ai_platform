@@ -511,7 +511,9 @@ final class ChangeService
         $handler->validate($request);
 
         // `user` is null on an API approval. Consumers that assumed a user must
-        // handle that; `via` tells them which case they are in.
+        // handle that; `via` tells them which case they are in. The subject starts
+        // as null and a handler vetoes by returning a string.
+        /** @var string|null $veto */
         $veto = rex_extension::registerPoint(new rex_extension_point('AI_PLATFORM_CHANGE_BEFORE_APPLY', null, [
             'request' => $request,
             'user' => $user,
@@ -1152,25 +1154,6 @@ final class ChangeService
         }
 
         return $tables;
-    }
-
-    /**
-     * @return list<int>
-     */
-    private static function decodeIdList(string $raw): array
-    {
-        if ('' === trim($raw)) {
-            return [];
-        }
-
-        $decoded = json_decode($raw, true);
-        if (is_array($decoded)) {
-            return array_values(array_map('intval', array_filter($decoded, 'is_numeric')));
-        }
-
-        $parts = preg_split('/[\s,]+/', $raw) ?: [];
-
-        return array_values(array_map('intval', array_filter($parts, 'is_numeric')));
     }
 
     /**

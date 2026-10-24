@@ -79,7 +79,7 @@ final class YformPayload extends AbstractPatchPayload
 
         $normalised = [];
         foreach ($values as $value) {
-            if (!is_string($value) && !is_int($value)) {
+            if (!is_string($value) && !is_int($value)) { // @phpstan-ignore function.alreadyNarrowedType, booleanAnd.alwaysFalse (runtime guard: values arrive as decoded JSON, the PHPDoc type is not a guarantee)
                 throw new InvalidArgumentException('YForm list values must be strings or integers.');
             }
             $value = trim((string) $value);
@@ -120,7 +120,7 @@ final class YformPayload extends AbstractPatchPayload
 
         $list = is_array($ids) ? $ids : [$ids];
         foreach ($list as $id) {
-            if (!is_int($id) || $id < 1) {
+            if (!is_int($id) || $id < 1) { // @phpstan-ignore function.alreadyNarrowedType (runtime guard: values arrive as decoded JSON, the PHPDoc type is not a guarantee)
                 throw new InvalidArgumentException('Relation ids must be positive integers.');
             }
         }

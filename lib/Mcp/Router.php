@@ -287,7 +287,7 @@ final class Router
             return $finalScheme . '://' . $host;
         }
 
-        $port = (is_array($parts) && isset($parts['port'])) ? ':' . $parts['port'] : '';
+        $port = isset($parts['port']) ? ':' . $parts['port'] : '';
         return $finalScheme . '://' . $configuredHost . $port;
     }
 

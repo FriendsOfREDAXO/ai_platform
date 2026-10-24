@@ -464,7 +464,7 @@ final class ChangePayloadBuilder
      * backend form. Resolved at call time because metainfo and YForm fields are
      * installation specific.
      *
-     * @return array<string, array{target: list<string>, fields: array<string, string>}>
+     * @return array<string, array{target: list<string>, fields: array<string, string>, modules?: array<int, array{name: string, slots: array<string, array{type: string, label: string|null}>, executes_php: bool}>}>
      */
     public static function describe(): array
     {

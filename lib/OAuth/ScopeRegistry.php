@@ -159,7 +159,7 @@ final class ScopeRegistry
     {
         $scopes = array_keys(self::allScopes());
 
-        return [] === $scopes ? [self::fallbackScope()] : array_values($scopes);
+        return [] === $scopes ? [self::fallbackScope()] : $scopes;
     }
 
     /**

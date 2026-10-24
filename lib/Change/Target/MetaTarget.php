@@ -47,6 +47,9 @@ final class MetaTarget extends AbstractTarget
         self::CARRIER_CLANG => 'clang_',
     ];
 
+    /**
+     * @param self::CARRIER_* $carrier the factories and fromArray() are the only ways in, and both check it
+     */
     private function __construct(
         private readonly string $carrier,
         private readonly ?int $id = null,

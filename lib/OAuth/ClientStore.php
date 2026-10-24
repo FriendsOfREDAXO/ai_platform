@@ -64,7 +64,7 @@ final class ClientStore
         $sql->setValue('client_id', $clientId);
         $sql->setValue('client_secret_hash', $clientSecretHash);
         $sql->setValue('client_name', $clientName);
-        $sql->setValue('redirect_uris', json_encode(array_values($redirectUris), JSON_THROW_ON_ERROR));
+        $sql->setValue('redirect_uris', json_encode(array_values($redirectUris), JSON_THROW_ON_ERROR)); // @phpstan-ignore arrayValues.list (json_encode must see a list, or keys turn it into an object; callers pass decoded request data)
         $sql->setValue('type', $type);
         $sql->setValue('created_by_dcr', $createdByDcr ? 1 : 0);
         $sql->addGlobalCreateFields();

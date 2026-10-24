@@ -157,9 +157,7 @@ final class AuthorizationEndpoint
      */
     private static function collectParams(): array
     {
-        $get = $_GET ?? [];
-        $post = $_POST ?? [];
-        return array_merge($get, $post);
+        return array_merge($_GET, $_POST);
     }
 
     private static function currentYcomUser(): ?rex_ycom_user
@@ -180,7 +178,7 @@ final class AuthorizationEndpoint
             return [];
         }
         $scopes = preg_split('/\s+/', trim($raw)) ?: [];
-        return array_values(array_filter($scopes, static fn ($s) => is_string($s) && '' !== $s));
+        return array_values(array_filter($scopes, static fn (string $s): bool => '' !== $s));
     }
 
     private static function redirectWithError(string $redirectUri, string $error, string $description, string $state): never

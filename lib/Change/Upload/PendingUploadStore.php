@@ -95,7 +95,7 @@ final class PendingUploadStore
         if ($bytes > self::MAX_BYTES) {
             throw new ValidationException(rex_i18n::rawMsg(
                 'ai_platform_change_upload_err_too_big',
-                round(self::MAX_BYTES / 1024 / 1024),
+                (int) round(self::MAX_BYTES / 1024 / 1024),
             ));
         }
 

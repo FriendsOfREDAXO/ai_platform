@@ -108,7 +108,7 @@ final class SlicePayload extends AbstractPatchPayload
         self::assertSlot($slot, self::LIST_SLOTS, 'REX_LINKLIST');
 
         foreach ($articleIds as $id) {
-            if (!is_int($id) || $id < 1) {
+            if (!is_int($id) || $id < 1) { // @phpstan-ignore function.alreadyNarrowedType (runtime guard: values arrive as decoded JSON, the PHPDoc type is not a guarantee)
                 throw new InvalidArgumentException('Link list entries must be positive article ids.');
             }
         }
@@ -149,7 +149,7 @@ final class SlicePayload extends AbstractPatchPayload
     private static function joinStrings(array $values, string $what): string
     {
         foreach ($values as $value) {
-            if (!is_string($value) || '' === $value) {
+            if (!is_string($value) || '' === $value) { // @phpstan-ignore function.alreadyNarrowedType (runtime guard: values arrive as decoded JSON, the PHPDoc type is not a guarantee)
                 throw new InvalidArgumentException(sprintf('Entries of a %s must be non-empty strings.', $what));
             }
             if (str_contains($value, ',')) {

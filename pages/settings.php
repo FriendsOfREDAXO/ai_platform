@@ -114,7 +114,7 @@ if ('post' === rex_request::requestMethod() && $csrfToken->isValid()) {
 
     // The list is stored either way, so switching "allow all" off again
     // restores the previous selection instead of an empty one.
-    $tables = array_values(array_keys(rex_post('allowed_yform_tables', 'array', [])));
+    $tables = array_keys(rex_post('allowed_yform_tables', 'array', []));
     rex_config::set('ai_platform', 'changes_allowed_yform_tables', json_encode($tables, JSON_THROW_ON_ERROR));
 
     echo rex_view::success(rex_i18n::msg('ai_platform_settings_saved'));
