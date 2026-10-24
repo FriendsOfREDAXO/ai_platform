@@ -29,7 +29,7 @@ Lokaler Spickzettel zum MCP-Stack dieses Addons. Quelle der Wahrheit bleibt der 
 ### Config-Keys (rex_config `ai_platform`)
 | Key | Wirkung |
 |---|---|
-| `mcp_enabled` | 0/1 — gated `/mcp` (sonst 503) |
+| `mcp_enabled` | 0/1 — gated `/mcp` **und** den OAuth-Server: bei 0 antworten `/mcp`, `/.well-known/oauth-*` und `/oauth/*` mit 503 |
 | `mcp_description` | geht als `instructions` in die `initialize`-Antwort |
 | `mcp_require_auth` | 0/1 — bei 1 bekommt JEDER anonyme Request 401 (auch `initialize`/`tools/list`) → erzwingt OAuth-Login. **Nötig, damit geschützte Tools in Claude Desktop überhaupt auftauchen** (s.u. Henne-Ei). |
 | `mcp_disabled_tools` | JSON-Liste deaktivierter Tool-Namen (Opt-out; via `FriendsOfRedaxo\AiPlatform\Mcp\Server::isToolEnabled()` in list+call) |
@@ -260,7 +260,9 @@ Berechtigungen".
 - **`exit()` umgeht REDAXOs Cleanup.** Vorher `cleanOutputBuffers()`, kein
   `rex_response::sendContent()`, direkt `echo` + `exit`.
 - **`mcp_enabled` ist standardmäßig `0`** — eine frische Installation antwortet
-  auf `/mcp` mit 503, bis jemand aktiviert.
+  auf `/mcp` mit 503, bis jemand aktiviert. Discovery, Registrierung, Anmeldung und
+  Token-Ausgabe sind dann ebenfalls aus (`Router::dispatch()`), denn OAuth gibt es hier nur
+  für den MCP-Server: Sonst könnte sich ein Client registrieren und Tokens holen.
 - **Notifications (kein `id` im JSON-RPC)** werden mit 202 ohne Body
   beantwortet. Wer versehentlich ohne `id` aufruft, sieht eine „leere" Antwort
   und hält sie für einen Fehler.
