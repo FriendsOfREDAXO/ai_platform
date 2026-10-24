@@ -9,6 +9,7 @@ use FriendsOfRedaxo\AiPlatform\OAuth\DcrEndpoint;
 use FriendsOfRedaxo\AiPlatform\OAuth\ScopeRegistry;
 use FriendsOfRedaxo\AiPlatform\OAuth\TokenEndpoint;
 use rex;
+use rex_config;
 use rex_response;
 
 /**
@@ -57,6 +58,13 @@ final class Router
             return;
         }
 
+        // Switched off in the backend: OAuth exists only for the MCP server, so
+        // discovery, client registration, login and token issuance go down with
+        // it. Otherwise a client could still register and obtain tokens.
+        if (!rex_config::get('ai_platform', 'mcp_enabled', false) && self::isServedPath($path)) {
+            self::dispatchDisabled();
+        }
+
         $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
         if (self::MCP_PATH === $path) {
@@ -96,6 +104,25 @@ final class Router
         if (str_starts_with($path, self::OAUTH_PREFIX)) {
             self::dispatchOauthUnknownEndpoint($path);
         }
+    }
+
+    /** Whether the path belongs to the MCP endpoint, its OAuth discovery or the OAuth server. */
+    private static function isServedPath(string $path): bool
+    {
+        return self::MCP_PATH === $path
+            || self::DISCOVERY_PROTECTED_RESOURCE === $path
+            || self::DISCOVERY_PROTECTED_RESOURCE . self::MCP_PATH === $path
+            || self::DISCOVERY_AUTH_SERVER === $path
+            || str_starts_with($path, self::OAUTH_PREFIX);
+    }
+
+    private static function dispatchDisabled(): never
+    {
+        rex_response::cleanOutputBuffers();
+        http_response_code(503);
+        header('Content-Type: text/plain');
+        echo 'MCP server is disabled';
+        exit;
     }
 
     private static function dispatchOauthAuthorize(): never

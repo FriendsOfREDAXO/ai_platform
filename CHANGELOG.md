@@ -5,6 +5,12 @@ Alle nennenswerten Änderungen an diesem AddOn.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/1.1.0/),
 Versionierung nach [Semantic Versioning](https://semver.org/lang/de/).
 
+## [Unveröffentlicht]
+
+### Behoben
+
+- **Mit ausgeschaltetem MCP-Server lief der OAuth-Server weiter.** Der Schalter unter *MCP Server > Einstellungen* sperrte nur `/mcp`. Discovery, Client-Registrierung, Anmeldung und Token-Ausgabe antworteten weiter, ein Client konnte sich also registrieren und Tokens holen, mit denen er dann nichts anfangen konnte. Jetzt antworten bei ausgeschaltetem Server auch `/.well-known/oauth-*` und `/oauth/*` mit 503 — OAuth gibt es in diesem AddOn nur für den MCP-Server. Bereits ausgegebene Tokens bleiben gespeichert und gelten wieder, sobald der Server eingeschaltet wird.
+
 ## [1.1.2] – 2026-10-20
 
 ### Hinzugefügt
