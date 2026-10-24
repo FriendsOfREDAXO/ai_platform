@@ -11,6 +11,10 @@ use RuntimeException;
 use function array_key_exists;
 use function is_bool;
 use function is_scalar;
+use function sprintf;
+
+use const JSON_THROW_ON_ERROR;
+use const JSON_UNESCAPED_UNICODE;
 
 /**
  * Sensible defaults for handlers: fingerprinting, a generic field diff, and
@@ -189,8 +193,8 @@ abstract class AbstractHandler implements HandlerInterface
      *
      * @param array<string, scalar|null> $payload
      * @param list<string> $allowed
-     * @return array<string, scalar|null>
      * @throws ValidationException
+     * @return array<string, scalar|null>
      */
     final protected static function filterToAllowed(array $payload, array $allowed): array
     {

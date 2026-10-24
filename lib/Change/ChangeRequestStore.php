@@ -13,6 +13,11 @@ use RuntimeException;
 use function count;
 use function is_array;
 use function is_string;
+use function sprintf;
+
+use const JSON_THROW_ON_ERROR;
+use const JSON_UNESCAPED_SLASHES;
+use const JSON_UNESCAPED_UNICODE;
 
 /**
  * Persistence for change requests and changesets.
@@ -497,13 +502,13 @@ final class ChangeRequestStore
             snapshotBefore: self::decode($row['snapshot_before'] ?? null),
             baseHash: (string) ($row['base_hash'] ?? ''),
             contextSnapshot: self::decode($row['context_snapshot'] ?? null),
-            contextHash: isset($row['context_hash']) && null !== $row['context_hash'] ? (string) $row['context_hash'] : null,
+            contextHash: isset($row['context_hash']) ? (string) $row['context_hash'] : null,
             reason: (string) ($row['reason'] ?? ''),
             status: $status,
             source: $this->hydrateSource($row),
-            changesetId: isset($row['changeset_id']) && null !== $row['changeset_id'] ? (int) $row['changeset_id'] : null,
+            changesetId: isset($row['changeset_id']) ? (int) $row['changeset_id'] : null,
             targetLabel: (string) ($row['target_label'] ?? ''),
-            reviewedBy: isset($row['reviewed_by']) && null !== $row['reviewed_by'] ? (int) $row['reviewed_by'] : null,
+            reviewedBy: isset($row['reviewed_by']) ? (int) $row['reviewed_by'] : null,
             reviewedAt: self::toDate($row['reviewed_at'] ?? null),
             reviewNote: isset($row['review_note']) ? (string) $row['review_note'] : null,
             reviewedVia: isset($row['reviewed_via']) && '' !== (string) $row['reviewed_via']
@@ -511,7 +516,7 @@ final class ChangeRequestStore
                 : null,
             appliedAt: self::toDate($row['applied_at'] ?? null),
             applyResult: self::decode($row['apply_result'] ?? null),
-            applyError: isset($row['apply_error']) && null !== $row['apply_error'] ? (string) $row['apply_error'] : null,
+            applyError: isset($row['apply_error']) ? (string) $row['apply_error'] : null,
             createdAt: self::toDate($row['createdate'] ?? null),
         );
     }
@@ -526,7 +531,7 @@ final class ChangeRequestStore
         return new Changeset(
             id: (int) $row['id'],
             token: (string) $row['token'],
-            clientKey: isset($row['client_key']) && null !== $row['client_key'] ? (string) $row['client_key'] : null,
+            clientKey: isset($row['client_key']) ? (string) $row['client_key'] : null,
             title: (string) ($row['title'] ?? ''),
             description: (string) ($row['description'] ?? ''),
             status: (string) ($row['status'] ?? Changeset::STATUS_OPEN),

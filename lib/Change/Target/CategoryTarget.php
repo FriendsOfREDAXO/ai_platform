@@ -12,6 +12,8 @@ use rex_clang;
 use rex_i18n;
 use rex_url;
 
+use function sprintf;
+
 /**
  * Points at a category — core fields only (catname, catpriority, status).
  *
@@ -29,8 +31,7 @@ final class CategoryTarget extends AbstractTarget
         private readonly int $clangId,
         private readonly ?int $categoryId = null,
         private readonly ?int $parentId = null,
-    ) {
-    }
+    ) {}
 
     public static function changeType(): string
     {

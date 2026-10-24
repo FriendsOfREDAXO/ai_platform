@@ -7,6 +7,10 @@ namespace FriendsOfRedaxo\AiPlatform\OAuth;
 use rex;
 use rex_sql;
 
+use function is_array;
+
+use const JSON_THROW_ON_ERROR;
+
 /**
  * Persistence layer for one-time authorization codes and the access/refresh
  * token pairs derived from them.
@@ -50,7 +54,7 @@ final class TokenStore
         $sql->setValue('code_hash', self::hash($code));
         $sql->setValue('client_id', $clientId);
         $sql->setValue('ycom_user_id', $ycomUserId);
-        $sql->setValue('scopes', json_encode(array_values($scopes), JSON_THROW_ON_ERROR));
+        $sql->setValue('scopes', json_encode(array_values($scopes), JSON_THROW_ON_ERROR)); // @phpstan-ignore arrayValues.list (json_encode must see a list, or keys turn it into an object; callers pass decoded request data)
         $sql->setValue('code_challenge', $codeChallenge);
         $sql->setValue('code_challenge_method', $codeChallengeMethod);
         $sql->setValue('redirect_uri', $redirectUri);
@@ -127,7 +131,7 @@ final class TokenStore
         $sql->setValue('type', self::TYPE_ACCESS);
         $sql->setValue('client_id', $clientId);
         $sql->setValue('ycom_user_id', $ycomUserId);
-        $sql->setValue('scopes', json_encode(array_values($scopes), JSON_THROW_ON_ERROR));
+        $sql->setValue('scopes', json_encode(array_values($scopes), JSON_THROW_ON_ERROR)); // @phpstan-ignore arrayValues.list (json_encode must see a list, or keys turn it into an object; callers pass decoded request data)
         $sql->setValue('expires_at', date('Y-m-d H:i:s', $now + self::ACCESS_TOKEN_TTL));
         $sql->addGlobalCreateFields();
         $sql->insert();
@@ -139,7 +143,7 @@ final class TokenStore
         $refresh->setValue('type', self::TYPE_REFRESH);
         $refresh->setValue('client_id', $clientId);
         $refresh->setValue('ycom_user_id', $ycomUserId);
-        $refresh->setValue('scopes', json_encode(array_values($scopes), JSON_THROW_ON_ERROR));
+        $refresh->setValue('scopes', json_encode(array_values($scopes), JSON_THROW_ON_ERROR)); // @phpstan-ignore arrayValues.list (json_encode must see a list, or keys turn it into an object; callers pass decoded request data)
         $refresh->setValue('parent_token_id', $accessId);
         $refresh->setValue('expires_at', date('Y-m-d H:i:s', $now + self::REFRESH_TOKEN_TTL));
         $refresh->addGlobalCreateFields();

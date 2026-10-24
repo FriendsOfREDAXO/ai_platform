@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-use FriendsOfRedaxo\AiPlatform\OAuth\ScopeRegistry;
 use FriendsOfRedaxo\AiPlatform\Mcp\Server;
+use FriendsOfRedaxo\AiPlatform\OAuth\ScopeRegistry;
 
 $addon = rex_addon::get('ai_platform');
 $csrfToken = rex_csrf_token::factory('ai_platform_mcp');

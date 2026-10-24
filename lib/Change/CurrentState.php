@@ -20,8 +20,7 @@ final class CurrentState
         public readonly ?array $values,
         public readonly string $fingerprint,
         public readonly string $description,
-    ) {
-    }
+    ) {}
 
     public function exists(): bool
     {

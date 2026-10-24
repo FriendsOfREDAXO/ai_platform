@@ -42,8 +42,7 @@ final class Changeset
         public readonly ?DateTimeImmutable $createdAt = null,
         public readonly int $requestCount = 0,
         public readonly int $openCount = 0,
-    ) {
-    }
+    ) {}
 
     public function displayTitle(): string
     {

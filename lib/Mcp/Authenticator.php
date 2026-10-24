@@ -6,6 +6,8 @@ namespace FriendsOfRedaxo\AiPlatform\Mcp;
 
 use FriendsOfRedaxo\AiPlatform\OAuth\TokenStore;
 
+use function function_exists;
+
 /**
  * Resolves the auth context for an incoming MCP request.
  *

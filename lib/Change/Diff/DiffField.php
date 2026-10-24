@@ -28,8 +28,7 @@ final class DiffField
         public readonly ?string $current = null,
         public readonly bool $longText = false,
         public readonly ?string $note = null,
-    ) {
-    }
+    ) {}
 
     /**
      * Builds a row and works out the kind from the values, so handlers do

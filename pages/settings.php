@@ -52,7 +52,7 @@
  *   meant the proposal could not be made.
  * - **Retention (days)** — a number in a form enforced nothing; somebody still
  *   had to come back and press a button. Now a cronjob
- *   ({@see \FriendsOfRedaxo\AiPlatform\Cronjob\ThinChangeRequests}), where the
+ *   ({@see ThinChangeRequests}), where the
  *   period sits next to the schedule that actually makes it happen.
  * - **Entries per run** — capped how many one batch approval applied. What a
  *   batch can do is decided by its writes, not by their number.
@@ -83,6 +83,7 @@ declare(strict_types=1);
 use FriendsOfRedaxo\AiPlatform\Change\ChangeRequestStore;
 use FriendsOfRedaxo\AiPlatform\Change\ChangeStatus;
 use FriendsOfRedaxo\AiPlatform\Change\HandlerRegistry;
+use FriendsOfRedaxo\AiPlatform\Cronjob\ThinChangeRequests;
 use FriendsOfRedaxo\AiPlatform\Service;
 
 if (!rex::requireUser()->isAdmin()) {
@@ -113,7 +114,7 @@ if ('post' === rex_request::requestMethod() && $csrfToken->isValid()) {
 
     // The list is stored either way, so switching "allow all" off again
     // restores the previous selection instead of an empty one.
-    $tables = array_values(array_keys(rex_post('allowed_yform_tables', 'array', [])));
+    $tables = array_keys(rex_post('allowed_yform_tables', 'array', []));
     rex_config::set('ai_platform', 'changes_allowed_yform_tables', json_encode($tables, JSON_THROW_ON_ERROR));
 
     echo rex_view::success(rex_i18n::msg('ai_platform_settings_saved'));

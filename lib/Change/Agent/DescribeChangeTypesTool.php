@@ -9,6 +9,11 @@ use FriendsOfRedaxo\AiPlatform\Change\HandlerRegistry;
 use Symfony\AI\Agent\Toolbox\Attribute\AsTool;
 use Throwable;
 
+use const JSON_PRETTY_PRINT;
+use const JSON_THROW_ON_ERROR;
+use const JSON_UNESCAPED_SLASHES;
+use const JSON_UNESCAPED_UNICODE;
+
 /**
  * Tells an agent what it may propose in this installation.
  *

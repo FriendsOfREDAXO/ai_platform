@@ -6,6 +6,12 @@ namespace FriendsOfRedaxo\AiPlatform\OAuth;
 
 use rex_response;
 
+use function is_array;
+use function strlen;
+
+use const JSON_THROW_ON_ERROR;
+use const JSON_UNESCAPED_SLASHES;
+
 /**
  * Handler for `POST /oauth/token`.
  *

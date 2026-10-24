@@ -4,9 +4,6 @@ declare(strict_types=1);
 
 namespace FriendsOfRedaxo\AiPlatform\Api;
 
-use FriendsOfRedaxo\Api\Auth\BearerAuth;
-use FriendsOfRedaxo\Api\RouteCollection;
-use FriendsOfRedaxo\Api\Token;
 use FriendsOfRedaxo\AiPlatform\Change\ApiApproval;
 use FriendsOfRedaxo\AiPlatform\Change\ChangeOperation;
 use FriendsOfRedaxo\AiPlatform\Change\ChangePayloadBuilder;
@@ -18,12 +15,14 @@ use FriendsOfRedaxo\AiPlatform\Change\HandlerRegistry;
 use FriendsOfRedaxo\AiPlatform\Change\Source;
 use FriendsOfRedaxo\AiPlatform\Change\Upload\PendingUploadStore;
 use FriendsOfRedaxo\AiPlatform\Change\ValidationException;
+use FriendsOfRedaxo\Api\Auth\BearerAuth;
+use FriendsOfRedaxo\Api\RouteCollection;
+use FriendsOfRedaxo\Api\Token;
 use JsonException;
 use rex;
 use rex_dir;
 use rex_file;
 use rex_path;
-use rex_config;
 use rex_sql;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Response;
@@ -31,8 +30,13 @@ use Symfony\Component\Routing\Route;
 use Throwable;
 
 use function count;
+use function dirname;
 use function is_array;
 use function is_string;
+use function sprintf;
+
+use const DATE_ATOM;
+use const JSON_THROW_ON_ERROR;
 
 /**
  * REST routes for change requests, registered with the api addon.
@@ -734,7 +738,6 @@ final class ChangeRoutes
         ], $status);
     }
 
-
     /**
      * @param array<string, mixed> $Parameter
      * @param array<string, mixed> $Route
@@ -823,7 +826,6 @@ final class ChangeRoutes
             'meta' => ['approved' => $ok, 'failed' => count($results) - $ok, 'total' => count($results)],
         ], $status);
     }
-
 
     /**
      * Two modes on one route, chosen by whether a type was named.
@@ -997,7 +999,7 @@ final class ChangeRoutes
                 $types[$type] = [
                     'label' => $handler->getLabel(),
                     'operations' => array_map(
-                        static fn(ChangeOperation $op): string => $op->value,
+                        static fn (ChangeOperation $op): string => $op->value,
                         $handler->supportedOperations(),
                     ),
                     'target_fields' => $info['target'],
@@ -1067,7 +1069,7 @@ final class ChangeRoutes
             return self::error(sprintf(
                 'Unknown status "%s". Use one of: %s',
                 $status,
-                implode(', ', array_map(static fn(ChangeStatus $s): string => $s->value, ChangeStatus::cases())),
+                implode(', ', array_map(static fn (ChangeStatus $s): string => $s->value, ChangeStatus::cases())),
             ), 400);
         }
 
@@ -1382,7 +1384,7 @@ final class ChangeRoutes
             'id' => $request->id,
             'type' => $request->type,
             'operation' => $request->operation->value,
-            'target' => $request->targetLabel !== '' ? $request->targetLabel : $request->target->describe(),
+            'target' => '' !== $request->targetLabel ? $request->targetLabel : $request->target->describe(),
             'status' => $request->status->value,
             'reason' => $request->reason,
             'changeset' => $request->changesetId,
@@ -1398,8 +1400,8 @@ final class ChangeRoutes
     }
 
     /**
-     * @return array<string, mixed>
      * @throws JsonException
+     * @return array<string, mixed>
      */
     private static function decodeObject(string $raw, string $what): array
     {

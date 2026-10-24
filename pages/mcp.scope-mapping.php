@@ -13,7 +13,7 @@ $csrf = rex_csrf_token::factory('ai_platform_scope_mapping');
 
 // Save submitted mapping
 if ('post' === rex_request::requestMethod() && $csrf->isValid()) {
-    /** @var array<int, array<int, string>> $submitted */
+    /** @var array<mixed> $submitted posted data: shape not guaranteed, hence the checks below */
     $submitted = rex_post('scopes', 'array', []);
     foreach ($submitted as $groupId => $scopes) {
         $groupId = (int) $groupId;

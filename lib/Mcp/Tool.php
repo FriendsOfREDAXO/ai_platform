@@ -35,8 +35,7 @@ class Tool
         private readonly mixed $handler,
         private readonly bool $public = false,
         private readonly array $requiredScopes = [],
-    ) {
-    }
+    ) {}
 
     public function getName(): string
     {

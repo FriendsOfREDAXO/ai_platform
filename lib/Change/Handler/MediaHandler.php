@@ -10,19 +10,20 @@ use FriendsOfRedaxo\AiPlatform\Change\ChangeOperation;
 use FriendsOfRedaxo\AiPlatform\Change\ChangeRequest;
 use FriendsOfRedaxo\AiPlatform\Change\Payload\MediaPayload;
 use FriendsOfRedaxo\AiPlatform\Change\Target\MediaTarget;
-use FriendsOfRedaxo\AiPlatform\Change\Upload\PendingUploadStore;
 use FriendsOfRedaxo\AiPlatform\Change\TargetInterface;
+use FriendsOfRedaxo\AiPlatform\Change\Upload\PendingUploadStore;
 use FriendsOfRedaxo\AiPlatform\Change\ValidationException;
+use rex_file;
 use rex_i18n;
 use rex_media_category;
-use rex_path;
-use rex_file;
 use rex_media_service;
+use rex_path;
 use rex_user;
 use Throwable;
 
 use function array_key_exists;
 use function is_file;
+use function sprintf;
 
 /**
  * Media pool files — title and category.

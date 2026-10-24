@@ -25,6 +25,7 @@ use Throwable;
 use function array_key_exists;
 use function is_array;
 use function is_numeric;
+use function sprintf;
 
 /**
  * YForm datasets.
@@ -83,7 +84,7 @@ final class YformHandler extends AbstractHandler
         }
 
         $columns = implode(', ', array_map(
-            static fn(string $name): string => '`' . $name . '`',
+            static fn (string $name): string => '`' . $name . '`',
             array_keys($fields),
         ));
 

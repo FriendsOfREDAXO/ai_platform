@@ -83,5 +83,4 @@ final class ApiApproval
             'recorded_as' => 'reviewed_via=api',
         ];
     }
-
 }

@@ -6,10 +6,13 @@ namespace FriendsOfRedaxo\AiPlatform\Change\Target;
 
 use FriendsOfRedaxo\AiPlatform\Change\AbstractTarget;
 use FriendsOfRedaxo\AiPlatform\Change\ChangeOperation;
+use InvalidArgumentException;
 use rex_article;
 use rex_clang;
 use rex_i18n;
 use rex_url;
+
+use function sprintf;
 
 /**
  * Points at an article — its core fields only (name, priority, template,
@@ -28,8 +31,7 @@ final class ArticleTarget extends AbstractTarget
         private readonly int $clangId,
         private readonly ?int $articleId = null,
         private readonly ?int $categoryId = null,
-    ) {
-    }
+    ) {}
 
     public static function changeType(): string
     {
@@ -60,7 +62,7 @@ final class ArticleTarget extends AbstractTarget
     public static function createIn(int $categoryId, int $clangId): self
     {
         if ($categoryId < 0) {
-            throw new \InvalidArgumentException('Category id must not be negative.');
+            throw new InvalidArgumentException('Category id must not be negative.');
         }
 
         return new self(

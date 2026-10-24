@@ -49,8 +49,7 @@ final class TargetInspection
         public readonly array $changedFields = [],
         public readonly array $brokenReferences = [],
         public readonly array $contextChanges = [],
-    ) {
-    }
+    ) {}
 
     public static function ok(?array $currentValues = null): self
     {

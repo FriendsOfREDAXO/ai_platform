@@ -206,6 +206,28 @@ $t->assert('' !== (string) $loaded?->baseHash, 'a fingerprint was recorded');
 $t->assertSame('test:storage', $loaded?->source->key, 'the source key is recorded');
 $t->assert(str_contains((string) $loaded?->targetLabel, (string) $articleId), 'the target label is denormalised');
 
+// The with*() copies pass every constructor argument by position. When
+// reviewedVia was added, neither was updated: every later field moved one slot,
+// createdAt landed in applyError and editPayload() -- the reviewer correcting a
+// proposal in the backend -- died with a TypeError on every request.
+// rexstan found it, no test did.
+if (null !== $loaded) {
+    $copies = [];
+    try {
+        $copies['withPayloadEdited'] = $loaded->withPayloadEdited((new ArticlePayload())->priority(5));
+        $copies['withStatus'] = $loaded->withStatus(ChangeStatus::Rejected, null, 'note');
+    } catch (Throwable $e) {
+        $t->assert(false, 'the with*() copies build: ' . $e->getMessage());
+    }
+    foreach ($copies as $method => $copy) {
+        $t->assertSame($loaded->createdAt, $copy->createdAt, $method . '() keeps createdAt in its place');
+        $t->assertSame($loaded->reviewedVia, $copy->reviewedVia, $method . '() keeps reviewedVia');
+        $t->assertSame($loaded->appliedAt, $copy->appliedAt, $method . '() keeps appliedAt');
+        $t->assertSame($loaded->applyError, $copy->applyError, $method . '() keeps applyError');
+    }
+    $t->assertSame(5, ($copies['withPayloadEdited'] ?? null)?->effectivePayload()->get('priority'), 'and the edited payload is the effective one');
+}
+
 // Nothing was written to the article itself.
 $articleBefore = rex_article::get($articleId, $clangId);
 $t->assert(4 !== (int) $articleBefore?->getValue('priority') || true, 'proposing does not touch the target (checked below)');

@@ -12,6 +12,11 @@ use rex_ycom_auth;
 use rex_ycom_config;
 use rex_ycom_user;
 
+use function is_scalar;
+use function is_string;
+
+use const PHP_URL_PATH;
+
 /**
  * Handler for `/oauth/authorize`.
  *
@@ -135,9 +140,9 @@ final class AuthorizationEndpoint
                 $query['state'] = $state;
             }
             // Force "&" as the separator: the web SAPI's php.ini may set
-        // arg_separator.output to "&amp;", which would corrupt the redirect
-        // query (state= becomes amp;state=) and break the OAuth callback.
-        self::redirect($redirectUri . (str_contains($redirectUri, '?') ? '&' : '?') . http_build_query($query, '', '&'));
+            // arg_separator.output to "&amp;", which would corrupt the redirect
+            // query (state= becomes amp;state=) and break the OAuth callback.
+            self::redirect($redirectUri . (str_contains($redirectUri, '?') ? '&' : '?') . http_build_query($query, '', '&'));
         }
 
         self::renderConsent($client, $user, $requestedScopes, $effective, $userScopes, $params);
@@ -152,9 +157,7 @@ final class AuthorizationEndpoint
      */
     private static function collectParams(): array
     {
-        $get = $_GET ?? [];
-        $post = $_POST ?? [];
-        return array_merge($get, $post);
+        return array_merge($_GET, $_POST);
     }
 
     private static function currentYcomUser(): ?rex_ycom_user
@@ -175,7 +178,7 @@ final class AuthorizationEndpoint
             return [];
         }
         $scopes = preg_split('/\s+/', trim($raw)) ?: [];
-        return array_values(array_filter($scopes, static fn ($s) => is_string($s) && '' !== $s));
+        return array_values(array_filter($scopes, static fn (string $s): bool => '' !== $s));
     }
 
     private static function redirectWithError(string $redirectUri, string $error, string $description, string $state): never

@@ -69,3 +69,11 @@ requires:
     redaxo: '>=5.18'
     php:
         version: '>=8.2'
+
+# Development only: kept out of the package the AddOn installer ships.
+# .claude stays in -- the backend guide renders .claude/skills/ai-platform-changes.
+installer_ignore:
+    - .tools
+    - tests
+    - phpunit.xml.dist
+    - .php-cs-fixer.dist.php

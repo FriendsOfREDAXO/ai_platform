@@ -55,8 +55,7 @@ final class ChangeRequest
         public readonly ?array $applyResult = null,
         public readonly ?string $applyError = null,
         public readonly ?DateTimeImmutable $createdAt = null,
-    ) {
-    }
+    ) {}
 
     /**
      * The payload that will actually be written: the reviewer's correction
@@ -129,6 +128,7 @@ final class ChangeRequest
             $reviewedBy ?? $this->reviewedBy,
             null !== $reviewedBy ? new DateTimeImmutable() : $this->reviewedAt,
             $reviewNote ?? $this->reviewNote,
+            $this->reviewedVia,
             $this->appliedAt,
             $this->applyResult,
             $this->applyError,
@@ -157,6 +157,7 @@ final class ChangeRequest
             $this->reviewedBy,
             $this->reviewedAt,
             $this->reviewNote,
+            $this->reviewedVia,
             $this->appliedAt,
             $this->applyResult,
             $this->applyError,

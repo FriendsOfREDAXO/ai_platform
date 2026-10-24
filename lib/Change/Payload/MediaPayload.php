@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace FriendsOfRedaxo\AiPlatform\Change\Payload;
 
 use FriendsOfRedaxo\AiPlatform\Change\AbstractPatchPayload;
+use FriendsOfRedaxo\AiPlatform\Change\Upload\PendingUploadStore;
 use InvalidArgumentException;
 
 use function is_string;
+use function sprintf;
 
 /**
  * A media pool file: title, category, and — for a create — the staged bytes.
@@ -49,7 +51,7 @@ final class MediaPayload extends AbstractPatchPayload
      *
      * Only meaningful on a create. The bytes are not here and never will be —
      * the handle points at a file under `data/addons/ai_platform/pending/`. See
-     * {@see \FriendsOfRedaxo\AiPlatform\Change\Upload\PendingUploadStore}.
+     * {@see PendingUploadStore}.
      */
     public function upload(string $handle): self
     {

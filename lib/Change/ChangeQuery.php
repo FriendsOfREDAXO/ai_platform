@@ -30,8 +30,7 @@ final class ChangeQuery
         private readonly string $sourceKey = '',
         private readonly ?int $changesetId = null,
         private readonly string $search = '',
-    ) {
-    }
+    ) {}
 
     /**
      * Reads the filter from the current request.
@@ -72,7 +71,7 @@ final class ChangeQuery
         $conditions = [];
 
         if ([] !== $this->statuses) {
-            $quoted = array_map(static fn(string $s): string => $sql->escape($s), $this->statuses);
+            $quoted = array_map(static fn (string $s): string => $sql->escape($s), $this->statuses);
             $conditions[] = 'status IN (' . implode(', ', $quoted) . ')';
         }
 
@@ -143,7 +142,7 @@ final class ChangeQuery
             $params,
         );
 
-        return array_map(static fn(array $row): int => (int) $row['id'], $rows);
+        return array_map(static fn (array $row): int => (int) $row['id'], $rows);
     }
 
     /**

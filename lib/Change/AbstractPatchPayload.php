@@ -11,6 +11,7 @@ use function is_bool;
 use function is_float;
 use function is_int;
 use function is_string;
+use function sprintf;
 
 /**
  * Base for all payloads. Holds only the fields that were explicitly set.
@@ -96,10 +97,10 @@ abstract class AbstractPatchPayload implements PayloadInterface
     public static function fromArray(array $data): static
     {
         /** @psalm-suppress UnsafeInstantiation */
-        $payload = new static();
+        $payload = new static(); // @phpstan-ignore new.static (subclasses take no constructor arguments; a final constructor would lock out payload types of other addons)
 
         foreach ($data as $key => $value) {
-            if (!is_string($key) || '' === $key) {
+            if (!is_string($key) || '' === $key) { // @phpstan-ignore function.alreadyNarrowedType (runtime guard: values arrive as decoded JSON, the PHPDoc type is not a guarantee)
                 continue;
             }
             if (null !== $value && !is_string($value) && !is_int($value) && !is_float($value) && !is_bool($value)) {

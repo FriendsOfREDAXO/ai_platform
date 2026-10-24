@@ -4,3 +4,7 @@
 !/.claude/tests/
 /.playwright-mcp/
 .DS_Store
+/.tools/vendor/
+.php-cs-fixer.cache
+.phpunit.cache/
+.phpunit.result.cache

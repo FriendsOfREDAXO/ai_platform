@@ -14,6 +14,7 @@ use FriendsOfRedaxo\AiPlatform\Change\Payload\SlicePayload;
 use FriendsOfRedaxo\AiPlatform\Change\Support\ModuleFieldMap;
 use FriendsOfRedaxo\AiPlatform\Change\Target\SliceTarget;
 use FriendsOfRedaxo\AiPlatform\Change\TargetInterface;
+use FriendsOfRedaxo\AiPlatform\Change\Upload\PendingUploadStore;
 use FriendsOfRedaxo\AiPlatform\Change\ValidationException;
 use rex;
 use rex_article;
@@ -24,7 +25,6 @@ use rex_extension;
 use rex_extension_point;
 use rex_extension_point_art_content_updated;
 use rex_i18n;
-use FriendsOfRedaxo\AiPlatform\Change\Upload\PendingUploadStore;
 use rex_media;
 use rex_sql;
 use rex_sql_util;
@@ -32,6 +32,7 @@ use rex_user;
 
 use function array_key_exists;
 use function count;
+use function sprintf;
 
 /**
  * Content slices.
@@ -116,7 +117,7 @@ final class SliceHandler extends AbstractHandler
             [':article' => $target->getArticleId(), ':clang' => $clangId, ':ctype' => $ctypeId],
         );
 
-        $ids = array_map(static fn(array $row): string => (string) $row['id'], $rows);
+        $ids = array_map(static fn (array $row): string => (string) $row['id'], $rows);
 
         return [
             'slice_count' => count($rows),

@@ -9,6 +9,12 @@ use rex;
 use rex_config;
 use rex_sql;
 
+use function in_array;
+use function is_array;
+
+use const JSON_THROW_ON_ERROR;
+use const PASSWORD_DEFAULT;
+
 /**
  * Persistence layer for OAuth 2.1 clients (rex_ai_oauth_client).
  *
@@ -29,11 +35,11 @@ final class ClientStore
 
     /**
      * @param list<string> $redirectUris
-     * @return array{client_id: string, client_secret: ?string} The secret is
+     * @return array{client_id: string, client_secret: ?string} the secret is
      *                                                          returned only
      *                                                          once at creation
      *                                                          time and never
-     *                                                          stored in plain.
+     *                                                          stored in plain
      */
     public static function create(
         string $clientName,
@@ -58,7 +64,7 @@ final class ClientStore
         $sql->setValue('client_id', $clientId);
         $sql->setValue('client_secret_hash', $clientSecretHash);
         $sql->setValue('client_name', $clientName);
-        $sql->setValue('redirect_uris', json_encode(array_values($redirectUris), JSON_THROW_ON_ERROR));
+        $sql->setValue('redirect_uris', json_encode(array_values($redirectUris), JSON_THROW_ON_ERROR)); // @phpstan-ignore arrayValues.list (json_encode must see a list, or keys turn it into an object; callers pass decoded request data)
         $sql->setValue('type', $type);
         $sql->setValue('created_by_dcr', $createdByDcr ? 1 : 0);
         $sql->addGlobalCreateFields();

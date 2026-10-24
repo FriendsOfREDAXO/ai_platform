@@ -8,6 +8,7 @@ use FriendsOfRedaxo\AiPlatform\Change\AbstractHandler;
 use FriendsOfRedaxo\AiPlatform\Change\ApplyResult;
 use FriendsOfRedaxo\AiPlatform\Change\ChangeOperation;
 use FriendsOfRedaxo\AiPlatform\Change\ChangeRequest;
+use FriendsOfRedaxo\AiPlatform\Change\Diff\DiffField;
 use FriendsOfRedaxo\AiPlatform\Change\Payload\CategoryPayload;
 use FriendsOfRedaxo\AiPlatform\Change\Target\CategoryTarget;
 use FriendsOfRedaxo\AiPlatform\Change\TargetInterface;
@@ -22,6 +23,7 @@ use Throwable;
 
 use function array_key_exists;
 use function count;
+use function sprintf;
 
 /**
  * Categories — core fields only. Metainfo goes through MetaHandler.
@@ -97,7 +99,7 @@ final class CategoryHandler extends AbstractHandler
 
         return [
             'sibling_count' => count($rows),
-            'sibling_ids' => implode(',', array_map(static fn(array $r): string => (string) $r['id'], $rows)),
+            'sibling_ids' => implode(',', array_map(static fn (array $r): string => (string) $r['id'], $rows)),
         ];
     }
 
@@ -182,7 +184,7 @@ final class CategoryHandler extends AbstractHandler
             if ('catpriority' !== $field->key) {
                 continue;
             }
-            $fields[$index] = new \FriendsOfRedaxo\AiPlatform\Change\Diff\DiffField(
+            $fields[$index] = new DiffField(
                 $field->key,
                 $field->label,
                 $field->before,

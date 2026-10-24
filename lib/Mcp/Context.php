@@ -6,6 +6,8 @@ namespace FriendsOfRedaxo\AiPlatform\Mcp;
 
 use rex_ycom_user;
 
+use function in_array;
+
 /**
  * Auth context passed to MCP tool handlers.
  *
@@ -23,8 +25,7 @@ final class Context
         private readonly array $scopes = [],
         private readonly string $authMode = 'anonymous',
         private readonly ?string $clientId = null,
-    ) {
-    }
+    ) {}
 
     public static function anonymous(): self
     {

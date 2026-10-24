@@ -13,6 +13,8 @@ use rex_i18n;
 use rex_sql;
 use rex_url;
 
+use function sprintf;
+
 /**
  * Points at a content slice.
  *
@@ -36,8 +38,7 @@ final class SliceTarget extends AbstractTarget
         private readonly ?int $moduleId = null,
         private readonly ?int $ctypeId = null,
         private readonly ?int $priority = null,
-    ) {
-    }
+    ) {}
 
     public static function changeType(): string
     {

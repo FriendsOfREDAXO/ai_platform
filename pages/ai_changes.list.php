@@ -13,15 +13,17 @@
 
 declare(strict_types=1);
 
+use FriendsOfRedaxo\AiPlatform\Change\BatchResult;
+use FriendsOfRedaxo\AiPlatform\Change\ChangeOperation;
 use FriendsOfRedaxo\AiPlatform\Change\ChangeQuery;
 use FriendsOfRedaxo\AiPlatform\Change\ChangeRequestStore;
 use FriendsOfRedaxo\AiPlatform\Change\ChangeService;
 use FriendsOfRedaxo\AiPlatform\Change\ChangeStatus;
 use FriendsOfRedaxo\AiPlatform\Change\Diff\DiffRenderer;
-use FriendsOfRedaxo\AiPlatform\Change\Upload\PendingUploadStore;
 use FriendsOfRedaxo\AiPlatform\Change\HandlerRegistry;
 use FriendsOfRedaxo\AiPlatform\Change\StaleTargetException;
 use FriendsOfRedaxo\AiPlatform\Change\TargetGoneException;
+use FriendsOfRedaxo\AiPlatform\Change\Upload\PendingUploadStore;
 
 $service = ChangeService::getInstance();
 $store = new ChangeRequestStore();
@@ -47,7 +49,7 @@ if (!$service->isEnabled()) {
  * Silently reporting only the successes would make a partly failed batch look
  * complete.
  */
-$renderBatch = static function (FriendsOfRedaxo\AiPlatform\Change\BatchResult $result, string $successKey): string {
+$renderBatch = static function (BatchResult $result, string $successKey): string {
     $out = '';
 
     if ($result->appliedCount() > 0) {
@@ -525,7 +527,7 @@ if ('view' !== $func) {
 
     $list->setColumnLabel('operation', rex_i18n::msg('ai_platform_change_col_operation'));
     $list->setColumnFormat('operation', 'custom', static function (array $params): string {
-        $operation = FriendsOfRedaxo\AiPlatform\Change\ChangeOperation::tryFrom((string) $params['list']->getValue('operation'));
+        $operation = ChangeOperation::tryFrom((string) $params['list']->getValue('operation'));
         if (null === $operation) {
             return '';
         }

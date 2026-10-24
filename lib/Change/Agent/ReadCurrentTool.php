@@ -14,6 +14,12 @@ use Symfony\AI\Agent\Toolbox\Attribute\AsTool;
 use Throwable;
 
 use function is_array;
+use function sprintf;
+
+use const JSON_PRETTY_PRINT;
+use const JSON_THROW_ON_ERROR;
+use const JSON_UNESCAPED_SLASHES;
+use const JSON_UNESCAPED_UNICODE;
 
 /**
  * Reads the current values of something an agent might want to change.
