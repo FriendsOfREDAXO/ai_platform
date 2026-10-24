@@ -72,6 +72,11 @@ jobs:
                     redaxo_cms/redaxo/bin/console package:install 'api'
                     redaxo_cms/redaxo/bin/console package:install 'ai_platform'
 
+            # PHPUnit for analysing tests/unit, see .tools/phpstan.neon
+            -   name: Install tools
+                working-directory: redaxo_cms/redaxo/src/addons/ai_platform/.tools
+                run: composer install --prefer-dist --no-progress
+
             -   name: Write rexstan config
                 working-directory: redaxo_cms
                 run: php -f redaxo/src/addons/ai_platform/.tools/rexstan.php

@@ -20,6 +20,8 @@ require './redaxo/src/core/packages.php';
 $extensions = [
     '../../../../redaxo/src/addons/rexstan/vendor/phpstan/phpstan-deprecation-rules/rules.neon',
     '../../../../redaxo/src/addons/rexstan/config/phpstan-phpunit.neon',
+    // PHPUnit from .tools/vendor, see that file
+    '../../../../redaxo/src/addons/' . getenv('ADDON_KEY') . '/.tools/phpstan.neon',
 ];
 
 $addon = ['../../../../redaxo/src/addons/' . getenv('ADDON_KEY') . '/'];
