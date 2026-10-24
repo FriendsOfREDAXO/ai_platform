@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation=".tools/vendor/phpunit/phpunit/phpunit.xsd"
+    bootstrap=".tools/bootstrap.php"
+    beStrictAboutOutputDuringTests="true"
+    failOnWarning="true"
+    failOnRisky="true"
+    colors="true"
+    stderr="true"
+    defaultTestSuite="ai_platform">
+    <php>
+        <ini name="error_reporting" value="E_ALL"/>
+        <ini name="display_errors" value="1"/>
+    </php>
+    <testsuites>
+        <testsuite name="ai_platform">
+            <directory suffix="_test.php">tests/unit</directory>
+        </testsuite>
+    </testsuites>
+</phpunit>
