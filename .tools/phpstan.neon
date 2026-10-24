@@ -1,6 +1,10 @@
 # Included by .tools/rexstan.php. PHPUnit lives in .tools/vendor (the addon's own
 # vendor/ is shipped and must not carry dev tools), and rexstan only scans the
 # vendor/ directory of each package -- so tests/unit would see no TestCase.
+#
+# Anchored at %rootDir% (phpstan inside rexstan's vendor/, four levels below
+# src/addons) rather than relative to this file: rexstan 1.x includes this
+# through two levels and resolved the relative form somewhere else.
 parameters:
     scanDirectories:
-        - vendor/phpunit/phpunit/src
+        - %rootDir%/../../../../ai_platform/.tools/vendor/phpunit/phpunit/src
