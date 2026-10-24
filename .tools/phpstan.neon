@@ -1,10 +1,10 @@
-# Included by .tools/rexstan.php. PHPUnit lives in .tools/vendor (the addon's own
-# vendor/ is shipped and must not carry dev tools), and rexstan only scans the
-# vendor/ directory of each package -- so tests/unit would see no TestCase.
+# Included by .tools/rexstan.php so tests/unit can be analysed.
 #
-# Anchored at %rootDir% (phpstan inside rexstan's vendor/, four levels below
-# src/addons) rather than relative to this file: rexstan 1.x includes this
-# through two levels and resolved the relative form somewhere else.
+# PHPUnit lives in .tools/vendor: the addon's own vendor/ is shipped and must not
+# carry dev tools. scanDirectories cannot reach it, because rexstan excludes
+# '*/vendor/*' and that exclusion applies to scanning too. ycom gets away with it
+# only because REDAXO's boot registers ycom's vendor/autoload.php, which carries
+# PHPUnit there. Registering this autoloader does the same for .tools/vendor.
 parameters:
-    scanDirectories:
-        - %rootDir%/../../../../ai_platform/.tools/vendor/phpunit/phpunit/src
+    bootstrapFiles:
+        - vendor/autoload.php
