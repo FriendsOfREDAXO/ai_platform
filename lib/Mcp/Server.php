@@ -79,7 +79,7 @@ final class Server
             // stay anonymous and protected tools never surface. With it on, an
             // unauthenticated request is challenged so the client logs in.
             if (!$context->isAuthenticated() && rex_config::get('ai_platform', 'mcp_require_auth', false)) {
-                throw new AuthRequiredException('Authentication required');
+                throw new AuthRequiredException('Authentication required', AuthRequiredException::REASON_SERVER);
             }
 
             $result = match ($method) {
@@ -90,9 +90,9 @@ final class Server
                 default => null,
             };
         } catch (InvalidTokenException $e) {
-            $this->sendAuthChallenge($id, $e->getMessage(), 'invalid_token');
+            $this->sendAuthChallenge($id, $e->getMessage(), 'invalid_token', 'invalid_token');
         } catch (AuthRequiredException $e) {
-            $this->sendAuthChallenge($id, $e->getMessage());
+            $this->sendAuthChallenge($id, $e->getMessage(), null, $e->reason);
         }
 
         if (null === $result) {
@@ -340,11 +340,16 @@ final class Server
      * Sends a 401 response with WWW-Authenticate so MCP clients can start
      * (or repeat) the OAuth flow against /.well-known/oauth-protected-resource.
      *
+     * The body carries the same information for whoever reads it instead of the
+     * header: `error.data` names the reason, says what to do about it and repeats
+     * the metadata URL. A bare "Authentication required" read like a broken
+     * client, when the cause was a setting on the server (issue #10).
+     *
      * @param string|null $oauthError Optional RFC 6750 §3.1 error code, e.g.
      *                                "invalid_token" when the supplied bearer
      *                                token did not validate.
      */
-    private function sendAuthChallenge(mixed $id, string $message, ?string $oauthError = null): never
+    private function sendAuthChallenge(mixed $id, string $message, ?string $oauthError, string $reason): never
     {
         header('Content-Type: application/json');
         header('WWW-Authenticate: ' . Authenticator::buildChallengeHeader($oauthError, null !== $oauthError ? $message : null));
@@ -356,9 +361,24 @@ final class Server
             'error' => [
                 'code' => -32001,
                 'message' => $message,
+                'data' => [
+                    'reason' => $reason,
+                    'hint' => self::authHint($reason),
+                    'resource_metadata' => Authenticator::resourceMetadataUrl(),
+                ],
             ],
         ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
         exit;
+    }
+
+    private static function authHint(string $reason): string
+    {
+        return match ($reason) {
+            AuthRequiredException::REASON_SERVER => 'This server requires sign-in for every request (backend setting "Authentifizierung erforderlich" / "Require authentication" under AI Platform > MCP Server). '
+                . 'This is not a client error: an MCP client signs in through OAuth, starting from resource_metadata. Clients that cannot do OAuth only work with that setting off, and then see public tools only.',
+            'invalid_token' => 'The bearer token is unknown, expired or revoked. Sign in again; the client starts a new OAuth flow from resource_metadata.',
+            default => 'This tool needs a signed-in user. Sign in through OAuth, starting from resource_metadata; the user also needs the scopes the tool requires.',
+        };
     }
 
     private function sendHttpError(int $statusCode, string $message): never

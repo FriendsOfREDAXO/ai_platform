@@ -463,3 +463,9 @@ ai_platform_change_upload_meta = {0} · {1}
 ai_platform_change_upload_no_preview = No preview available for this file type.
 ai_platform_change_upload_forbidden = No access to this file.
 ai_platform_cronjob_thin_uploads = , {0} staged files removed
+
+ai_platform_mcp_check_disabled = The MCP server is switched off. /mcp, the discovery documents and every /oauth/ path answer with 503.
+ai_platform_mcp_check_auth_without_login = Every request requires sign-in, but YCom has no valid login page. No client gets in, not even to the public tools.
+ai_platform_mcp_check_protected_without_auth = There are protected tools ({0}), but "Require authentication" is set to No. Clients like Claude Desktop only start signing in after a 401, so they connect anonymously and never show these tools.
+ai_platform_mcp_check_auth_without_protected = "Require authentication" is set to Yes, but no protected tool is active. Signing in gains nothing, yet it locks anonymous clients out of the public tools too.
+ai_platform_mcp_check_unreachable_tools = Nobody can use these tools because no YCom group holds the scopes they require: {0}. Fix: assign the scopes to a group under Scope mapping, or release the tool below as "Always available".

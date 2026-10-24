@@ -5,6 +5,8 @@ declare(strict_types=1);
 // Helper for mcp-disabled-test.sh. Commands:
 //   get                  print mcp_enabled (0/1)
 //   set <0|1>            write mcp_enabled
+//   get-auth             print mcp_require_auth (0/1)
+//   set-auth <0|1>       write mcp_require_auth
 //   clients <name>       print the number of OAuth clients with that client_name
 //   cleanup <name>       delete OAuth clients with that client_name
 //
@@ -54,6 +56,13 @@ switch ($cmd) {
         rex_config::set('ai_platform', 'mcp_enabled', (int) $arg);
         rex_config::save();
         break;
+    case 'get-auth':
+        echo (int) rex_config::get('ai_platform', 'mcp_require_auth', 0), "\n";
+        break;
+    case 'set-auth':
+        rex_config::set('ai_platform', 'mcp_require_auth', (int) $arg);
+        rex_config::save();
+        break;
     case 'clients':
         $sql = rex_sql::factory();
         $sql->setQuery('SELECT COUNT(*) AS c FROM ' . rex::getTable('ai_oauth_client') . ' WHERE client_name = ?', [$arg]);
@@ -63,6 +72,6 @@ switch ($cmd) {
         rex_sql::factory()->setQuery('DELETE FROM ' . rex::getTable('ai_oauth_client') . ' WHERE client_name = ?', [$arg]);
         break;
     default:
-        fwrite(STDERR, "usage: get | set <0|1> | clients <name> | cleanup <name>\n");
+        fwrite(STDERR, "usage: get | set <0|1> | get-auth | set-auth <0|1> | clients <name> | cleanup <name>\n");
         exit(1);
 }

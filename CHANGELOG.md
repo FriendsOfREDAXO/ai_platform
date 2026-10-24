@@ -7,6 +7,11 @@ Versionierung nach [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unveröffentlicht]
 
+### Hinzugefügt
+
+- **Hinweise auf widersprüchliche MCP-Einstellungen** (#10). *MCP Server > Einstellungen* warnt jetzt, wenn Einstellungen einzeln stimmen, zusammen aber nicht funktionieren: geschützte Tools, während „Authentifizierung erforderlich" auf Nein steht (Clients wie Claude Desktop sehen sie dann nie); Anmeldung erforderlich, aber YCom hat keine Anmeldeseite; Anmeldung erforderlich ohne ein einziges geschütztes Tool; ein Tool, dessen Scopes keine YCom-Gruppe hat.
+- **401-Antworten von `/mcp` nennen den Grund** (#10). Neben „Authentication required" steht in `error.data` jetzt, ob die Server-Einstellung, ein geschütztes Tool oder ein ungültiger Token die Ursache ist, was zu tun ist und wo der OAuth-Ablauf beginnt. Die Meldung selbst und der `WWW-Authenticate`-Header bleiben unverändert.
+
 ### Geändert
 
 - **Code-Style, Unit-Tests und statische Analyse laufen jetzt in der CI**, eingerichtet wie bei YCom und YForm: PHP-CS-Fixer mit der REDAXO-Konfiguration, PHPUnit und rexstan (PHPStan Level 5). Der Code ist einmal komplett nach dem REDAXO-Stil formatiert. Die Entwicklungswerkzeuge liegen in `.tools/` und gehen nicht ins Installer-Paket.

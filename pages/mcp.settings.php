@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use FriendsOfRedaxo\AiPlatform\Mcp\Server;
+use FriendsOfRedaxo\AiPlatform\Mcp\SetupCheck;
 use FriendsOfRedaxo\AiPlatform\OAuth\ScopeRegistry;
 
 $addon = rex_addon::get('ai_platform');
@@ -84,6 +85,13 @@ $discoveryAuthServer = $base . '/.well-known/oauth-authorization-server';
 
 // Collect registered tools for display
 $tools = Server::collectTools();
+
+// Combinations that each look fine and do not work together -- read after the
+// save handlers above, so a change shows its effect on the same page load.
+foreach (SetupCheck::findings() as $finding) {
+    $message = rex_i18n::msg('ai_platform_mcp_check_' . $finding['key'], ...array_map('rex_escape', $finding['params']));
+    echo SetupCheck::LEVEL_WARNING === $finding['level'] ? rex_view::warning($message) : rex_view::info($message);
+}
 
 $content = '
 <form action="' . rex_url::currentBackendPage() . '" method="post" class="form-horizontal">
