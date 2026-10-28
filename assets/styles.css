@@ -167,6 +167,15 @@ body.rex-theme-dark {
 
 .ai-upload-meta {
     margin-top: 8px;
+    /* File names often have no spaces; in the narrow column they would
+       otherwise run out of it. */
+    overflow-wrap: anywhere;
+}
+
+/* Beside the metadata the heading starts level with the first line of the
+   list. Stacked below it, the usual heading spacing applies again. */
+@media (min-width: 1200px) {
+    .ai-change-aside > h3:first-child { margin-top: 0; }
 }
 
 /* --- Change request form: type tabs in the panel heading -------------------

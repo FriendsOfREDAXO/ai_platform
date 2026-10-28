@@ -448,11 +448,22 @@ if ('view' === $func && $id > 0) {
                 . rex_i18n::msg('ai_platform_change_back') . '</a>';
         }
 
-        $content = $warnings . $meta
-            . '<h3>' . rex_i18n::msg('ai_platform_change_reason_heading') . '</h3>' . $reason
-            . ('' === $uploadBlock
-                ? ''
-                : '<h3>' . rex_i18n::msg('ai_platform_change_upload_preview') . '</h3>' . $uploadBlock)
+        $head = $meta
+            . '<h3>' . rex_i18n::msg('ai_platform_change_reason_heading') . '</h3>' . $reason;
+
+        // The preview sits beside the metadata on wide screens instead of
+        // pushing the diff further down. Below `lg` the columns stack in the
+        // old order. Warnings stay above both, they concern the whole request.
+        if ('' !== $uploadBlock) {
+            $head = '<div class="row">'
+                . '<div class="col-lg-8">' . $head . '</div>'
+                . '<div class="col-lg-4 ai-change-aside">'
+                    . '<h3>' . rex_i18n::msg('ai_platform_change_upload_preview') . '</h3>' . $uploadBlock
+                . '</div>'
+                . '</div>';
+        }
+
+        $content = $warnings . $head
             . '<h3>' . rex_i18n::msg('ai_platform_change_diff_heading') . '</h3>' . $diff
             . $deviationBlock
             . $actions;

@@ -11,6 +11,7 @@ Versionierung nach [Semantic Versioning](https://semver.org/lang/de/).
 
 - **Änderungswünsche öffnen oben auf der Seite.** Wer in *KI Änderungen* weit unten in der Liste einen Vorschlag anklickte, landete mitten in der Detailansicht, weil pjax bei Links die Scrollposition behält. Links und Formulare im Posteingang springen jetzt an den Seitenanfang.
 - **Bei Änderungen an einem Bild steht das Bild in der Detailansicht.** Betrifft ein Vorschlag Metadaten einer Datei im Medienpool (etwa den Alternativtext) oder die Datei selbst, zeigt die Detailansicht unter „Vorschau" das Bild mit Dateiname, Größe und Abmessungen — wie bisher schon bei neuen Uploads. Wer einen Alternativtext prüft, muss das Bild dafür nicht mehr im Medienpool suchen.
+- **Vorschau neben den Angaben.** Auf breiten Bildschirmen steht die Vorschau, auch die eines neuen Uploads, rechts neben Angaben und Begründung statt darunter. Der Diff rückt so nach oben. Unter 1200 px Breite steht sie wie bisher darunter.
 
 ### Behoben
 
