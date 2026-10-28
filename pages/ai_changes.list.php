@@ -22,9 +22,9 @@ use FriendsOfRedaxo\AiPlatform\Change\ChangeStatus;
 use FriendsOfRedaxo\AiPlatform\Change\Diff\DiffRenderer;
 use FriendsOfRedaxo\AiPlatform\Change\HandlerRegistry;
 use FriendsOfRedaxo\AiPlatform\Change\StaleTargetException;
-use FriendsOfRedaxo\AiPlatform\Change\TargetGoneException;
 use FriendsOfRedaxo\AiPlatform\Change\Target\MediaTarget;
 use FriendsOfRedaxo\AiPlatform\Change\Target\MetaTarget;
+use FriendsOfRedaxo\AiPlatform\Change\TargetGoneException;
 use FriendsOfRedaxo\AiPlatform\Change\Upload\PendingUploadStore;
 
 $service = ChangeService::getInstance();
