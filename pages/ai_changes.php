@@ -37,4 +37,11 @@ if (!ChangeService::getInstance()->isEnabled()) {
 
 echo rex_view::title(rex_i18n::msg('ai_platform_changes_title'));
 
+// pjax keeps the scroll position on a link by default (see `pjaxHandler` in
+// the core's standard.js). Opening a request from the bottom of a long list
+// would then land at the bottom of the detail view, with its header and diff
+// out of sight. `data-pjax-scroll-to` makes every link and form in the inbox
+// start at the top of the page.
+echo '<div data-pjax-scroll-to="0">';
 require __DIR__ . '/ai_changes.list.php';
+echo '</div>';

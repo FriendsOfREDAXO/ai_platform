@@ -22,6 +22,8 @@ use FriendsOfRedaxo\AiPlatform\Change\ChangeStatus;
 use FriendsOfRedaxo\AiPlatform\Change\Diff\DiffRenderer;
 use FriendsOfRedaxo\AiPlatform\Change\HandlerRegistry;
 use FriendsOfRedaxo\AiPlatform\Change\StaleTargetException;
+use FriendsOfRedaxo\AiPlatform\Change\Target\MediaTarget;
+use FriendsOfRedaxo\AiPlatform\Change\Target\MetaTarget;
 use FriendsOfRedaxo\AiPlatform\Change\TargetGoneException;
 use FriendsOfRedaxo\AiPlatform\Change\Upload\PendingUploadStore;
 
@@ -332,6 +334,42 @@ if ('view' === $func && $id > 0) {
             }
         }
 
+        // --- the image a change is about, if it is already in the pool ----
+        //
+        // A new alt text or title for a picture cannot be judged without the
+        // picture: the diff shows `med_alt` changing, the reviewer would have
+        // to open the media pool to see what it describes. Covers metainfo on
+        // a media file and updates and deletions of the file itself. A create
+        // has no file in the pool yet; its staged file is shown above.
+        if ('' === $uploadBlock) {
+            $previewFile = match (true) {
+                $request->target instanceof MediaTarget => $request->target->getFilename(),
+                $request->target instanceof MetaTarget && MetaTarget::CARRIER_MEDIA === $request->target->getCarrier() => $request->target->getFilename(),
+                default => null,
+            };
+            $previewMedia = null === $previewFile ? null : rex_media::get($previewFile);
+
+            if (null !== $previewMedia && $previewMedia->isImage()) {
+                $fileUrl = rex_url::media($previewMedia->getFileName());
+                $previewUrl = rex_addon::get('media_manager')->isAvailable()
+                    ? rex_media_manager::getUrl('rex_media_medium', $previewMedia)
+                    : $fileUrl;
+                $fileMeta = rex_i18n::msg(
+                    'ai_platform_change_upload_meta',
+                    rex_formatter::bytes($previewMedia->getSize()),
+                    $previewMedia->getWidth() > 0 ? $previewMedia->getWidth() . '×' . $previewMedia->getHeight() . ' px' : $previewMedia->getType(),
+                );
+
+                $uploadBlock = '<div class="ai-upload-block">'
+                    . '<a href="' . $fileUrl . '" target="_blank" rel="noopener">'
+                    . '<img src="' . $previewUrl . '" alt="" class="ai-upload-preview">'
+                    . '</a>'
+                    . '<p class="ai-upload-meta"><strong>' . rex_escape($previewMedia->getFileName()) . '</strong> '
+                    . '<small class="text-muted">' . rex_escape($fileMeta) . '</small></p>'
+                    . '</div>';
+            }
+        }
+
         // --- diff -------------------------------------------------------
         $diff = DiffRenderer::render(
             $handler->diffFields($request, $inspection->currentValues),
@@ -410,11 +448,22 @@ if ('view' === $func && $id > 0) {
                 . rex_i18n::msg('ai_platform_change_back') . '</a>';
         }
 
-        $content = $warnings . $meta
-            . '<h3>' . rex_i18n::msg('ai_platform_change_reason_heading') . '</h3>' . $reason
-            . ('' === $uploadBlock
-                ? ''
-                : '<h3>' . rex_i18n::msg('ai_platform_change_upload_preview') . '</h3>' . $uploadBlock)
+        $head = $meta
+            . '<h3>' . rex_i18n::msg('ai_platform_change_reason_heading') . '</h3>' . $reason;
+
+        // The preview sits beside the metadata on wide screens instead of
+        // pushing the diff further down. Below `lg` the columns stack in the
+        // old order. Warnings stay above both, they concern the whole request.
+        if ('' !== $uploadBlock) {
+            $head = '<div class="row">'
+                . '<div class="col-lg-8">' . $head . '</div>'
+                . '<div class="col-lg-4 ai-change-aside">'
+                    . '<h3>' . rex_i18n::msg('ai_platform_change_upload_preview') . '</h3>' . $uploadBlock
+                . '</div>'
+                . '</div>';
+        }
+
+        $content = $warnings . $head
             . '<h3>' . rex_i18n::msg('ai_platform_change_diff_heading') . '</h3>' . $diff
             . $deviationBlock
             . $actions;

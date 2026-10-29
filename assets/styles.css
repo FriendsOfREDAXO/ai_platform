@@ -1,6 +1,51 @@
 /* --- Change request diff --------------------------------------------------
    Colours are kept close to REDAXO's own label palette so the diff reads as
-   part of the backend rather than as an embedded tool. */
+   part of the backend rather than as an embedded tool.
+
+   They are custom properties so the dark theme only has to swap values. It has
+   to do that twice, the way be_style does: `body.rex-theme-dark` when the user
+   picked dark, and the media query guarded by `:not(.rex-theme-light)` when the
+   backend follows the system setting — then body carries no theme class at
+   all. Requiring both at once, as this file used to, matched neither case, and
+   be_style's light text ended up on the light backgrounds below. */
+
+body {
+    --ai-diff-added-bg: #eaf5ea;
+    --ai-diff-removed-bg: #fbeaea;
+    --ai-diff-current-bg: #fdf6e3;
+    --ai-diff-conflict-bg: #fdf0d5;
+    --ai-diff-block-bg: #fafafa;
+    --ai-diff-same-color: #666;
+    --ai-change-filter-bg: #f9f9f9;
+    --ai-change-filter-border: #ddd;
+    --ai-change-form-border: #e5e5e5;
+}
+
+body.rex-theme-dark {
+    --ai-diff-added-bg: #1f3320;
+    --ai-diff-removed-bg: #3a1f1f;
+    --ai-diff-current-bg: #33301f;
+    --ai-diff-conflict-bg: #3a3220;
+    --ai-diff-block-bg: #23252a;
+    --ai-diff-same-color: #999;
+    --ai-change-filter-bg: #2a2c31;
+    --ai-change-filter-border: #3a3d44;
+    --ai-change-form-border: #3a3d44;
+}
+
+@media (prefers-color-scheme: dark) {
+    body:not(.rex-theme-light) {
+        --ai-diff-added-bg: #1f3320;
+        --ai-diff-removed-bg: #3a1f1f;
+        --ai-diff-current-bg: #33301f;
+        --ai-diff-conflict-bg: #3a3220;
+        --ai-diff-block-bg: #23252a;
+        --ai-diff-same-color: #999;
+        --ai-change-filter-bg: #2a2c31;
+        --ai-change-filter-border: #3a3d44;
+        --ai-change-form-border: #3a3d44;
+    }
+}
 
 .ai-diff-table th.ai-diff-field { width: 22%; }
 .ai-diff-table td { vertical-align: top; }
@@ -8,18 +53,18 @@
 .ai-diff-value { word-break: break-word; }
 
 .ai-diff-table tr.ai-diff-added td.ai-diff-after,
-.ai-diff-table tr.ai-diff-changed td.ai-diff-after { background-color: #eaf5ea; }
+.ai-diff-table tr.ai-diff-changed td.ai-diff-after { background-color: var(--ai-diff-added-bg); }
 
-.ai-diff-table tr.ai-diff-removed td.ai-diff-before { background-color: #fbeaea; }
+.ai-diff-table tr.ai-diff-removed td.ai-diff-before { background-color: var(--ai-diff-removed-bg); }
 
 .ai-diff-table tr.ai-diff-unchanged { opacity: .65; }
 
-.ai-diff-current { background-color: #fdf6e3; }
+.ai-diff-current { background-color: var(--ai-diff-current-bg); }
 
 /* A conflicting cell is the one thing a reviewer must not miss: it means the
    target moved after the proposal was made. */
 .ai-diff-conflict {
-    background-color: #fdf0d5;
+    background-color: var(--ai-diff-conflict-bg);
     border-left: 3px solid #d58512;
     padding-left: .5em;
 }
@@ -29,19 +74,19 @@
     overflow: auto;
     font-size: 12px;
     line-height: 1.45;
-    background: #fafafa;
+    background: var(--ai-diff-block-bg);
 }
 
-.ai-diff-block .ai-diff-line-add { display: block; background-color: #eaf5ea; }
-.ai-diff-block .ai-diff-line-del { display: block; background-color: #fbeaea; }
-.ai-diff-block .ai-diff-line-same { display: block; color: #666; }
+.ai-diff-block .ai-diff-line-add { display: block; background-color: var(--ai-diff-added-bg); }
+.ai-diff-block .ai-diff-line-del { display: block; background-color: var(--ai-diff-removed-bg); }
+.ai-diff-block .ai-diff-line-same { display: block; color: var(--ai-diff-same-color); }
 
 /* Filter bar above the inbox table.
    Padding comes from the .panel-body wrapper in the page, so only the visual
    separation from the table and the spacing between controls is set here. */
 .ai-change-filter-wrap {
-    background-color: #f9f9f9;
-    border-bottom: 1px solid #ddd;
+    background-color: var(--ai-change-filter-bg);
+    border-bottom: 1px solid var(--ai-change-filter-border);
 }
 
 .ai-change-filter { margin: 0; }
@@ -72,19 +117,6 @@
 }
 
 .ai-change-meta dt { white-space: normal; }
-
-/* Dark theme (be_style 5.x supports a dark variant). */
-@media (prefers-color-scheme: dark) {
-    .rex-theme-dark .ai-diff-table tr.ai-diff-added td.ai-diff-after,
-    .rex-theme-dark .ai-diff-table tr.ai-diff-changed td.ai-diff-after { background-color: #1f3320; }
-    .rex-theme-dark .ai-diff-table tr.ai-diff-removed td.ai-diff-before { background-color: #3a1f1f; }
-    .rex-theme-dark .ai-diff-current { background-color: #33301f; }
-    .rex-theme-dark .ai-diff-conflict { background-color: #3a3220; }
-    .rex-theme-dark .ai-diff-block { background: #23252a; }
-    .rex-theme-dark .ai-diff-block .ai-diff-line-add { background-color: #1f3320; }
-    .rex-theme-dark .ai-diff-block .ai-diff-line-del { background-color: #3a1f1f; }
-    .rex-theme-dark .ai-diff-block .ai-diff-line-same { color: #999; }
-}
 
 /* Greyed-out allow list while "allow all" is active. Kept visible rather than
    hidden so the stored selection is still readable — switching the checkbox off
@@ -135,14 +167,15 @@
 
 .ai-upload-meta {
     margin-top: 8px;
+    /* File names often have no spaces; in the narrow column they would
+       otherwise run out of it. */
+    overflow-wrap: anywhere;
 }
 
-/* Dark theme for the filter bar. */
-@media (prefers-color-scheme: dark) {
-    .rex-theme-dark .ai-change-filter-wrap {
-        background-color: #2a2c31;
-        border-bottom-color: #3a3d44;
-    }
+/* Beside the metadata the heading starts level with the first line of the
+   list. Stacked below it, the usual heading spacing applies again. */
+@media (min-width: 1200px) {
+    .ai-change-aside > h3:first-child { margin-top: 0; }
 }
 
 /* --- Change request form: type tabs in the panel heading -------------------
@@ -168,13 +201,7 @@
 #ai-change-form > fieldset:last-of-type {
     margin-top: 10px;
     padding-top: 15px;
-    border-top: 1px solid #e5e5e5;
-}
-
-@media (prefers-color-scheme: dark) {
-    .rex-theme-dark #ai-change-form > fieldset:last-of-type {
-        border-top-color: #3a3d44;
-    }
+    border-top: 1px solid var(--ai-change-form-border);
 }
 
 /*
