@@ -1,323 +1,199 @@
 <?php
 
-declare(strict_types=1);
+/**
+ * Profile anlegen, bearbeiten, testen und löschen.
+ *
+ * @var Addon $this
+ */
 
+use FriendsOfRedaxo\AiPlatform\AiPlatformAddon;
+use FriendsOfRedaxo\AiPlatform\Api\TestConnectionFunction;
+use FriendsOfRedaxo\AiPlatform\Backend\ProfileData;
 use FriendsOfRedaxo\AiPlatform\ProviderRegistry;
 use FriendsOfRedaxo\AiPlatform\Service;
+use Redaxo\Core\Addon\Addon;
+use Redaxo\Core\Backend\Accesskey;
+use Redaxo\Core\Database\Sql;
+use Redaxo\Core\Filesystem\Url;
+use Redaxo\Core\Form\Form;
+use Redaxo\Core\Http\Request;
+use Redaxo\Core\Http\Response;
+use Redaxo\Core\Security\CsrfToken;
+use Redaxo\Core\Translation\I18n;
+use Redaxo\Core\View\Component\Button;
+use Redaxo\Core\View\Component\Section;
+use Redaxo\Core\View\Component\SectionVariant;
+use Redaxo\Core\View\Component\TableColumnType;
+use Redaxo\Core\View\DataList;
+use Redaxo\Core\View\Html;
+use Redaxo\Core\View\HtmlAttributes;
+use Redaxo\Core\View\Message;
 
-$func = rex_request('func', 'string');
-$id = rex_request('id', 'int');
+use function Redaxo\Core\View\escape;
 
-// Handle form view
+$addon = $this;
+$func = Request::request('func', 'string');
+$id = Request::request('id', 'int', 0);
+$csrf = CsrfToken::factory('ai_platform_profile');
+$table = AiPlatformAddon::TABLE_PROFILE;
+
+if ('delete' === $func) {
+    if (!$csrf->isValid()) {
+        echo Message::error(I18n::msg('csrf_token_invalid'));
+    } else {
+        Sql::factory()->setQuery('DELETE FROM ' . $table . ' WHERE id = ? LIMIT 1', [$id]);
+        echo Message::success($addon->i18n('profile_deleted'));
+    }
+    $func = '';
+}
+
 if ('add' === $func || 'edit' === $func) {
-    $title = 'add' === $func ? rex_i18n::msg('ai_platform_profile_add') : rex_i18n::msg('ai_platform_profile_edit');
+    $row = 'edit' === $func ? (Sql::factory()->getArray('SELECT * FROM ' . $table . ' WHERE id = ?', [$id])[0] ?? null) : null;
+    $data = null !== $row ? ProfileData::fromRow($row) : new ProfileData();
 
-    $form = rex_form::factory(rex::getTable('ai_profile'), '', 'id = ' . $id);
-    $form->addParam('page', 'ai_platform/profiles');
-    $form->addParam('func', $func);
-    $form->addParam('id', $id);
-    $form->setApplyUrl(rex_url::currentBackendPage());
-    if ('edit' === $func) {
-        $form->setEditMode(true);
-    }
-
-    // Profile Name
-    $field = $form->addTextField('name');
-    $field->setLabel(rex_i18n::msg('ai_platform_profile_name'));
-    $field->setAttribute('class', 'form-control');
-    $field->setAttribute('autocomplete', 'ai-profile-name');
-    $field->setNotice(rex_i18n::msg('ai_platform_profile_name_notice'));
-
-    // Type
-    $field = $form->addSelectField('type');
-    $field->setLabel(rex_i18n::msg('ai_platform_type'));
-    $select = $field->getSelect();
-    foreach (Service::getTypes() as $key => $label) {
-        $select->addOption($label, $key);
-    }
-    $field->setAttribute('class', 'form-control selectpicker');
-    $field->setAttribute('id', 'ai-type-select');
-
-    // Provider
-    $field = $form->addSelectField('provider');
-    $field->setLabel(rex_i18n::msg('ai_platform_provider'));
-    $select = $field->getSelect();
-    $select->addOption(rex_i18n::msg('ai_platform_please_select'), '');
-    foreach (Service::getProviders() as $key => $label) {
-        $select->addOption($label, $key);
-    }
-    $field->setAttribute('class', 'form-control selectpicker');
-    $field->setAttribute('id', 'ai-provider-select');
-
-    // API Key
-    $field = $form->addTextField('api_key');
-    $field->setLabel(rex_i18n::msg('ai_platform_api_key'));
-    $field->setAttribute('class', 'form-control');
-    $field->setAttribute('autocomplete', 'new-password');
-    $field->setNotice(rex_i18n::msg('ai_platform_api_key_notice'));
-
-    // Base URL (for Ollama)
-    $field = $form->addTextField('base_url');
-    $field->setLabel(rex_i18n::msg('ai_platform_base_url'));
-    $field->setAttribute('class', 'form-control');
-    $field->setNotice(rex_i18n::msg('ai_platform_base_url_notice'));
-
-    // Model. The select in front of the input is filled by assets/profiles.js from the
-    // provider's catalog; picking an entry writes it into the input, which stays the
-    // single field bound to the column. The input only shows itself for a name the
-    // catalog does not have -- necessary, not a nicety: the catalogs have gaps
-    // (llama3.2-vision is missing entirely) and the generic provider has no catalog at
-    // all, so a closed select would lock out model names that work. The select renders
-    // as the field's prefix, which the core places inside the same <dd>
-    // (core/fragments/core/form/form.php).
-    $field = $form->addTextField('model');
-    $field->setLabel(rex_i18n::msg('ai_platform_model'));
-    $field->setAttribute('class', 'form-control');
-    $field->setAttribute('autocomplete', 'off');
-    $field->setAttribute('placeholder', rex_i18n::msg('ai_platform_model_placeholder'));
-    $field->setPrefix(
-        '<select id="ai-model-select" class="form-control selectpicker ai-model-select"'
-        . ' data-live-search="true" data-custom-label="'
-        . rex_escape(rex_i18n::msg('ai_platform_model_custom_option'), 'html_attr')
-        . '"></select>',
+    $form = new Form(
+        $data,
+        name: 'ai_profile',
+        title: null !== $row ? $addon->i18n('profile_edit') : $addon->i18n('profile_add'),
+        cancelUrl: Url::currentBackendPage(),
     );
-    $field->setNotice(rex_i18n::msg('ai_platform_model_notice'));
 
-    // --- Type-specific fields ---
+    if ($form->handleRequest()) {
+        if ([] !== Sql::factory()->getArray('SELECT id FROM ' . $table . ' WHERE name = ? AND id <> ?', [trim($data->name), null !== $row ? $id : 0])) {
+            $form->addError($addon->i18n('profile_name_exists'), 'name');
+        }
+        if (null !== $data->apiKeyEnv && '' !== trim($data->apiKeyEnv) && 1 !== preg_match('/^[A-Z][A-Z0-9_]*$/', trim($data->apiKeyEnv))) {
+            $form->addError($addon->i18n('api_key_env_invalid'), 'apiKeyEnv');
+        }
+        if (!isset(Service::getProviders()[$data->provider])) {
+            $form->addError($addon->i18n('provider_unknown'), 'provider');
+        }
 
-    $isAdd = 'add' === $func;
-
-    // Temperature (text + image_understanding)
-    $field = $form->addTextField('temperature');
-    $field->setLabel(rex_i18n::msg('ai_platform_temperature'));
-    $field->setAttribute('class', 'form-control');
-    $field->setAttribute('type', 'number');
-    $field->setAttribute('step', '0.1');
-    $field->setAttribute('min', '0');
-    $field->setAttribute('max', '2');
-    $field->setNotice(rex_i18n::msg('ai_platform_temperature_notice'));
-    if ($isAdd) {
-        $field->setValue('1.0');
+        if ($form->isValid()) {
+            $sql = Sql::factory();
+            $sql->setTable($table);
+            $sql->setValues($data->toRow());
+            if (null !== $row) {
+                $sql->setWhere(['id' => $id]);
+                $sql->addGlobalUpdateFields();
+                $sql->update();
+            } else {
+                $sql->addGlobalCreateFields();
+                $sql->addGlobalUpdateFields();
+                $sql->insert();
+                $id = (int) $sql->getLastId();
+            }
+            Response::sendRedirect(Url::currentBackendPage(['func' => 'edit', 'id' => $id, 'info' => null !== $row ? 'updated' : 'added']));
+        }
     }
 
-    // Max Tokens (text + image_understanding)
-    $field = $form->addTextField('max_tokens');
-    $field->setLabel(rex_i18n::msg('ai_platform_max_tokens'));
-    $field->setAttribute('class', 'form-control');
-    $field->setAttribute('type', 'number');
-    $field->setAttribute('min', '1');
-    $field->setAttribute('max', '200000');
-    $field->setNotice(rex_i18n::msg('ai_platform_max_tokens_notice'));
-    if ($isAdd) {
-        $field->setValue('4096');
+    $info = Request::get('info', 'string', '');
+    if ('added' === $info || 'updated' === $info) {
+        echo Message::success($addon->i18n('profile_' . $info));
     }
 
-    // System Prompt (text only)
-    $field = $form->addTextAreaField('system_prompt');
-    $field->setLabel(rex_i18n::msg('ai_platform_system_prompt'));
-    $field->setAttribute('class', 'form-control');
-    $field->setAttribute('rows', '4');
-    $field->setNotice(rex_i18n::msg('ai_platform_system_prompt_notice'));
-
-    // Image Size (image_generation only)
-    $field = $form->addSelectField('image_size');
-    $field->setLabel(rex_i18n::msg('ai_platform_image_size'));
-    $select = $field->getSelect();
-    $select->addOption(rex_i18n::msg('ai_platform_default'), '');
-    // Die Groessen der gpt-image-Modelle. 1792x1024, 1024x1792, 512x512 und 256x256
-    // standen hier fuer dall-e-3 und dall-e-2 -- die sind mit Symfony AI 0.13 aus dem
-    // OpenAI-Katalog verschwunden, und an ein gpt-image-Modell gesendet ergibt eine
-    // dieser Groessen einen 400.
-    $select->addOption('1024x1024', '1024x1024');
-    $select->addOption('1536x1024 (Landscape)', '1536x1024');
-    $select->addOption('1024x1536 (Portrait)', '1024x1536');
-    $field->setAttribute('class', 'form-control selectpicker');
-    if ($isAdd) {
-        $select->setSelected('1024x1024');
-    }
-
-    // Image Quality (image_generation only)
-    $field = $form->addSelectField('image_quality');
-    $field->setLabel(rex_i18n::msg('ai_platform_image_quality'));
-    $select = $field->getSelect();
-    $select->addOption(rex_i18n::msg('ai_platform_default'), '');
-    // Auch das folgt dem Modellwechsel: DALL-E kannte standard und hd, die
-    // gpt-image-Modelle nehmen auto, low, medium und high. Keine Vorauswahl beim
-    // Anlegen -- ohne Angabe entscheidet der Provider, und das ist hier die
-    // vernuenftigste Vorgabe.
-    $select->addOption('Auto', 'auto');
-    $select->addOption('High', 'high');
-    $select->addOption('Medium', 'medium');
-    $select->addOption('Low', 'low');
-    $field->setAttribute('class', 'form-control selectpicker');
-
-    // Image Style (image_generation only)
-    $field = $form->addSelectField('image_style');
-    $field->setLabel(rex_i18n::msg('ai_platform_image_style'));
-    $select = $field->getSelect();
-    $select->addOption(rex_i18n::msg('ai_platform_default'), '');
-    // Kein mitgelieferter Provider fuehrt 'image_style' mehr in seinen Feldern, das
-    // Feld ist damit im Backend unsichtbar. Es bleibt trotzdem stehen: 'image_style'
-    // ist in ProviderRegistry::OPTION_FIELDS weiter vorgesehen, und ein per Extension
-    // Point registrierter Provider mit einem DALL-E-artigen Modell braucht ein Feld,
-    // das er einblenden kann. Keine Vorauswahl mehr, damit ein neues Profil den Wert
-    // nicht speichert, ohne ihn zu zeigen.
-    $select->addOption('Vivid', 'vivid');
-    $select->addOption('Natural', 'natural');
-    $field->setAttribute('class', 'form-control selectpicker');
-
-    // Detail Level (image_understanding only)
-    $field = $form->addSelectField('detail_level');
-    $field->setLabel(rex_i18n::msg('ai_platform_detail_level'));
-    $select = $field->getSelect();
-    $select->addOption(rex_i18n::msg('ai_platform_default'), '');
-    $select->addOption('Auto', 'auto');
-    $select->addOption('Low', 'low');
-    $select->addOption('High', 'high');
-    $field->setAttribute('class', 'form-control selectpicker');
-    if ($isAdd) {
-        $select->setSelected('auto');
-    }
-
-    // Status
-    $field = $form->addSelectField('status');
-    $field->setLabel(rex_i18n::msg('ai_platform_status'));
-    $select = $field->getSelect();
-    $select->addOption(rex_i18n::msg('ai_platform_status_active'), '1');
-    $select->addOption(rex_i18n::msg('ai_platform_status_inactive'), '0');
-    $field->setAttribute('class', 'form-control selectpicker');
-
-    // Which fields a provider needs, its default model per type and the catalog
-    // suggestions -- all of it from ProviderRegistry, so assets/profiles.js carries no
-    // provider knowledge of its own. Written here rather than via
-    // rex_view::setJsProperty() because that renders in the head, which is already out
-    // the door by the time a page script runs.
-    $content = $form->get()
-        . '<script type="application/json" id="ai-provider-config">'
-        . json_encode(ProviderRegistry::formConfig(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG)
+    // Was zu Typ und Anbieter gehört, steht in ProviderRegistry; profiles.js liest es von hier und kennt selbst keinen
+    // Anbieter. Neben dem Formular statt im Kopf, weil der Kopf schon gesendet ist, wenn das Skript läuft.
+    $config = '<script type="application/json" id="ai-provider-config">'
+        . json_encode(ProviderRegistry::formConfig(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP)
         . '</script>';
 
-    $fragment = new rex_fragment();
-    $fragment->setVar('class', 'edit', false);
-    $fragment->setVar('title', $title, false);
-    $fragment->setVar('body', $content, false);
-    echo $fragment->parse('core/page/section.php');
-
-    // Show test button for existing profiles
-    if ('edit' === $func && $id > 0) {
-        $testUrl = rex_url::backendController([
-            'rex-api-call' => 'ai_test',
-            'profile_id' => $id,
-        ], false);
-
-        $testContent = '
-        <div class="row">
-            <div class="col-sm-offset-3 col-sm-9">
-                <button type="button" class="btn btn-default" id="ai-test-btn">
-                    <i class="rex-icon fa-bolt"></i> ' . rex_i18n::msg('ai_platform_test_connection') . '
-                </button>
-                <span id="ai-test-spinner" style="display:none; margin-left:10px;">
-                    <i class="rex-icon fa-spinner fa-spin"></i> ' . rex_i18n::msg('ai_platform_test_running') . '
-                </span>
-            </div>
-        </div>
-        <div id="ai-test-result" style="margin-top:15px;"></div>
-        <script>
-        document.getElementById("ai-test-btn").addEventListener("click", function() {
-            var btn = this;
-            var spinner = document.getElementById("ai-test-spinner");
-            var resultDiv = document.getElementById("ai-test-result");
-            btn.disabled = true;
-            spinner.style.display = "inline";
-            resultDiv.innerHTML = "";
-            fetch("' . $testUrl . '", {credentials: "same-origin"})
-                .then(function(r) { return r.json(); })
-                .then(function(data) {
-                    btn.disabled = false;
-                    spinner.style.display = "none";
-                    var cls = data.success ? "alert alert-success" : "alert alert-danger";
-                    var html = "<div class=\"" + cls + "\"><strong>" + data.message + "</strong>";
-                    if (data.details) {
-                        html += "<br><small>";
-                        html += "Provider: " + data.details.provider;
-                        html += " | Model: " + data.details.model;
-                        if (data.details.response) {
-                            html += "<br>Response: <code>" + data.details.response + "</code>";
-                        }
-                        if (data.details.error) {
-                            html += "<br>Error: <code>" + data.details.error + "</code>";
-                        }
-                        html += "</small>";
-                    }
-                    html += "</div>";
-                    resultDiv.innerHTML = html;
-                })
-                .catch(function(err) {
-                    btn.disabled = false;
-                    spinner.style.display = "none";
-                    resultDiv.innerHTML = "<div class=\"alert alert-danger\"><strong>Request failed:</strong> " + err.message + "</div>";
-                });
+    echo $form->capture(static function (Form $form) use ($config, $row, $addon): void {
+        $body = Html::capture(static function () use ($form, $config, $row, $addon): void {
+            foreach ($form->getFormErrors() as $error) {
+                echo Message::error((string) Html::from($error));
+            }
+            echo $form->row('name'), $form->row('type'), $form->row('provider');
+            echo '<div data-ai-field="api_key">', $form->row('apiKeyEnv');
+            if (null !== $row) {
+                $env = ProviderRegistry::apiKeyEnv($row);
+                [$state, $message] = match (true) {
+                    ProviderRegistry::hasApiKey($row) => ['is-set', 'api_key_env_set'],
+                    ProviderRegistry::requiresApiKey($row) => ['is-missing', 'api_key_env_missing'],
+                    default => ['is-optional', 'api_key_env_unset_optional'],
+                };
+                echo '<p class="ai-env-status ', $state, '">', $addon->i18n($message, $env), '</p>';
+            }
+            echo '</div>';
+            echo '<div data-ai-field="base_url">', $form->row('baseUrl'), '</div>';
+            echo $form->row('model');
+            foreach (['temperature', 'maxTokens', 'systemPrompt', 'imageSize', 'imageQuality', 'imageStyle', 'detailLevel'] as $field) {
+                echo '<div data-ai-field="', escape(strtolower((string) preg_replace('/[A-Z]/', '_$0', $field))), '">', $form->row($field), '</div>';
+            }
+            echo $form->rest();
+            echo $config;
         });
-        </script>';
+        echo new Section(
+            $form->title ?? '',
+            $body,
+            footer: Html::raw('<div class="rex-form-panel-footer">' . $form->buttons() . '</div>'),
+            variant: SectionVariant::Edit,
+        )->render();
+    });
 
-        $fragment = new rex_fragment();
-        $fragment->setVar('class', 'edit', false);
-        $fragment->setVar('title', rex_i18n::msg('ai_platform_test_title'), false);
-        $fragment->setVar('body', $testContent, false);
-        echo $fragment->parse('core/page/section.php');
+    if (null !== $row) {
+        $test = '<div class="ai-test" data-ai-test-url="' . escape(TestConnectionFunction::getTestUrl($id)) . '">'
+            . new Button(Html::raw($addon->i18n('test_connection')), attributes: new HtmlAttributes(['data-ai-test' => true]))->render()
+            . '<span class="ai-test-running" hidden> ' . $addon->i18n('test_running') . '</span>'
+            . '<div class="ai-test-result" aria-live="polite"></div></div>';
+        echo new Section($addon->i18n('test_title'), Html::raw($test))->render();
     }
-} else {
-    // Handle delete before rendering list
-    if ('delete' === $func && $id > 0) {
-        $sql = rex_sql::factory();
-        $sql->setQuery('DELETE FROM ' . rex::getTable('ai_profile') . ' WHERE id = ?', [$id]);
-        echo rex_view::success(rex_i18n::msg('ai_platform_profile_deleted'));
-    }
 
-    // List view
-    $list = rex_list::factory('SELECT id, name, type, provider, model, status FROM ' . rex::getTable('ai_profile') . ' ORDER BY type, name');
-    $list->addTableAttribute('class', 'table-striped');
-
-    $list->addTableColumnGroup([40, '*', 130, '*', '*', 100, 90]);
-
-    $thIcon = '<a href="' . $list->getUrl(['func' => 'add']) . '"><i class="rex-icon rex-icon-add-action"></i></a>';
-    $tdIcon = '<i class="rex-icon fa-key"></i>';
-    $list->addColumn($thIcon, $tdIcon, 0, ['<th class="rex-table-icon">###VALUE###</th>', '<td class="rex-table-icon">###VALUE###</td>']);
-    $list->setColumnParams($thIcon, ['func' => 'edit', 'id' => '###id###']);
-
-    $list->setColumnLabel('name', rex_i18n::msg('ai_platform_profile_name'));
-    $list->setColumnParams('name', ['func' => 'edit', 'id' => '###id###']);
-
-    $list->setColumnLabel('type', rex_i18n::msg('ai_platform_type'));
-    $list->setColumnFormat('type', 'custom', static function ($params) {
-        $types = Service::getTypes();
-        return $types[$params['value']] ?? $params['value'];
-    });
-
-    $list->setColumnLabel('provider', rex_i18n::msg('ai_platform_provider'));
-    $list->setColumnFormat('provider', 'custom', static function ($params) {
-        $providers = Service::getProviders();
-        return $providers[$params['value']] ?? $params['value'];
-    });
-
-    $list->setColumnLabel('model', rex_i18n::msg('ai_platform_model'));
-
-    $list->setColumnLabel('status', rex_i18n::msg('ai_platform_status'));
-    $list->setColumnFormat('status', 'custom', static function ($params) {
-        return 1 == $params['value']
-            ? '<span class="text-success">' . rex_i18n::msg('ai_platform_status_active') . '</span>'
-            : '<span class="text-danger">' . rex_i18n::msg('ai_platform_status_inactive') . '</span>';
-    });
-
-    // Delete column
-    $list->addColumn(rex_i18n::msg('ai_platform_delete'), '<i class="rex-icon rex-icon-delete"></i>', -1, ['<th>' . rex_i18n::msg('ai_platform_actions') . '</th>', '<td>###VALUE###</td>']);
-    $list->setColumnParams(rex_i18n::msg('ai_platform_delete'), ['func' => 'delete', 'id' => '###id###']);
-    $list->addLinkAttribute(rex_i18n::msg('ai_platform_delete'), 'data-confirm', rex_i18n::msg('ai_platform_delete_confirm'));
-
-    $content = $list->get();
-
-    $fragment = new rex_fragment();
-    $fragment->setVar('title', rex_i18n::msg('ai_platform_profiles'), false);
-    $fragment->setVar('content', $content, false);
-    echo $fragment->parse('core/page/section.php');
+    return;
 }
+
+$list = new DataList('SELECT id, name, type, provider, model, api_key_env, status FROM ' . $table . ' ORDER BY type, name', rowsPerPage: 100);
+$list->addParam('page', 'ai_platform/profiles');
+$list->empty = $addon->i18n('profiles_empty');
+$editUrl = static fn (array $row): string => $list->getUrl(['func' => 'edit', 'id' => $row['id']]);
+$types = Service::getTypes();
+$providers = Service::getProviders();
+$defaults = [];
+foreach (array_keys($types) as $type) {
+    $defaults[(int) $addon->getConfig('default_' . $type . '_profile', 0)][] = $types[$type];
+}
+
+$list->column(
+    'icon',
+    Html::raw('<a href="' . escape($list->getUrl(['func' => 'add'])) . '"' . Accesskey::attributes(I18n::rawMsg('ai_platform_profile_add'), 'add') . '><i class="rex-icon rex-icon-add" aria-hidden="true"></i></a>'),
+    static fn (array $row): Html => Html::raw('<i class="rex-icon fa-brain" aria-hidden="true"></i>'),
+    type: TableColumnType::Icon,
+    link: $editUrl,
+);
+$list->column('name', $addon->i18n('profile_name'), sortable: true, link: $editUrl);
+$list->column('type', $addon->i18n('type'), static function (array $row) use ($types, $defaults): Html {
+    $label = escape($types[$row['type']] ?? (string) $row['type']);
+    if (in_array($types[$row['type']] ?? null, $defaults[(int) $row['id']] ?? [], true)) {
+        $label .= ' <span class="rex-u-text-muted">· ' . I18n::msg('ai_platform_default') . '</span>';
+    }
+
+    return Html::raw($label);
+});
+$list->column('provider', $addon->i18n('provider'), static fn (array $row): string => $providers[$row['provider']] ?? (string) $row['provider']);
+$list->column('model', $addon->i18n('model'));
+$list->column('api_key_env', $addon->i18n('api_key_env'), static function (array $row) use ($addon): Html {
+    $needsKey = ProviderRegistry::requiresApiKey($row);
+    $env = ProviderRegistry::apiKeyEnv($row);
+    if (ProviderRegistry::hasApiKey($row)) {
+        return Html::raw('<code>' . escape($env) . '</code> <span class="rex-u-text-success">✔</span>');
+    }
+
+    return Html::raw('<code>' . escape($env) . '</code> ' . ($needsKey ? '<span class="rex-u-text-danger">' . $addon->i18n('api_key_env_missing_short') . '</span>' : '<span class="rex-u-text-muted">' . $addon->i18n('api_key_env_optional') . '</span>'));
+});
+$list->column(
+    'status',
+    $addon->i18n('status'),
+    static fn (array $row): Html => 1 == $row['status']
+        ? Html::raw('<span class="rex-u-text-success">' . I18n::msg('ai_platform_status_active') . '</span>')
+        : Html::raw('<span class="rex-u-text-danger">' . I18n::msg('ai_platform_status_inactive') . '</span>'),
+);
+$list->column(
+    'delete',
+    I18n::msg('function'),
+    static fn (): Html => Html::raw('<i class="rex-icon rex-icon-delete" aria-hidden="true"></i> ' . I18n::msg('delete')),
+    type: TableColumnType::Action,
+    link: static fn (array $row): string => $list->getUrl(['id' => $row['id'], 'func' => 'delete'] + $csrf->getUrlParams()),
+    linkAttributes: ['data-confirm' => $addon->i18n('delete_confirm')],
+);
+
+echo new Section($addon->i18n('profiles'), content: $list)->render();

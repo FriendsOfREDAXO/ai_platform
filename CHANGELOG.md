@@ -5,6 +5,27 @@ Alle nennenswerten Änderungen an diesem AddOn.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/1.1.0/),
 Versionierung nach [Semantic Versioning](https://semver.org/lang/de/).
 
+## [2.0.0-dev] – Branch 2.x für REDAXO 6
+
+### Geändert
+
+- **REDAXO 6:** Composer-AddOn mit AddOn-Klasse (`FriendsOfRedaxo\AiPlatform\AiPlatformAddon`), Code unter `src/`, Backend-Seiten auf den Komponenten und dem Formularsystem des Core, Konsolenbefehle und API-Funktion über die Attribute des Core. `vendor/` liegt nicht mehr im Repository.
+- **API-Schlüssel stehen in der Umgebung, nicht in der Datenbank.** Ein Profil nennt die Variable (`api_key_env`, Vorgabe `AI_PLATFORM_<ANBIETER>_API_KEY`), der Wert steht in `.env.local`. Die Spalte `api_key` gibt es nicht mehr.
+- **Symfony AI 1.0** (`1.0.0-BETA1`) statt 0.14.
+- **MCP-Server über das offizielle PHP-SDK** (`mcp/sdk`) statt eigener Implementierung, als Route `/api/mcp` des AddOns api mit dessen Tokens (Scope `mcp`). Tools sind Methoden mit `#[McpTool]`, gefunden über die Class Discovery des Core.
+- Das Modellfeld schlägt die Katalogmodelle über eine Datalist vor; eigene Namen bleiben eintragbar.
+
+### Hinzugefügt
+
+- Konsolenbefehle `ai:profiles`, `ai:test` und `ai:ask`.
+- `Service::hasDefaultProfile()`.
+- Warnungen und Fehler des MCP-SDK landen im Systemlog.
+
+### Entfernt
+
+- OAuth 2.1 mit YCom, Client-Registrierung und Scope-Zuordnung (ersetzt durch die Tokens des AddOns api).
+- Änderungswünsche (Change Requests) samt REST-Routen und Cronjob – noch nicht portiert.
+
 ## [1.2.0] – 2026-10-24
 
 ### Hinzugefügt

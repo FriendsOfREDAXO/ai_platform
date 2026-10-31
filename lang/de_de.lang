@@ -1,471 +1,92 @@
-ai_platform_title = KI Platform
+ai_platform_title = AI Platform
 ai_platform_profiles = Profile
 ai_platform_settings = Einstellungen
-ai_platform_mcp = MCP Server
-ai_platform_docs_addon = AddOn
 ai_platform_docs = Dokumentation
+ai_platform_mcp = MCP-Server
 
-# Types
 ai_platform_type = Typ
-ai_platform_type_text = Text / Code / Completion
-ai_platform_type_image_generation = Bildgenerierung
-ai_platform_type_image_understanding = Bildverstaendnis
-ai_platform_type_embedding = Embeddings (Vektor-Arrays)
+ai_platform_type_text = Text / Code
+ai_platform_type_embedding = Embeddings (Vektoren)
+ai_platform_type_image_generation = Bilderzeugung
+ai_platform_type_image_understanding = Bildverständnis
 
-# Profiles
-ai_platform_profile_add = Profil hinzufuegen
-ai_platform_profile_edit = Profil bearbeiten
-ai_platform_profile_name = Profilname
-ai_platform_profile_name_notice = Eindeutiger Name fuer dieses Profil, z.B. "Claude Sonnet Text" oder "DALL-E Bilder"
-ai_platform_provider = Provider
-ai_platform_please_select = --- Bitte waehlen ---
-ai_platform_default = Standard
-ai_platform_api_key = API-Key
-ai_platform_api_key_notice = Der API-Schluessel des Providers. Bei Ollama optional: leer lassen bei einer ungesicherten lokalen Instanz, sonst als Bearer-Token fuer einen abgesicherten Ollama-Server.
-ai_platform_base_url = Basis-URL
-ai_platform_base_url_notice = Fuer Ollama (Standard: http://localhost:11434) und fuer OpenAI-kompatible Endpunkte erforderlich. Dort die Basis-URL des Servers eintragen, z.B. https://mein-server.example/v1 -- mit oder ohne /v1, der Pfad zur Chat-Completions-API wird angehaengt.
-ai_platform_provider_openrouter = OpenRouter (viele Anbieter, ein Schluessel)
+ai_platform_provider = Anbieter
+ai_platform_provider_openrouter = OpenRouter (viele Anbieter, ein Schlüssel)
 ai_platform_provider_replicate = Replicate (nur Llama-Modelle, nur Text)
-ai_platform_provider_generic = OpenAI-kompatibel (eigener Endpoint)
-ai_platform_model = Modell
-ai_platform_model_notice = Auswahl der Modelle, die der Provider laut Symfony AI fuer diesen Typ kennt. Fuer ein Modell, das die Liste nicht enthaelt, "eigener Modellname" waehlen und den Namen eintragen.
-ai_platform_model_custom_option = --- eigener Modellname ---
-ai_platform_model_placeholder = Modellname beim Provider, z.B. llama3.2-vision
+ai_platform_provider_generic = OpenAI-kompatibel (eigener Endpunkt)
+ai_platform_provider_unknown = Dieser Anbieter ist nicht registriert.
 
-# Type-specific settings
-ai_platform_temperature = Temperature
-ai_platform_temperature_notice = Kreativitaet der Antworten (0 = deterministisch, 1 = Standard, 2 = sehr kreativ). Leer lassen fuer Standard.
-ai_platform_max_tokens = Max Tokens
-ai_platform_max_tokens_notice = Maximale Laenge der Antwort in Tokens. Leer lassen fuer Standard des Providers.
-ai_platform_system_prompt = System-Prompt
-ai_platform_system_prompt_notice = Standard-Anweisung fuer das Modell, z.B. "Du bist ein hilfreicher Assistent fuer eine deutschsprachige Website." Kann beim API-Aufruf ueberschrieben werden.
-ai_platform_image_size = Bildgroesse
-ai_platform_image_size_notice = Groesse des generierten Bildes.
-ai_platform_image_quality = Bildqualitaet
-ai_platform_image_quality_notice = Hoehere Qualitaet erzeugt detailreichere Bilder, kostet aber mehr. Ohne Angabe entscheidet der Provider.
-ai_platform_image_style = Bildstil
-ai_platform_image_style_notice = Nur fuer Provider mit DALL-E-artigen Modellen. Kein mitgelieferter Provider nutzt diese Option noch.
-ai_platform_detail_level = Detail-Level
-ai_platform_detail_level_notice = Wie detailliert das Bild analysiert werden soll. High kostet mehr Tokens.
-
+ai_platform_profiles_empty = Noch kein Profil angelegt.
+ai_platform_profile_add = Profil anlegen
+ai_platform_profile_edit = Profil bearbeiten
+ai_platform_profile_added = Das Profil wurde angelegt.
+ai_platform_profile_updated = Das Profil wurde gespeichert.
+ai_platform_profile_deleted = Das Profil wurde gelöscht.
+ai_platform_profile_name = Name
+ai_platform_profile_name_notice = Eindeutiger Name, z. B. „Claude Text" oder „Embeddings lokal".
+ai_platform_profile_name_exists = Ein Profil mit diesem Namen gibt es schon.
+ai_platform_delete_confirm = Dieses Profil wirklich löschen?
 ai_platform_status = Status
 ai_platform_status_active = Aktiv
 ai_platform_status_inactive = Inaktiv
-ai_platform_delete = Loeschen
-ai_platform_actions = Aktionen
-ai_platform_delete_confirm = Moechten Sie dieses Profil wirklich loeschen?
-ai_platform_profile_deleted = Profil wurde geloescht.
-ai_platform_save = Speichern
-ai_platform_settings_saved = Einstellungen wurden gespeichert.
+ai_platform_default = Standard
 
-# Test
+ai_platform_api_key_env = Umgebungsvariable des API-Schlüssels
+ai_platform_api_key_env_notice = Der Schlüssel steht nicht in der Datenbank, sondern in „.env.local" dieser Instanz, z. B. „AI_PLATFORM_OPENAI_API_KEY=sk-…". Leer lassen für die Vorgabe des Anbieters; einen eigenen Namen nur, wenn zwei Profile desselben Anbieters verschiedene Konten nutzen.
+ai_platform_api_key_env_invalid = Nur Großbuchstaben, Ziffern und Unterstriche, beginnend mit einem Buchstaben.
+ai_platform_api_key_env_set = „{0}" ist auf dieser Instanz gesetzt.
+ai_platform_api_key_env_missing = „{0}" ist auf dieser Instanz nicht gesetzt – bitte in „.env.local" eintragen.
+ai_platform_api_key_env_unset_optional = „{0}" ist nicht gesetzt; dieser Anbieter kommt meist ohne Schlüssel aus.
+ai_platform_api_key_env_missing_short = fehlt
+ai_platform_api_key_env_optional = optional
+ai_platform_base_url = Basis-URL
+ai_platform_base_url_notice = Für Ollama (Vorgabe http://localhost:11434) und OpenAI-kompatible Server, z. B. http://localhost:1234/v1 – mit oder ohne /v1.
+ai_platform_model = Modell
+ai_platform_model_notice = Vorschläge aus dem Modellkatalog von Symfony AI; ein Name, den der Katalog nicht kennt, lässt sich frei eintragen.
+ai_platform_temperature = Temperature
+ai_platform_temperature_notice = 0 = deterministisch, 1 = Vorgabe, 2 = sehr frei. Modelle, die den Wert ablehnen, werden ohne ihn erneut gefragt.
+ai_platform_max_tokens = Max. Tokens
+ai_platform_max_tokens_notice = Höchstlänge der Antwort. Leer = Vorgabe des Anbieters.
+ai_platform_system_prompt = System-Prompt
+ai_platform_system_prompt_notice = Grundanweisung für das Modell; ein Aufruf kann sie ersetzen.
+ai_platform_image_size = Bildgröße
+ai_platform_image_quality = Bildqualität
+ai_platform_image_style = Bildstil
+ai_platform_detail_level = Detailgrad
+
 ai_platform_test_title = Verbindung testen
-ai_platform_test_connection = API-Verbindung testen
-ai_platform_test_running = Test laeuft...
-ai_platform_test_success = Verbindung erfolgreich! API-Key und Modell funktionieren.
-ai_platform_test_failed = Verbindung fehlgeschlagen!
-ai_platform_test_no_model = Kein Modell konfiguriert. Bitte zuerst ein Modell eintragen und speichern.
+ai_platform_test_connection = Verbindung testen
+ai_platform_test_running = Test läuft …
+ai_platform_test_success = Verbindung erfolgreich, Schlüssel und Modell funktionieren.
+ai_platform_test_failed = Verbindung fehlgeschlagen.
+ai_platform_test_no_model = Kein Modell eingetragen.
+ai_platform_test_profile_missing = Profil nicht gefunden oder inaktiv.
 
-# Settings
-ai_platform_default_models = Standard-Profile
-ai_platform_default_text = Text / Code (Standard)
-ai_platform_default_text_notice = Profil, das standardmaessig fuer Textgenerierung verwendet wird.
-ai_platform_default_image_generation = Bildgenerierung (Standard)
-ai_platform_default_image_generation_notice = Profil, das standardmaessig fuer Bildgenerierung verwendet wird.
-ai_platform_default_image_understanding = Bildverstaendnis (Standard)
-ai_platform_default_image_understanding_notice = Profil, das standardmaessig fuer Bildanalyse verwendet wird.
-ai_platform_default_embedding = Embeddings (Standard)
-ai_platform_default_embedding_notice = Profil, das standardmaessig fuer Embeddings verwendet wird.
+ai_platform_settings_saved = Die Einstellungen wurden gespeichert.
+ai_platform_settings_defaults_intro = Das Standardprofil eines Typs nutzen AddOns, die kein eigenes Profil wählen – etwa die Suche für Embeddings.
+ai_platform_no_profile = – keines –
+ai_platform_default_text_profile = Text
+ai_platform_default_embedding_profile = Embeddings
+ai_platform_default_image_generation_profile = Bilderzeugung
+ai_platform_default_image_understanding_profile = Bildverständnis
+ai_platform_http_timeout = Zeitlimit ohne Antwort (Sekunden)
+ai_platform_http_timeout_notice = Eine lange, nicht gestreamte Antwort sendet nichts, bis sie fertig ist; zu knapp bricht sie mit „Idle timeout reached" ab.
+ai_platform_http_max_duration = Höchstdauer einer Anfrage (Sekunden)
+ai_platform_http_max_duration_notice = 0 = unbegrenzt.
 
-# MCP
-ai_platform_mcp_settings = MCP Server Einstellungen
-ai_platform_mcp_settings_sub = Einstellungen
-ai_platform_mcp_enabled = MCP Server aktiv
-ai_platform_mcp_require_auth = Authentifizierung erforderlich
-ai_platform_mcp_require_auth_off = Nein - anonymer Zugriff auf public Tools erlaubt
-ai_platform_mcp_require_auth_on = Ja - jeder Zugriff erfordert OAuth-Login
-ai_platform_mcp_require_auth_notice = Wenn aktiv, antwortet der MCP-Endpoint bereits beim Verbinden mit 401, damit Clients (z.B. Claude Desktop) den OAuth-Login starten. Noetig, damit geschuetzte Tools ueberhaupt sichtbar werden. Aus = anonyme Clients sehen nur public Tools und loggen sich nie ein.
-ai_platform_mcp_description = Server-Beschreibung
-ai_platform_mcp_description_notice = Diese Beschreibung wird als Instructions an MCP-Clients gesendet. Beschreibe hier, wofuer dieser Server gedacht ist und welche Daten die REDAXO-Instanz verwaltet.
-ai_platform_mcp_endpoint = Endpoint-URL
-ai_platform_mcp_endpoint_notice = Diese URL kann in MCP-Clients (z.B. Claude Desktop, Cursor) als HTTP-Endpoint eingetragen werden.
-ai_platform_mcp_discovery = OAuth Discovery
-ai_platform_mcp_discovery_notice = Standardisierte Discovery-Endpunkte fuer MCP-Clients. Geben Clients beim ersten 401-Response die noetigen Infos, um den OAuth-2.1-Flow zu starten.
-ai_platform_mcp_oauth_phase_title = Authentifizierung & Scopes
-ai_platform_mcp_oauth_phase_notice = Der MCP-Server kennt zwei Zugriffsmodi: <b>ohne Authentifizierung</b> sind ausschliesslich als <code>public</code> markierte Tools (z.B. <code>redaxo_status</code>) erreichbar. <b>Mit OAuth 2.1 + YCom</b> (PKCE, Refresh Tokens, Dynamic Client Registration) erhaelt ein angemeldeter Nutzer Zugriff auf geschuetzte Tools. Welche Scopes er bekommt, ergibt sich aus seinen YCom-Gruppen – einstellbar unter <b>Scope-Mapping</b>. OAuth-Clients verwaltest du unter <b>OAuth-Clients</b> (oder Clients registrieren sich selbst per DCR).
-ai_platform_mcp_registered_tools = Registrierte Tools
-ai_platform_mcp_tool_name = Tool-Name
+ai_platform_mcp_requires_api = Der MCP-Server läuft über das AddOn „api" (Route /api/mcp, Tokens mit Scope „mcp"). Es ist in dieser Installation nicht vorhanden.
+ai_platform_mcp_access = Zugang
+ai_platform_mcp_access_intro = Ein Client meldet sich mit einem Token des API-AddOns an, das den Scope {0} hat. Tokens anlegen unter {1}.
+ai_platform_mcp_token_page = API > Token
+ai_platform_mcp_url = Adresse
+ai_platform_mcp_config_json = Konfiguration für Clients mit mcpServers-JSON (Claude Desktop, Cursor …)
+ai_platform_mcp_server_key = redaxo
+ai_platform_mcp_tools = Tools
+ai_platform_mcp_tools_intro = Methoden mit #[McpTool] im Projekt und in AddOns, dazu Einträge aus dem Extension Point „AI_PLATFORM_MCP_TOOLS".
+ai_platform_mcp_tools_empty = Keine Tools gefunden.
+ai_platform_mcp_tool_name = Name
 ai_platform_mcp_tool_description = Beschreibung
-ai_platform_mcp_tool_auth = Auth
-ai_platform_mcp_tool_active = Aktiv
-ai_platform_mcp_tool_always = Immer verfuegbar
-ai_platform_mcp_tool_always_notice = Mit "Immer verfuegbar" ist ein geschuetztes Tool fuer jede angemeldete Person nutzbar, auch ohne passenden Scope. Die Anmeldung bleibt noetig; nur die Scope-Pruefung entfaellt. Nuetzlich in Installationen ohne YCom-Gruppen, in denen sonst gar keine Scopes vergeben werden koennen.
-ai_platform_mcp_tool_public = oeffentlich
-ai_platform_mcp_tool_protected = geschuetzt
-ai_platform_mcp_tools_notice = Deaktivierte Tools werden MCP-Clients weder angezeigt (tools/list) noch ausgefuehrt (tools/call). Neu registrierte Tools sind standardmaessig aktiv.
-ai_platform_mcp_tools_saved = Tool-Aktivierung gespeichert.
-ai_platform_mcp_no_tools = Noch keine Tools registriert. Andere AddOns koennen ueber den Extension Point "AI_PLATFORM_MCP_TOOLS" Tools bereitstellen.
-ai_platform_mcp_example = Beispiel: Tool registrieren
-
-# OAuth flow pages
-ai_platform_oauth_error_title = Authorisierung nicht moeglich
-ai_platform_oauth_login_no_ycom = Fuer die Anmeldung wird YCom benoetigt, es ist aber nicht installiert oder nicht aktiv.
-ai_platform_oauth_login_no_article = In YCom ist keine Anmeldeseite hinterlegt (Artikel-ID unter YCom > Einstellungen), oder der eingetragene Artikel existiert nicht. Ohne sie kann sich niemand fuer den MCP-Zugriff anmelden.
-ai_platform_oauth_consent_title = Zugriff erlauben
-ai_platform_oauth_consent_intro = Die Anwendung "{0}" moechte Zugriff auf Dein REDAXO-Konto.
-ai_platform_oauth_logged_as = Angemeldet als {0}
-ai_platform_oauth_consent_allow = Zugriff erlauben
-ai_platform_oauth_consent_deny = Ablehnen
-ai_platform_oauth_no_scopes = Dein Konto hat aktuell keine passenden Berechtigungen fuer diese Anfrage. Wenn Du den Zugriff erlaubst, wird die Anwendung keinen Zugriff auf geschuetzte Tools haben.
-ai_platform_oauth_consent_omitted = Folgende angefragte Berechtigungen sind Dir nicht zugewiesen und werden ignoriert:
-
-# OAuth backend pages
-ai_platform_oauth_clients = OAuth-Clients
-ai_platform_oauth_clients_title = OAuth-Clients
-ai_platform_oauth_clients_intro = Manuell oder ueber Dynamic Client Registration (DCR) angelegte OAuth-Clients, die sich gegen den MCP-Server authentifizieren duerfen.
-ai_platform_oauth_clients_empty = Noch keine OAuth-Clients angelegt. Lege unten einen Client an oder lass MCP-Clients sich automatisch per DCR registrieren.
-ai_platform_oauth_client_add = Client hinzufuegen
-ai_platform_oauth_client_name = Name
-ai_platform_oauth_client_id = Client-ID
-ai_platform_oauth_client_type = Typ
-ai_platform_oauth_client_redirect = Redirect-URIs
-ai_platform_oauth_client_dcr = via DCR
-ai_platform_oauth_client_last_used = Zuletzt genutzt
-ai_platform_oauth_client_created_at = Erstellt
-ai_platform_oauth_client_expires = Laeuft ab
-ai_platform_oauth_client_expired = abgelaufen
-ai_platform_oauth_client_never_expires = laeuft nie ab
-ai_platform_oauth_client_lifetime = OAuth-Client-Lebensdauer (Tage)
-ai_platform_oauth_client_lifetime_notice = Nach wie vielen Tagen eine Client-Registrierung ablaeuft. 0 = laeuft nie ab. Abgelaufene Clients werden bei /oauth/authorize und /oauth/token abgewiesen; MCP-Clients registrieren sich dann automatisch per DCR neu (erzwingt regelmaessige Neu-Anmeldung).
-ai_platform_oauth_fallback_scope = Ersatz-Scope
-ai_platform_oauth_fallback_scope_notice = Technischer Name des Scopes, der angekuendigt und vergeben wird, solange kein AddOn eigene Scopes anmeldet. Er steht fuer "darf den MCP-Server nutzen" und raeumt keine Rechte ein - welches Tool erreichbar ist, entscheidet das Tool selbst. Noetig, weil Clients abbrechen, wenn die Liste der Scopes leer ist. Ohne Eingabe gilt "{0}", und dabei kann es in aller Regel bleiben - was im Zustimmungsdialog zu lesen ist, steht im Feld darunter. Erlaubt sind nur Buchstaben ohne Umlaute, Ziffern und Zeichen wie : _ - . ; Leerzeichen gehen nicht, weil Scopes im Protokoll durch Leerzeichen getrennt werden (RFC 6749).
-ai_platform_oauth_fallback_scope_rejected = "{0}" ist kein gueltiger Scope-Name und wurde nicht uebernommen - es gilt weiterhin "{1}". Scopes werden im Protokoll durch Leerzeichen getrennt (RFC 6749), deshalb sind Leerzeichen, Anfuehrungszeichen, Backslashes und Umlaute darin nicht moeglich. Fuer einen lesbaren Text ist das Feld "Beschreibung im Zustimmungsdialog" gedacht.
-ai_platform_oauth_fallback_scope_description = Beschreibung im Zustimmungsdialog
-ai_platform_oauth_fallback_scope_description_notice = Dieser Satz erscheint im Zustimmungsdialog neben dem Scope-Namen und erklaert der Person, worueber sie gerade entscheidet. Hier sind Leerzeichen, Umlaute und Satzzeichen erlaubt - der Text wird nur angezeigt und nie als Scope gesendet.
-ai_platform_oauth_fallback_scope_description_default = Zugriff auf die Inhalte und Werkzeuge dieser Website
-ai_platform_oauth_login_article = Anmeldung
-ai_platform_oauth_login_article_notice = Wer sich fuer geschuetzte Tools anmelden muss, wird auf die Anmeldeseite von YCom geleitet und danach zurueckgeholt. Damit gilt alles, was dort eingerichtet ist - Passwort, SAML, CAS, OAuth2 - samt YCom-Injections wie OTP. Eingestellt wird die Seite in YCom, nicht hier.
-ai_platform_oauth_login_article_ycom = YCom-Anmeldeseite: Artikel {0}.
-ai_platform_oauth_login_article_missing = In YCom ist keine gueltige Anmeldeseite hinterlegt. Bis das eingerichtet ist, kann sich niemand fuer geschuetzte Tools anmelden - /oauth/authorize antwortet dann mit einem Fehler.
-ai_platform_oauth_client_delete_confirm = Diesen Client wirklich loeschen? Alle laufenden Tokens werden invalidiert.
-ai_platform_oauth_client_deleted = Client geloescht. Tokens wurden revoked.
-ai_platform_oauth_client_created = Client angelegt. Notiere ggf. das Secret jetzt, es wird nicht erneut angezeigt.
-ai_platform_oauth_client_secret_notice = Client-Secret (nur jetzt sichtbar):
-ai_platform_oauth_client_redirect_notice = Eine Redirect-URI pro Zeile. Wird exakt mit dem Wert aus /oauth/authorize verglichen.
-ai_platform_oauth_client_redirect_required = Mindestens eine Redirect-URI ist erforderlich.
-
-ai_platform_scopes = Scope-Mapping
-ai_platform_scopes_title = YCom-Gruppen -> Scope-Mapping
-ai_platform_scopes_intro = Welche OAuth-Scopes werden Usern aufgrund ihrer YCom-Gruppen-Mitgliedschaft im /oauth/authorize-Flow gewaehrt. Eingebaute Scopes und Scopes anderer AddOns erscheinen automatisch in der Auswahl.
-ai_platform_scopes_group = YCom-Gruppe
-ai_platform_scopes_scopes = Scopes
-ai_platform_scopes_saved = Mapping gespeichert.
-ai_platform_scopes_no_groups = Es sind noch keine YCom-Gruppen angelegt. Lege zuerst Gruppen unter YCom an, danach kann hier die Scope-Zuordnung erfolgen.
-
-# --- Änderungswünsche ------------------------------------------------------
-ai_platform_changes = Änderungswünsche
-ai_platform_changes_title = KI Änderungen
-ai_platform_changes_inbox = Eingang
-ai_platform_changes_settings = Einstellungen
-
-ai_platform_change_type_slice = Artikelinhalt (Slice)
-ai_platform_change_type_article = Artikel
-ai_platform_change_type_category = Kategorie
-ai_platform_change_type_meta = Metainfo
-ai_platform_change_type_media = Medium
-ai_platform_change_type_yform = YForm-Datensatz
-
-ai_platform_change_operation_create = Neu anlegen
-ai_platform_change_operation_update = Ändern
-ai_platform_change_operation_delete = Löschen
-
-ai_platform_changes_needs_api = Zum Einreichen von Änderungswünschen wird das AddOn <strong>api</strong> benötigt — die REST-Routen werden dort angemeldet. Ohne aktives api-AddOn kann die Funktion eingeschaltet werden, erhält aber keine Wünsche.
-ai_platform_changes_needs_api_active = KI Änderungen sind aktiv, aber das AddOn <strong>api</strong> ist nicht verfügbar. Es gibt derzeit keinen Weg, Änderungswünsche einzureichen: die REST-Routen werden im api-AddOn angemeldet. Bitte das api-AddOn installieren und aktivieren.
-ai_platform_change_setting_thin_hint = Die Datenmenge alter, entschiedener Wünsche wird über den Cronjob „KI Änderungen: Datenmenge alter Wünsche reduzieren“ verkleinert — dort wird auch der Zeitraum eingestellt. Einträge werden dabei nie gelöscht, nur ihre Nutzlast geleert.
-ai_platform_cronjob_thin_name = KI Änderungen: Datenmenge alter Wünsche reduzieren
-ai_platform_cronjob_thin_days = Älter als (Tage)
-ai_platform_cronjob_thin_days_notice = Bei entschiedenen Änderungswünschen, die älter sind, werden Nutzlast und Momentaufnahmen geleert. Der Eintrag selbst bleibt dauerhaft erhalten — wer wann was entschieden hat, ist weiter nachvollziehbar. Offene Wünsche werden nie angefasst.
-ai_platform_cronjob_thin_done = {0} Änderungswünsche älter als {1} Tage wurden verkleinert.
-ai_platform_cronjob_thin_needs_days = Es muss ein Zeitraum in Tagen angegeben werden (mindestens 1).
-ai_platform_change_status_pending = Offen
-ai_platform_change_status_approved = Freigegeben
-ai_platform_change_status_applied = Übernommen
-ai_platform_change_status_rejected = Abgelehnt
-ai_platform_change_status_failed = Fehlgeschlagen
-ai_platform_change_status_superseded = Überholt
-ai_platform_change_status_withdrawn = zurückgezogen
-ai_platform_change_status_expired = Verfallen
-
-ai_platform_changeset_status_open = Offen
-ai_platform_changeset_status_applied = Übernommen
-ai_platform_changeset_status_partially_applied = Teilweise übernommen
-ai_platform_changeset_status_rejected = Abgelehnt
-
-ai_platform_change_target_article = Artikel
-ai_platform_change_target_category = Kategorie
-ai_platform_change_target_media = Medium
-ai_platform_change_target_clang = Sprache
-ai_platform_change_target_meta = Metainfo
-ai_platform_change_target_yform = YForm
-ai_platform_change_target_new_slice = neuer Slice
-ai_platform_change_target_new_article = Neuer Artikel
-ai_platform_change_target_new_category = Neue Kategorie
-ai_platform_change_target_new_dataset = neuer Datensatz
-ai_platform_change_target_in_category = in Kategorie
-
-ai_platform_change_field_article_name = Artikelname
-ai_platform_change_field_article_priority = Priorität
-ai_platform_change_field_article_template_id = Template
-ai_platform_change_field_article_status = Status
-ai_platform_change_field_category_catname = Kategoriename
-ai_platform_change_field_category_catpriority = Priorität
-ai_platform_change_field_category_status = Status
-ai_platform_change_field_media_title = Titel
-ai_platform_change_field_media_category_id = Medienkategorie
-
-ai_platform_change_slice_unmapped_note = Für dieses Modul ist keine Feldzuordnung hinterlegt — die Slots heißen wie in der Datenbank.
-ai_platform_change_meta_updated = Metainfo-Werte gespeichert.
-ai_platform_change_media_deleted = Medium gelöscht.
-ai_platform_change_yform_saved = Datensatz gespeichert.
-ai_platform_change_yform_deleted = Datensatz gelöscht.
-
-ai_platform_change_disabled = Änderungswünsche sind deaktiviert.
-ai_platform_change_no_approve_permission = Für dieses Ziel fehlt die Berechtigung zur Freigabe.
-
-ai_platform_change_err_no_fields = Es ist kein Feld zum Ändern angegeben.
-ai_platform_change_err_not_writable = "{0}" ist kein beschreibbares Feld.
-ai_platform_change_err_slice_gone = Der Slice oder sein Modul existiert nicht mehr.
-ai_platform_change_err_module_not_allowed = Modul {0} steht nicht auf der Liste der für Änderungswünsche erlaubten Module.
-ai_platform_change_err_module_gone = Modul {0} existiert nicht.
-ai_platform_change_err_article_gone = Artikel {0} existiert in dieser Sprache nicht.
-ai_platform_change_err_category_gone = Kategorie {0} existiert nicht.
-ai_platform_change_err_category_unresolved = Die Zielkategorie lässt sich nicht bestimmen.
-ai_platform_change_err_name_required = Ein Name ist erforderlich.
-ai_platform_change_err_template_not_allowed = Template {0} ist für diese Kategorie nicht erlaubt. Erlaubt: {1}
-ai_platform_change_err_carrier_gone = {0} existiert nicht mehr.
-ai_platform_change_err_meta_prefix = Das Feld "{0}" passt nicht zum Ziel — erwartet wird ein Name mit dem Präfix "{1}".
-ai_platform_change_err_meta_unknown = Unbekanntes Metainfo-Feld "{0}". Bekannt: {1}
-ai_platform_change_err_media_gone = Das Medium "{0}" existiert nicht mehr.
-ai_platform_change_err_media_category_gone = Medienkategorie {0} existiert nicht.
-ai_platform_change_err_yform_missing = YForm ist nicht installiert.
-ai_platform_change_err_yform_table_not_allowed = Die YForm-Tabelle "{0}" ist nicht für Änderungswünsche freigegeben.
-ai_platform_change_err_yform_table_gone = Die YForm-Tabelle "{0}" existiert nicht oder hat keine Felder.
-ai_platform_change_err_yform_dataset_gone = Datensatz {0} in "{1}" existiert nicht mehr.
-ai_platform_change_err_yform_field_unknown = Unbekanntes YForm-Feld "{0}" in "{1}". Bekannt: {2}
-ai_platform_change_err_yform_invalid = Der Datensatz ist nach den Regeln der Tabelle nicht gültig.
-ai_platform_change_err_yform_delete_failed = Der Datensatz konnte nicht gelöscht werden.
-ai_platform_change_note_relative_priority = Die Priorität ist eine relative Position — REDAXO nummeriert die Geschwister beim Speichern lückenlos neu. Der gespeicherte Wert kann daher abweichen.
-
-# --- Änderungswünsche: Oberfläche ------------------------------------------
-ai_platform_change_col_type = Typ
-ai_platform_change_col_operation = Aktion
-ai_platform_change_col_target = Ziel
-ai_platform_change_col_status = Status
-ai_platform_change_col_source = Quelle
-ai_platform_change_col_reason = Begründung
-ai_platform_change_col_created = Eingereicht
-ai_platform_change_col_reviewed = Entschieden
-ai_platform_change_col_note = Notiz
-ai_platform_change_col_error = Fehler
-ai_platform_change_col_context = Kontext
-
-ai_platform_change_detail_heading = Änderungswunsch #{0}
-ai_platform_change_reason_heading = Begründung
-ai_platform_change_diff_heading = Änderung
-ai_platform_change_bulk_heading = Auswahl bearbeiten
-ai_platform_change_handlers_heading = Registrierte Typen
-ai_platform_change_counts_heading = Bestand
-ai_platform_change_handler_key = Schlüssel
-ai_platform_change_handler_revert = Rücknahme
-ai_platform_change_revert_yes = möglich
-ai_platform_change_revert_no = nicht möglich
-
-ai_platform_change_diff_field = Feld
-ai_platform_change_diff_before = Vorher
-ai_platform_change_diff_after = Vorschlag
-ai_platform_change_diff_current = Aktuell
-ai_platform_change_diff_empty = Dieser Änderungswunsch enthält keine Feldänderungen.
-ai_platform_change_diff_empty_value = (leer)
-
-ai_platform_change_summary_changed = {0} geändert
-ai_platform_change_summary_added = {0} neu
-ai_platform_change_summary_removed = {0} entfernt
-ai_platform_change_summary_none = keine Änderung
-
-ai_platform_change_approve = Freigeben und übernehmen
-ai_platform_change_reject = Ablehnen
-ai_platform_change_approve_selected = Auswahl freigeben
-ai_platform_change_reject_selected = Auswahl ablehnen
-ai_platform_change_approve_filtered = Alle {0} offenen freigeben
-ai_platform_change_approve_changeset = Ganzes Paket freigeben ({0})
-ai_platform_change_back = Zurück zur Liste
-ai_platform_change_open_target = Im Backend öffnen
-ai_platform_change_open_request = Änderungswunsch ansehen
-ai_platform_change_note_label = Notiz für die Entscheidung (optional)
-ai_platform_change_force_label = Auch anwenden, wenn das Ziel zwischenzeitlich geändert wurde
-ai_platform_change_no_reason = Keine Begründung angegeben.
-
-ai_platform_change_applied_one = Änderung übernommen.
-ai_platform_change_rejected_one = Änderungswunsch abgelehnt.
-ai_platform_change_applied_many = {0} Änderungen übernommen.
-ai_platform_change_rejected_many = {0} Änderungswünsche abgelehnt.
-ai_platform_change_batch_stale = {0} Einträge wurden nicht übernommen, weil sich das Ziel zwischenzeitlich geändert hat:
-ai_platform_change_batch_failed = {0} Einträge sind fehlgeschlagen:
-ai_platform_change_batch_skipped = {0} Einträge wurden übersprungen:
-
-ai_platform_change_not_found = Änderungswunsch {0} wurde nicht gefunden, oder der zugehörige Typ ist nicht installiert.
-ai_platform_change_list_empty = Keine Änderungswünsche vorhanden.
-ai_platform_change_stale_blocked = Das Ziel wurde nach der Einreichung geändert. Der Vergleich zeigt zusätzlich den aktuellen Stand. Die Freigabe ist gesperrt, bis sie ausdrücklich übersteuert wird.
-ai_platform_change_stale_warned = Das Ziel wurde nach der Einreichung geändert. Der Vergleich zeigt zusätzlich den aktuellen Stand.
-ai_platform_change_target_gone_warning = Das Ziel existiert nicht mehr. Dieser Änderungswunsch kann nicht angewendet werden.
-ai_platform_change_payload_edited = Die Werte wurden nach der Einreichung redaktionell korrigiert. Angewendet wird die korrigierte Fassung.
-ai_platform_change_on_behalf_of = im Namen von {0}
-ai_platform_change_deviation_notice = REDAXO hat beim Speichern Werte normalisiert — gespeichert wurde nicht überall der vorgeschlagene Wert:
-ai_platform_change_deviation_proposed = Vorgeschlagen
-ai_platform_change_deviation_stored = Gespeichert
-
-ai_platform_change_filter_open = Offen
-ai_platform_change_filter_all = Alle
-ai_platform_change_filter_all_types = Alle Typen
-ai_platform_change_filter_all_sources = Alle Quellen
-ai_platform_change_filter_search = Ziel oder Begründung
-ai_platform_change_filter_apply = Filtern
-
-ai_platform_change_new_intro = Für welchen Inhaltstyp soll ein Änderungswunsch angelegt werden?
-ai_platform_change_created = Änderungswunsch #{0} angelegt.
-ai_platform_change_form_heading = Änderungswunsch anlegen: {0}
-ai_platform_change_form_target = Ziel
-ai_platform_change_form_values = Werte
-ai_platform_change_form_context = Kontext
-ai_platform_change_form_submit = Änderungswunsch einreichen
-ai_platform_change_form_article_id = Artikel-ID
-ai_platform_change_form_category_id = Kategorie-ID
-ai_platform_change_form_parent_id = Übergeordnete Kategorie-ID
-ai_platform_change_form_slice_id = Slice-ID
-ai_platform_change_form_slice_id_help = Nur bei Ändern und Löschen.
-ai_platform_change_form_module_id = Modul-ID
-ai_platform_change_form_module_id_help = Nur beim Anlegen. Bestehende Slices bringen ihr Modul selbst mit.
-ai_platform_change_form_ctype_id = ctype
-ai_platform_change_form_clang = Sprache
-ai_platform_change_form_carrier = Träger
-ai_platform_change_form_filename = Dateiname
-ai_platform_change_form_yform_table = YForm-Tabelle
-ai_platform_change_form_dataset_id = Datensatz-ID
-ai_platform_change_form_changeset = Paket
-ai_platform_change_form_changeset_help = Freier Name. Änderungswünsche mit gleichem Namen bilden ein Paket und können gemeinsam freigegeben werden.
-ai_platform_change_form_reason_help = Was soll geändert werden und warum? Der Redakteur entscheidet anhand dieses Textes.
-ai_platform_change_form_slots_help = Ohne Feldzuordnung für das Modul heißen die Felder wie in der Datenbank. Leere Felder werden nicht übernommen.
-ai_platform_change_form_list_help = Mehrere Werte mit Komma trennen.
-ai_platform_change_no_meta_fields = Es sind keine Metainfo-Felder definiert.
-ai_platform_change_no_yform_tables = Es ist keine YForm-Tabelle für Änderungswünsche freigegeben. Freigabe unter Einstellungen.
-ai_platform_change_no_yform_installed = YForm ist nicht installiert.
-ai_platform_change_module_mapped = Feldzuordnung vorhanden
-
-ai_platform_change_setting_enabled = Änderungswünsche
-ai_platform_change_setting_stale = Wenn das Ziel zwischenzeitlich geändert wurde
-ai_platform_change_setting_stale_block = Freigabe sperren, Übersteuern möglich
-ai_platform_change_setting_stale_warn = Nur warnen
-ai_platform_change_setting_stale_help = Sperren verhindert, dass eine späte Freigabe die Handarbeit eines Redakteurs unbemerkt überschreibt.
-ai_platform_change_setting_yform = Erlaubte YForm-Tabellen
-ai_platform_change_setting_yform_help = Nur ausgewählte Tabellen sind beschreibbar. Keine Auswahl bedeutet: keine Tabelle — ein Änderungswunsch könnte sonst jede Tabelle der Datenbank benennen.
-
-ai_platform_change_via_api = ohne Sichtung freigegeben
-ai_platform_change_via_api_hint = Diese Änderung wurde über die REST-API freigegeben und angewendet, ohne dass ein Mensch sie geprüft hat. Der Eintrag bleibt dauerhaft erhalten.
-perm_general_ai_changes[] = KI Änderungen: Bereich öffnen und Wünsche sichten
-
-# --- Änderungswünsche: Situationsprüfung -----------------------------------
-ai_platform_change_col_state = Zustand
-ai_platform_change_state_gone = Ziel weg
-ai_platform_change_state_broken = Verweis kaputt
-ai_platform_change_state_changed = Ziel geändert
-ai_platform_change_state_context = Umfeld geändert
-
-ai_platform_change_broken_references = Der Vorschlag verweist auf Objekte, die es nicht mehr gibt. Ein Anwenden würde ins Leere zeigende Verweise schreiben, deshalb ist die Freigabe gesperrt:
-ai_platform_change_context_changed = Das Umfeld des Ziels hat sich seit der Einreichung geändert. Der Vorschlag ist deshalb nicht falsch, sitzt aber möglicherweise an anderer Stelle als gedacht:
-ai_platform_change_changed_generic = Das Ziel wurde nach der Einreichung geändert.
-ai_platform_change_changed_fields = Geändert seit der Einreichung: {0}
-ai_platform_change_context_changed_generic = Das Umfeld hat sich geändert.
-ai_platform_change_context_field_changed = {0}: vorher {1}, jetzt {2}
-ai_platform_change_approve_blocked = Freigabe nicht möglich, solange Verweise ins Leere zeigen.
-
-ai_platform_change_ref_module_gone = Das Modul {0} existiert nicht mehr.
-ai_platform_change_ref_media_gone = Feld {0}: die Datei "{1}" existiert nicht mehr im Medienpool.
-ai_platform_change_ref_media_pending = Feld {0}: die Datei „{1}“ ist noch nicht im Medienpool — sie wartet als eigener Änderungswunsch. Zuerst den Medien-Wunsch freigeben lassen, danach diesen Slice einreichen. In einem Changeset zusammen einzureichen genügt nicht: Verweise werden bereits beim Einreichen geprüft.
-ai_platform_change_ref_media_file_missing = Zu "{0}" existiert der Datenbankeintrag, aber die Datei fehlt auf der Platte.
-ai_platform_change_ref_article_gone = Feld {0}: der verlinkte Artikel {1} existiert nicht mehr.
-ai_platform_change_ref_category_gone = Die Kategorie {0} existiert nicht mehr.
-ai_platform_change_ref_template_gone = Das Template {0} existiert nicht mehr.
-ai_platform_change_ref_media_category_gone = Die Medienkategorie {0} existiert nicht mehr.
-ai_platform_change_ref_yform_dataset_gone = Feld {0}: der verknüpfte Datensatz {2} in "{1}" existiert nicht mehr.
-ai_platform_change_ref_yform_table_unreadable = Feld {0}: die verknüpfte Tabelle "{1}" ist nicht lesbar.
-ai_platform_changes_docs = Anleitung
-ai_platform_changes_docs_missing = Die Anleitung ({0}) wurde nicht gefunden.
-ai_platform_changes_docs_source = Dieser Text liegt unter {0} und dient gleichzeitig als Skill für KI-Agenten. Änderungen dort wirken an beiden Stellen.
-
-# --- Änderungswünsche: Rechte und Schalter ---------------------------------
-ai_platform_changes_enabled = KI Änderungen
-ai_platform_changes_enabled_notice = Schaltet das Einreichen und Freigeben von Änderungswünschen ein. Ist es inaktiv, erscheint der Menüpunkt "KI Änderungen" nicht.
-ai_platform_changes_enabled_open_hint = Aktuell liegen {0} unbearbeitete Änderungswünsche vor — beim Abschalten verschwinden sie aus dem Menü, bleiben aber gespeichert.
-ai_platform_changes_open_inbox = Eingang öffnen
-
-ai_platform_changes_settings_admin_only = Diese Einstellungen sind Administratoren vorbehalten.
-ai_platform_change_read_only_notice = Zum Freigeben oder Ablehnen fehlt die Berechtigung. Die Liste ist einsehbar, Entscheidungen trifft jemand mit dem Recht "Änderungswünsche freigeben".
-
-ai_platform_change_setting_all_yform = Alle YForm-Tabellen erlauben
-ai_platform_change_setting_all_yform_warning = Damit ist jede YForm-Tabelle der Datenbank beschreibbar — auch Tabellen anderer AddOns wie Benutzerkonten. Nur einschalten, wenn die einreichenden Quellen vertrauenswürdig sind.
-
-perm_options_ai_changes[approve] = KI Änderungen: freigeben und ablehnen (öffnet den Bereich mit)
-ai_platform_changes_disabled_page = Die KI Änderungen sind deaktiviert. Es werden keine Änderungswünsche angenommen und keine freigegeben.
-ai_platform_changes_disabled_page_admin_link = In den Einstellungen aktivieren
-
-# --- Änderungswünsche: Formular-Feinheiten ---------------------------------
-ai_platform_status_online = Online
-ai_platform_status_offline = Offline
-ai_platform_change_form_leave_unchanged = — nicht ändern —
-ai_platform_change_form_category_id_help = 0 ist die oberste Ebene.
-ai_platform_change_form_parent_id_help = 0 legt die Kategorie auf der obersten Ebene an.
-ai_platform_change_form_carrier_help = Wovon sollen die Metainfo-Werte geändert werden? Die Felder darunter richten sich nach dieser Auswahl.
-ai_platform_change_form_dataset_id_help = Nur bei Ändern und Löschen.
-ai_platform_change_form_template_help = Ist das Template für die Zielkategorie nicht erlaubt, wird der Wunsch beim Einreichen abgewiesen — mit Angabe der erlaubten Templates.
-ai_platform_change_form_media_help = Dateiname aus dem Medienpool.
-ai_platform_change_form_link_help = ID des zu verlinkenden Artikels.
-ai_platform_change_form_media_meta_hint = Alt-Text, Copyright und Bildbeschreibung sind Metainfo-Felder. Sie werden über den Typ "Metainfo" mit Träger "Medium" geändert, nicht hier.
-ai_platform_change_form_delete_no_values = Beim Löschen werden keine Werte gebraucht.
-ai_platform_change_form_yform_table_help = Beim Wechsel wird die Seite neu geladen, damit nur die Felder dieser Tabelle erscheinen.
-ai_platform_change_no_yform_fields = Diese Tabelle hat keine Felder, die sich per Änderungswunsch setzen lassen. Automatisch gepflegte Felder wie Zeitstempel sind ausgenommen.
-ai_platform_change_configure_now = Jetzt einrichten
-ai_platform_change_count = Anzahl
-ai_platform_change_count_total = {0} insgesamt
-ai_platform_change_show_in_inbox = Im Eingang anzeigen
-
-# --- Vorgeschlagene Medien (Staging) --------------------------------------
-ai_platform_change_field_media_upload = Datei
-ai_platform_change_media_root = Hauptkategorie
-ai_platform_change_media_created = Datei wurde in den Medienpool aufgenommen.
-ai_platform_change_upload_err_missing = Die Datei wurde nicht gefunden.
-ai_platform_change_upload_err_empty = Die Datei ist leer.
-ai_platform_change_upload_err_too_big = Die Datei ist größer als {0} MB.
-ai_platform_change_upload_err_extension = Die Endung „{0}“ ist im Medienpool nicht erlaubt.
-ai_platform_change_upload_err_mime = Der Dateityp „{0}“ passt nicht zur Endung „{1}“ oder ist nicht erlaubt.
-ai_platform_change_upload_err_taken = Der Dateiname „{0}“ ist schon belegt oder für einen anderen Vorschlag reserviert. Bitte einen anderen Namen wählen.
-ai_platform_change_upload_err_store = Die Datei konnte nicht zwischengespeichert werden.
-ai_platform_change_err_upload_required = Ein neues Medium braucht eine hochgeladene Datei — zuerst hochladen, dann das Handle im Feld „upload“ angeben.
-ai_platform_change_err_upload_filename = Der vorgeschlagene Dateiname „{0}“ passt nicht zum reservierten Namen „{1}“ des Uploads.
-ai_platform_change_err_upload_consumed = Die Datei „{0}“ wurde bereits in den Medienpool aufgenommen.
-ai_platform_change_err_upload_foreign = Dieser Upload gehört einer anderen Quelle.
-ai_platform_change_ref_upload_missing = Der Vorschlag nennt keine hochgeladene Datei.
-ai_platform_change_ref_upload_gone = Der Upload „{0}“ existiert nicht mehr.
-ai_platform_change_ref_upload_file_gone = Die zwischengespeicherte Datei zu „{0}“ ist nicht mehr vorhanden.
-ai_platform_change_ref_upload_taken = Der Dateiname „{0}“ wurde inzwischen anderweitig im Medienpool belegt.
-ai_platform_change_upload_preview = Vorschau
-ai_platform_change_upload_open = Datei öffnen
-ai_platform_change_upload_meta = {0} · {1}
-ai_platform_change_upload_no_preview = Für diesen Dateityp gibt es keine Vorschau.
-ai_platform_change_upload_forbidden = Kein Zugriff auf diese Datei.
-ai_platform_cronjob_thin_uploads = , {0} zwischengespeicherte Dateien entfernt
-
-ai_platform_mcp_check_disabled = Der MCP-Server ist ausgeschaltet. /mcp, die Discovery-Dokumente und alle /oauth/-Pfade antworten mit 503.
-ai_platform_mcp_check_auth_without_login = Jeder Zugriff erfordert eine Anmeldung, aber YCom hat keine gueltige Anmeldeseite. So kommt kein Client herein, auch nicht zu den oeffentlichen Tools.
-ai_platform_mcp_check_protected_without_auth = Es gibt geschuetzte Tools ({0}), aber "Authentifizierung erforderlich" steht auf Nein. Clients wie Claude Desktop starten die Anmeldung erst nach einer 401, verbinden sich so also anonym und zeigen diese Tools nie an.
-ai_platform_mcp_check_auth_without_protected = "Authentifizierung erforderlich" steht auf Ja, aber es ist kein geschuetztes Tool aktiv. Die Anmeldung bringt dann nichts, sperrt aber anonyme Clients auch von den oeffentlichen Tools aus.
-ai_platform_mcp_check_unreachable_tools = Diese Tools kann niemand nutzen, weil keine YCom-Gruppe die geforderten Scopes hat: {0}. Abhilfe: die Scopes unter Scope-Mapping einer Gruppe zuordnen oder das Tool unten als "Immer verfuegbar" freigeben.
+ai_platform_mcp_tool_handler = Methode
+ai_platform_mcp_instructions_title = Hinweise für das Modell
+ai_platform_mcp_instructions = Hinweise
+ai_platform_mcp_instructions_notice = Bekommt der Client beim Verbinden (MCP „instructions"): wofür die Website da ist und wie die Tools zusammenspielen.

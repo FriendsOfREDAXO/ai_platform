@@ -1,7 +1,11 @@
 <?php
 
-declare(strict_types=1);
+/** @var Addon $this */
 
-echo rex_view::title(rex_i18n::msg('ai_platform_title'));
+use Redaxo\Core\Addon\Addon;
+use Redaxo\Core\Backend\Controller;
+use Redaxo\Core\View\View;
 
-rex_be_controller::includeCurrentPageSubPath();
+echo View::title($this->i18n('title'));
+
+Controller::includeCurrentPageSubPath();

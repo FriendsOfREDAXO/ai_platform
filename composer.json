@@ -1,36 +1,46 @@
 {
-    "name": "redaxo/ai-platform",
-    "description": "REDAXO AI Platform - LLM Integration with Symfony AI",
+    "name": "friendsofredaxo/ai_platform",
+    "description": "REDAXO AI Platform: LLM-Profile mit Symfony AI, Schlüssel aus Umgebungsvariablen, MCP-Server über das offizielle PHP-SDK",
     "type": "redaxo-addon",
     "license": "MIT",
+    "authors": [
+        {
+            "name": "Friends Of REDAXO",
+            "homepage": "https://github.com/FriendsOfREDAXO"
+        }
+    ],
+    "homepage": "https://github.com/FriendsOfREDAXO/ai_platform",
     "require": {
-        "php": ">=8.2",
-        "symfony/ai-platform": "^0.14",
-        "symfony/ai-agent": "^0.14",
-        "symfony/ai-open-ai-platform": "^0.14",
-        "symfony/ai-anthropic-platform": "^0.14",
-        "symfony/ai-gemini-platform": "^0.14",
-        "symfony/ai-ollama-platform": "^0.14",
-        "symfony/http-client": "^7.3|^8.0",
-        "symfony/ai-generic-platform": "^0.14",
-        "symfony/ai-open-router-platform": "^0.14",
-        "symfony/ai-replicate-platform": "^0.14",
-        "symfony/ai-mistral-platform": "^0.14",
-        "symfony/ai-cerebras-platform": "^0.14",
-        "symfony/ai-scaleway-platform": "^0.14"
+        "php": "^8.5",
+        "mcp/sdk": "^0.9",
+        "nyholm/psr7": "^1.8",
+        "redaxo/core": "^6.0@dev",
+        "symfony/ai-agent": "^1.0",
+        "symfony/ai-anthropic-platform": "^1.0",
+        "symfony/ai-cerebras-platform": "^1.0",
+        "symfony/ai-gemini-platform": "^1.0",
+        "symfony/ai-generic-platform": "^1.0",
+        "symfony/ai-mistral-platform": "^1.0",
+        "symfony/ai-ollama-platform": "^1.0",
+        "symfony/ai-open-ai-platform": "^1.0",
+        "symfony/ai-open-router-platform": "^1.0",
+        "symfony/ai-platform": "^1.0",
+        "symfony/ai-replicate-platform": "^1.0",
+        "symfony/ai-scaleway-platform": "^1.0",
+        "symfony/http-client": "^8.1",
+        "symfony/psr-http-message-bridge": "^8.1"
+    },
+    "suggest": {
+        "friendsofredaxo/api": "Stellt den MCP-Server unter /api/mcp bereit und verwaltet seine Zugangstoken"
     },
     "autoload": {
         "psr-4": {
-            "FriendsOfRedaxo\\AiPlatform\\": "lib/"
-        },
-        "classmap": [
-            "lib/rex_api_ai_test.php",
-            "lib/rex_api_ai_change_file.php"
-        ]
+            "FriendsOfRedaxo\\AiPlatform\\": "src/"
+        }
     },
-    "config": {
-        "platform": {
-            "php": "8.2.0"
+    "extra": {
+        "redaxo": {
+            "addon-class": "FriendsOfRedaxo\\AiPlatform\\AiPlatformAddon"
         }
     }
 }
