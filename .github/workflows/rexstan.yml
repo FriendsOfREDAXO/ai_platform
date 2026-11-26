@@ -16,6 +16,23 @@ jobs:
 
         runs-on: ubuntu-latest
 
+        # As a service container, not the runner's own MySQL: ubuntu-latest moved
+        # to 26.04, which no longer ships one, and `/etc/init.d/mysql start`
+        # failed before any test ran.
+        services:
+            mysql:
+                image: mysql:8.4
+                env:
+                    MYSQL_ROOT_PASSWORD: root
+                    MYSQL_DATABASE: redaxo5
+                ports:
+                    - 3306:3306
+                options: >-
+                    --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+                    --health-interval=5s
+                    --health-timeout=5s
+                    --health-retries=10
+
         steps:
             -   uses: actions/checkout@v4
 
@@ -34,11 +51,6 @@ jobs:
                     curl -Ls -o redaxo.zip https://github.com/redaxo/redaxo/releases/download/$REDAXO_VERSION/redaxo_$REDAXO_VERSION.zip
                     unzip -oq redaxo.zip -d redaxo_cms
                     rm redaxo.zip
-
-            -   name: Init database
-                run: |
-                    sudo /etc/init.d/mysql start
-                    mysql -uroot -h127.0.0.1 -proot -e 'create database redaxo5;'
 
             -   name: Setup REDAXO
                 run: |
