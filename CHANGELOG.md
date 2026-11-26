@@ -5,6 +5,12 @@ Alle nennenswerten Änderungen an diesem AddOn.
 Format nach [Keep a Changelog](https://keepachangelog.com/de/1.1.0/),
 Versionierung nach [Semantic Versioning](https://semver.org/lang/de/).
 
+## [Unreleased]
+
+### Hinzugefügt
+
+- **Eigene Änderungstypen über REST und Agent-Tools.** Ein Typ, den ein anderes AddOn über `AI_PLATFORM_CHANGE_HANDLERS` registriert, ließ sich bisher nur aus PHP vorschlagen: `POST /changes` und `redaxo_propose_change` brachen mit „No array mapping for change type …“ ab, im Typenkatalog fehlte er. Implementiert der Handler das neue `ArrayBuildableHandlerInterface`, baut er Target und Payload selbst aus Ziel und Feldern und beschreibt seine Felder für den Katalog. Der Kern prüft, dass beides zum Handler gehört. Bestehende Handler bleiben unverändert gültig.
+
 ## [1.2.0] – 2026-10-24
 
 ### Hinzugefügt

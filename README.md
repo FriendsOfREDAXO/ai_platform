@@ -913,6 +913,38 @@ rex_extension::register('AI_PLATFORM_CHANGE_HANDLERS', function (rex_extension_p
 
 `FriendsOfRedaxo\AiPlatform\Change\AbstractHandler` liefert Fingerprint, generischen Diff und „Rücknahme nicht unterstuetzt" als Vorgabe. Zu implementieren bleiben `readCurrent()`, `validate()`, `canApprove()` und `apply()`.
 
+So registriert, laesst sich der Typ nur aus PHP vorschlagen. REST-API, Agent-Tools und Typenkatalog bekommen Ziel und Felder als lose Arrays und wissen nicht, wie daraus Target und Payload eines fremden Typs werden. Dafuer implementiert der Handler zusaetzlich `FriendsOfRedaxo\AiPlatform\Change\ArrayBuildableHandlerInterface`:
+
+```php
+final class MeinHandler extends AbstractHandler implements ArrayBuildableHandlerInterface
+{
+    public function buildFromArray(ChangeOperation $operation, array $target, array $fields): array
+    {
+        $payload = new MeinPayload();
+        foreach ($fields as $name => $value) {
+            $payload = $payload->field($name, $value); // typisierter Setter, prueft den Namen
+        }
+
+        return [
+            'target' => MeinTarget::existing((int) ($target['article_id'] ?? 0), (int) ($target['clang_id'] ?? rex_clang::getStartId())),
+            'payload' => $payload,
+        ];
+    }
+
+    public function describeFields(): array
+    {
+        return [
+            'target' => ['article_id', 'clang_id'],
+            'fields' => ['mein_feld' => 'Was das Feld enthaelt'],
+        ];
+    }
+
+    // ...
+}
+```
+
+`$fields` kommt dabei so an wie bei den eingebauten Typen: Werte als Strings, leere Eintraege schon entfernt. Das Target muss zum Handler gehoeren (`changeType()` gleich `getType()`), der Payload eine Instanz von `payloadClass()` sein, sonst lehnt der Kern den Vorschlag ab. `describeFields()` erscheint in `GET /api/ai_platform/changes/describe` und im Agent-Tool `redaxo_describe_change_types`.
+
 ## Extension Points
 
 | Extension Point | Beschreibung | Subject |

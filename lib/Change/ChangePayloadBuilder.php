@@ -20,6 +20,7 @@ use FriendsOfRedaxo\AiPlatform\Change\Target\MetaTarget;
 use FriendsOfRedaxo\AiPlatform\Change\Target\SliceTarget;
 use FriendsOfRedaxo\AiPlatform\Change\Target\YformTarget;
 use InvalidArgumentException;
+use LogicException;
 use rex;
 use rex_clang;
 use rex_sql;
@@ -38,6 +39,9 @@ use function sprintf;
  *
  * This is the only place that maps loose input to objects. Duplicating it per
  * entry point is how the two would drift apart.
+ *
+ * Types registered by other addons bring their mapping along by implementing
+ * {@see ArrayBuildableHandlerInterface}; this class only dispatches to it.
  */
 final class ChangePayloadBuilder
 {
@@ -54,6 +58,12 @@ final class ChangePayloadBuilder
     ): array {
         $fields = self::normaliseFields($fields);
 
+        // Checked before the built-in names, so a handler that replaces a
+        // built-in type also brings its own mapping.
+        if ($handler instanceof ArrayBuildableHandlerInterface) {
+            return self::buildCustom($handler, $operation, $target, $fields);
+        }
+
         return match ($handler->getType()) {
             'slice' => self::buildSlice($operation, $target, $fields),
             'article' => self::buildArticle($operation, $target, $fields),
@@ -62,10 +72,52 @@ final class ChangePayloadBuilder
             'media' => self::buildMedia($operation, $target, $fields),
             'yform' => self::buildYform($operation, $target, $fields),
             default => throw new InvalidArgumentException(sprintf(
-                'No array mapping for change type "%s". Build its target and payload in PHP, or extend ChangePayloadBuilder.',
+                'No array mapping for change type "%s". Build its target and payload in PHP, or implement %s in its handler.',
                 $handler->getType(),
+                ArrayBuildableHandlerInterface::class,
             )),
         };
+    }
+
+    /**
+     * Lets a handler map its own type, then checks the result belongs to it.
+     *
+     * The check matters because the service resolves the handler from the
+     * target, not from the caller: a target of another type would be
+     * validated and applied by that type's handler.
+     *
+     * @param array<string, mixed> $target
+     * @param array<string, string> $fields
+     * @return array{target: TargetInterface, payload: PayloadInterface}
+     */
+    private static function buildCustom(
+        ArrayBuildableHandlerInterface $handler,
+        ChangeOperation $operation,
+        array $target,
+        array $fields,
+    ): array {
+        $built = $handler->buildFromArray($operation, $target, $fields);
+
+        $builtTarget = $built['target'];
+        if ($builtTarget::changeType() !== $handler->getType()) {
+            throw new LogicException(sprintf(
+                'Handler "%s" built a target of type "%s".',
+                $handler->getType(),
+                $builtTarget::changeType(),
+            ));
+        }
+
+        $payloadClass = $handler->payloadClass();
+        if (!$built['payload'] instanceof $payloadClass) {
+            throw new LogicException(sprintf(
+                'Handler "%s" built a %s instead of a %s.',
+                $handler->getType(),
+                $built['payload']::class,
+                $payloadClass,
+            ));
+        }
+
+        return $built;
     }
 
     /**
@@ -529,6 +581,12 @@ final class ChangePayloadBuilder
             'target' => ['table', 'dataset_id'],
             'fields' => $yformFields,
         ];
+
+        foreach (HandlerRegistry::all() as $type => $handler) {
+            if ($handler instanceof ArrayBuildableHandlerInterface) {
+                $description[$type] = $handler->describeFields();
+            }
+        }
 
         // Only report types that are actually registered.
         return array_intersect_key($description, HandlerRegistry::all());
